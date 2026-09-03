@@ -1,0 +1,63 @@
+import type { ClipboardConfig } from './modules/clipboard'
+
+/** ============ 应用全局配置类型 ============ */
+
+/** 窗口配置（窗口创建可配置化） */
+export interface WindowConfig {
+  width: number
+  height: number
+  minWidth: number
+  minHeight: number
+  /** 是否无边框 */
+  frame: boolean
+  /** 是否透明（用于实现圆角面板） */
+  transparent: boolean
+  /** 常驻置顶 */
+  alwaysOnTop: boolean
+  /** 不显示在任务栏 */
+  skipTaskbar: boolean
+  resizable: boolean
+  /** 面板距工作区顶部的偏移 */
+  topOffset: number
+}
+
+/** 全局快捷键配置（可配置化） */
+export interface ShortcutConfig {
+  /** 呼出/隐藏面板，Electron Accelerator 格式 */
+  togglePanel: string
+}
+
+/** 隐私配置 */
+export interface PrivacyConfig {
+  /** 退出时清空全部记录 */
+  clearOnQuit: boolean
+  /** 启动时清空历史记录 */
+  clearOnStart: boolean
+}
+
+/** 通用配置 */
+export interface GeneralConfig {
+  /** 开机自启 */
+  launchAtLogin: boolean
+}
+
+/** 应用配置：全局段 + 各功能模块段 */
+export interface AppConfig {
+  window: WindowConfig
+  shortcuts: ShortcutConfig
+  clipboard: ClipboardConfig
+  privacy: PrivacyConfig
+  general: GeneralConfig
+}
+
+/** 配置局部更新（递归 Partial） */
+export type ConfigPatch = {
+  [K in keyof AppConfig]?: Partial<AppConfig[K]>
+}
+
+/** config:update 返回值 */
+export interface ConfigUpdateResult {
+  config: AppConfig
+  /** 应用配置时的警告（如快捷键注册失败） */
+  warnings: string[]
+}
