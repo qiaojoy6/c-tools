@@ -12,7 +12,7 @@ import {
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import ClipCard from '@renderer/modules/clipboard/components/ClipCard.vue'
-import { useHistory } from '../modules/clipboard/composables/useHistory.js'
+import { useHistory } from '@renderer/modules/clipboard/composables/useHistory'
 import { ClipboardList, Search, Settings2, Trash2 } from 'lucide-vue-next'
 
 type FilterType = 'all' | 'text' | 'image'

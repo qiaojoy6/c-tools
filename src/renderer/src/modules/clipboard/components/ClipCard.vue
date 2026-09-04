@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ClipRecord } from '@shared/types'
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Badge } from '@renderer/components/ui/badge'
 import { Check, ChevronDown, ChevronUp, Trash2 } from 'lucide-vue-next'
 import { formatBytes, formatTime } from '@renderer/modules/clipboard/lib/time'
@@ -34,6 +34,7 @@ function measureOverflow(): void {
     canToggle.value = false
     return
   }
+  el.scrollTop = 0
   canToggle.value = el.scrollHeight > el.clientHeight + 1
 }
 
@@ -55,22 +56,10 @@ watch(
   }
 )
 
-let resizeObserver: ResizeObserver | null = null
-
 onMounted(() => {
   nextTick(() => {
     measureOverflow()
-    if (!textEl.value || typeof ResizeObserver === 'undefined') return
-    resizeObserver = new ResizeObserver(() => {
-      if (!expanded.value) measureOverflow()
-    })
-    resizeObserver.observe(textEl.value)
   })
-})
-
-onUnmounted(() => {
-  resizeObserver?.disconnect()
-  resizeObserver = null
 })
 </script>
 
@@ -104,7 +93,10 @@ onUnmounted(() => {
         <p
           ref="textEl"
           :class="
-            cn('text-[13px] leading-5 break-all whitespace-pre-wrap', !expanded && 'line-clamp-3')
+            cn(
+              'text-[13px] leading-5 break-all whitespace-pre-wrap',
+              expanded ? 'max-h-40 overflow-y-auto' : 'line-clamp-3'
+            )
           "
         >
           {{ record.text }}
