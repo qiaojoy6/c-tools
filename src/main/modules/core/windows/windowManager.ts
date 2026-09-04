@@ -3,7 +3,7 @@ import { PanelWindow } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
 
 /**
- * 窗口枢纽：组合主面板与其它窗口，对外保持稳定 API。
+ * 窗口枢纽：组合主浮层与其它窗口，对外保持稳定 API。
  * 新增窗口时在此挂载对应 Controller，勿把逻辑堆回单文件。
  */
 export class WindowManager {
@@ -45,16 +45,26 @@ export class WindowManager {
     return this.panel.create()
   }
 
+  /** 独立剪贴板浮层（无左侧轨） */
+  showClipboard(): void {
+    this.panel.show('/clipboard')
+  }
+
+  /** 功能面板浮层（左侧模块 Tab） */
   showPanel(): void {
-    this.panel.show()
+    this.panel.show('/panel')
   }
 
   hidePanel(): void {
     this.panel.hide()
   }
 
+  toggleClipboard(): void {
+    this.panel.toggleClipboard()
+  }
+
   togglePanel(): void {
-    this.panel.toggle()
+    this.panel.togglePanel()
   }
 
   showSettings(): void {

@@ -1,13 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
-const isPanelShell = computed(() => route.name === 'panel')
+const router = useRouter()
+
+/** 浮层壳：独立剪贴板与功能面板共用毛玻璃样式 */
+const isOverlayShell = computed(() => route.name === 'clipboard' || route.name === 'panel')
+
+let offNavigate: (() => void) | null = null
+
+onMounted(() => {
+  // 主进程切换 /clipboard ↔ /panel 时不整页 reload
+  offNavigate = window.api.onNavigate((path) => {
+    void router.push(path)
+  })
+})
+
+onUnmounted(() => {
+  offNavigate?.()
+})
 </script>
 
 <template>
-  <div :class="isPanelShell ? 'app-shell app-shell--panel' : 'app-shell'">
+  <div :class="isOverlayShell ? 'app-shell app-shell--panel' : 'app-shell'">
     <router-view />
   </div>
 </template>

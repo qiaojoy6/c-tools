@@ -1,14 +1,18 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 /**
- * 路由配置：每个窗口对应入口（懒加载）
- * 主进程按 hash 打开对应窗口（面板 /panel，设置 /settings）
+ * 路由配置：每个窗口形态对应入口（懒加载）
+ * 主进程按 hash 打开：独立剪贴板 /clipboard，功能面板 /panel，设置 /settings
  */
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    { path: '/', redirect: '/panel' },
-    { path: '/clipboard', redirect: '/panel' },
+    { path: '/', redirect: '/clipboard' },
+    {
+      path: '/clipboard',
+      name: 'clipboard',
+      component: () => import('@renderer/pages/ClipboardPage.vue')
+    },
     {
       path: '/panel',
       name: 'panel',

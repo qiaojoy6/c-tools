@@ -1,10 +1,10 @@
 /**
- * 主进程入口：组装 core / clipboard，注册 IPC，启动托盘与面板。
+ * 主进程入口：组装 core / clipboard，注册 IPC，启动托盘与浮层。
  *
  * 进程通信约定：
  * - invoke / handle：请求-响应（配置、历史、粘贴）
- * - send / on：单向通知（隐藏面板、打开设置）
- * - webContents.send / ipcRenderer.on：主→渲染推送（面板显示、历史更新）
+ * - send / on：单向通知（隐藏浮层、打开设置）
+ * - webContents.send / ipcRenderer.on：主→渲染推送（浮层显示、路由切换、历史更新）
  * Preload 经 contextBridge 暴露为 window.api，渲染进程不直接碰 ipcRenderer。
  */
 import { app, BrowserWindow } from 'electron'
@@ -40,8 +40,8 @@ const gotSingleLock = app.requestSingleInstanceLock()
 if (!gotSingleLock) {
   app.quit()
 } else {
-  // 用户再次打开应用时，唤起已有实例的面板
-  app.on('second-instance', () => windowManager?.showPanel())
+  // 用户再次打开应用时，唤起已有实例的独立剪贴板
+  app.on('second-instance', () => windowManager?.showClipboard())
 
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.ctools.clipboard')
@@ -56,8 +56,8 @@ if (!gotSingleLock) {
 
     windowManager = new WindowManager(() => configManager.get())
 
-    // 全局快捷键 → 切换剪贴板面板；非法配置写回规范化或默认值
-    shortcutManager = new ShortcutManager(() => windowManager.togglePanel())
+    // 全局快捷键 → 独立剪贴板浮层；非法配置写回规范化或默认值
+    shortcutManager = new ShortcutManager(() => windowManager.toggleClipboard())
     const shortcut = normalizeAccelerator(cfg.shortcuts.togglePanel)
     if (shortcut !== cfg.shortcuts.togglePanel) {
       configManager.update({ shortcuts: { togglePanel: shortcut } })
@@ -80,6 +80,7 @@ if (!gotSingleLock) {
     trayManager = new TrayManager(
       () => ({ launchAtLogin: configManager.get().general.launchAtLogin }),
       {
+        // 托盘左键：功能面板；快捷键仍呼出独立剪贴板
         togglePanel: () => windowManager.togglePanel(),
         openSettings,
         toggleLogin: () => {
@@ -137,10 +138,10 @@ if (!gotSingleLock) {
     // 配置中的开机自启与系统保持同步
     applyLoginItem(cfg.general.launchAtLogin)
 
-    // 预创建面板（隐藏）；托盘 / 快捷键 / activate 再显示
+    // 预创建浮层（隐藏，默认 /clipboard）；快捷键 / 托盘 / activate 再显示
     windowManager.createPanel()
 
-    app.on('activate', () => windowManager.showPanel())
+    app.on('activate', () => windowManager.showClipboard())
   })
 
   // 托盘常驻：关闭所有窗口不退出进程

@@ -41,7 +41,7 @@ const cleanOptions: SelectOption[] = [
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <p class="text-sm">呼出剪贴板</p>
-          <p class="mt-0.5 text-xs text-muted-foreground">全局快捷键，呼出 / 隐藏剪贴板面板</p>
+          <p class="mt-0.5 text-xs text-muted-foreground">全局快捷键，呼出 / 隐藏独立剪贴板窗口</p>
         </div>
         <div class="flex shrink-0 flex-col items-end gap-1.5">
           <HotkeyInput

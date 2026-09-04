@@ -6,12 +6,17 @@ import { delay, loadRoute } from './loadRoute'
 
 const RESTORE_FOCUS_DELAY_MS = 100
 
+/** 浮层窗口可切换的路由：独立剪贴板 / 带左侧模块轨的面板 */
+export type PanelRoute = '/clipboard' | '/panel'
+
 /**
- * 主面板窗口（无边框、置顶、失焦隐藏；内含可切换功能模块）
+ * 主浮层窗口（无边框、置顶、失焦隐藏）
+ * 同一窗口按路由切换：快捷键 → /clipboard；托盘面板 → /panel
  */
 export class PanelWindow {
   private win: BrowserWindow | null = null
   private previousAppBundleId: string | null = null
+  private currentRoute: PanelRoute = '/clipboard'
 
   constructor(
     private getConfig: () => AppConfig,
@@ -20,6 +25,10 @@ export class PanelWindow {
 
   get browserWindow(): BrowserWindow | null {
     return this.win
+  }
+
+  get route(): PanelRoute {
+    return this.currentRoute
   }
 
   isVisible(): boolean {
@@ -60,31 +69,56 @@ export class PanelWindow {
       }
     })
 
-    loadRoute(win, '/panel')
+    // 预创建默认进入独立剪贴板（快捷键主路径）
+    this.currentRoute = '/clipboard'
+    loadRoute(win, '/clipboard')
     this.win = win
     return win
   }
 
-  show(): void {
+  /** 显示浮层；必要时经 IPC 切换路由（避免整页 reload） */
+  show(route: PanelRoute = '/clipboard'): void {
     const win = this.win ?? this.create()
     this.capturePreviousFocusTarget()
     this.position(win)
+
+    const routeChanged = this.currentRoute !== route
+    if (routeChanged) {
+      this.currentRoute = route
+      if (!win.webContents.isLoading()) {
+        win.webContents.send('route:navigate', route)
+      } else {
+        // 首次加载尚未完成时改用 loadRoute，避免 navigate 丢失
+        loadRoute(win, route)
+      }
+    }
+
     if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
     if (process.platform === 'darwin') {
       app.focus({ steal: true })
     }
-    win.webContents.send('panel:shown')
+    // 同路由再显示：通知已挂载页重置；切路由时目标页 remount 会自行拉数
+    if (!routeChanged) {
+      win.webContents.send('panel:shown')
+    }
   }
 
   hide(): void {
     if (this.win?.isVisible()) this.win.hide()
   }
 
-  toggle(): void {
-    if (this.isVisible()) this.hide()
-    else this.show()
+  /** 切换独立剪贴板窗口 */
+  toggleClipboard(): void {
+    if (this.isVisible() && this.currentRoute === '/clipboard') this.hide()
+    else this.show('/clipboard')
+  }
+
+  /** 切换带左侧模块轨的功能面板 */
+  togglePanel(): void {
+    if (this.isVisible() && this.currentRoute === '/panel') this.hide()
+    else this.show('/panel')
   }
 
   /** 隐藏面板并恢复呼出前的前台应用（macOS） */

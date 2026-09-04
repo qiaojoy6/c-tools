@@ -4,6 +4,7 @@ import { Settings2 } from 'lucide-vue-next'
 import { PANEL_MODULES } from '@renderer/modules/panel/tabs'
 import ClipboardPage from '@renderer/pages/ClipboardPage.vue'
 
+/** 功能面板：左侧模块轨 + 内容区（剪贴板也可经快捷键以 /clipboard 独立浮层打开） */
 const activeModule = ref(PANEL_MODULES[0]!.id)
 
 function openSettings(): void {

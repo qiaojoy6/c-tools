@@ -22,7 +22,7 @@ export const appApi = {
   /** settings:open */
   openSettings: (): void => ipcRenderer.send('settings:open'),
 
-  /** 订阅 panel:shown（面板每次显示时刷新列表、重置搜索等） */
+  /** 订阅 panel:shown（浮层每次显示时刷新列表、重置搜索等） */
   onPanelShown: (callback: () => void): (() => void) => {
     const listener = (): void => callback()
     ipcRenderer.on('panel:shown', listener)
@@ -33,6 +33,14 @@ export const appApi = {
     const listener = (): void => callback()
     ipcRenderer.on('settings:shown', listener)
     return () => ipcRenderer.removeListener('settings:shown', listener)
+  },
+  /** 订阅 route:navigate（主进程切换独立剪贴板 / 功能面板） */
+  onNavigate: (callback: (path: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, path: string): void => {
+      callback(path)
+    }
+    ipcRenderer.on('route:navigate', listener)
+    return () => ipcRenderer.removeListener('route:navigate', listener)
   }
 }
 
