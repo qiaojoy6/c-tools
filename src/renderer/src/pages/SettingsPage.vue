@@ -4,7 +4,6 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { SETTINGS_MODULES } from '@renderer/modules/settings/tabs'
 import GeneralSettings from '@renderer/modules/settings/components/GeneralSettings.vue'
 import ClipboardSettings from '@renderer/modules/settings/components/ClipboardSettings.vue'
-import { cn } from '@renderer/lib/utils'
 
 const config = ref<AppConfig | null>(null)
 const activeModule = ref(SETTINGS_MODULES[0]!.id)
@@ -50,43 +49,34 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen bg-background text-foreground">
-    <!-- 左侧模块 Tab -->
-    <aside class="flex w-48 shrink-0 flex-col border-r border-border/50 bg-card/30">
-      <nav class="flex flex-1 flex-col gap-0.5 px-2 py-3">
+  <div class="settings">
+    <aside class="aside">
+      <div class="aside-label-wrap">
+        <p class="aside-label">设置</p>
+      </div>
+      <nav class="aside-nav" aria-label="设置模块">
         <button
           v-for="mod in SETTINGS_MODULES"
           :key="mod.id"
           type="button"
-          :class="
-            cn(
-              'flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors',
-              activeModule === mod.id
-                ? 'bg-primary/15 text-primary'
-                : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-            )
-          "
+          class="aside-btn"
+          :aria-current="activeModule === mod.id ? 'page' : undefined"
           @click="activeModule = mod.id"
         >
-          <component :is="mod.icon" class="size-4 shrink-0" />
-          <span>{{ mod.label }}</span>
+          <component :is="mod.icon" class="aside-icon" aria-hidden="true" />
+          <span class="aside-btn-text">{{ mod.label }}</span>
         </button>
       </nav>
     </aside>
 
-    <!-- 右侧内容 -->
-    <main class="flex min-w-0 flex-1 flex-col">
-      <header class="shrink-0 border-b border-border/50 px-6 py-4">
-        <h2 class="text-base font-semibold">{{ activeTab.label }}</h2>
-        <p class="mt-0.5 text-xs text-muted-foreground">{{ activeTab.description }}</p>
+    <main class="main">
+      <header class="main-header">
+        <h2 class="main-title">{{ activeTab.label }}</h2>
+        <p class="main-desc">{{ activeTab.description }}</p>
       </header>
 
-      <div v-if="config" class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-        <GeneralSettings
-          v-if="activeModule === 'general'"
-          :config="config"
-          @apply="apply"
-        />
+      <div v-if="config" class="main-body">
+        <GeneralSettings v-if="activeModule === 'general'" :config="config" @apply="apply" />
         <ClipboardSettings
           v-else-if="activeModule === 'clipboard'"
           :config="config"
@@ -96,24 +86,146 @@ onUnmounted(() => {
     </main>
 
     <Transition name="toast">
-      <div v-if="toastMsg" class="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center">
-        <div
-          class="rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground shadow-lg"
-        >
-          {{ toastMsg }}
-        </div>
+      <div v-if="toastMsg" class="toast-wrap">
+        <div class="toast">{{ toastMsg }}</div>
       </div>
     </Transition>
   </div>
 </template>
 
 <style scoped>
+.settings {
+  display: flex;
+  height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.aside {
+  display: flex;
+  width: 208px;
+  flex-shrink: 0;
+  flex-direction: column;
+  border-right: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  background: color-mix(in oklab, var(--rail) 60%, transparent);
+}
+
+.aside-label-wrap {
+  padding: 20px 16px 12px;
+}
+
+.aside-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.aside-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 10px 16px;
+}
+
+.aside-btn {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--muted-foreground);
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.aside-btn:hover {
+  background: rgb(255 255 255 / 5%);
+  color: var(--foreground);
+}
+
+.aside-btn[aria-current='page'] {
+  background: color-mix(in oklab, var(--primary) 15%, transparent);
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
+.aside-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.aside-btn-text {
+  font-weight: 500;
+}
+
+.main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.main-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  padding: 20px 28px;
+}
+
+.main-title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.main-desc {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+
+.main-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+.toast-wrap {
+  pointer-events: none;
+  position: fixed;
+  inset-inline: 0;
+  top: 16px;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+}
+
+.toast {
+  border-radius: 999px;
+  background: var(--primary);
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-foreground);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 20%);
+}
+
 .toast-enter-active,
 .toast-leave-active {
   transition:
     opacity 0.18s ease,
     transform 0.18s ease;
 }
+
 .toast-enter-from,
 .toast-leave-to {
   opacity: 0;

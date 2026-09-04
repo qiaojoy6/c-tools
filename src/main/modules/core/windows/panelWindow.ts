@@ -7,7 +7,7 @@ import { delay, loadRoute } from './loadRoute'
 const RESTORE_FOCUS_DELAY_MS = 100
 
 /**
- * 主窗口：剪贴板面板（无边框、置顶、失焦隐藏）
+ * 主面板窗口（无边框、置顶、失焦隐藏；内含可切换功能模块）
  */
 export class PanelWindow {
   private win: BrowserWindow | null = null
@@ -60,7 +60,7 @@ export class PanelWindow {
       }
     })
 
-    loadRoute(win, '/clipboard')
+    loadRoute(win, '/panel')
     this.win = win
     return win
   }

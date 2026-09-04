@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import type { ClipRecord } from '@shared/types'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { Badge } from '@renderer/components/ui/badge'
 import { Check, ChevronDown, ChevronUp, Star, Trash2 } from 'lucide-vue-next'
 import { formatBytes, formatTime } from '@renderer/modules/clipboard/lib/time'
-import { cn } from '@renderer/lib/utils'
 
 const props = defineProps<{
   record: ClipRecord
@@ -69,108 +67,260 @@ onMounted(() => {
 <template>
   <div
     data-clip-card
+    class="card"
     :data-active="active"
-    :class="
-      cn(
-        'group relative flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-all duration-150',
-        active
-          ? 'border-primary/40 bg-accent ring-1 ring-primary/30'
-          : 'border-transparent hover:bg-accent/60',
-        selected && 'border-primary/60 bg-primary/10'
-      )
-    "
+    :data-selected="selected"
     @click="onClick"
     @dblclick="emit('commit', record)"
   >
-    <!-- 选中标记 -->
-    <span
-      v-if="selected"
-      class="absolute -top-1.5 -left-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow"
-    >
-      <Check class="size-3" />
+    <span v-if="selected" class="card-check" aria-hidden="true">
+      <Check class="card-check-icon" />
     </span>
 
-    <!-- 文本记录 -->
     <template v-if="record.type === 'text'">
-      <div class="min-w-0 flex-1">
-        <p
-          ref="textEl"
-          :class="
-            cn(
-              'text-[13px] leading-5 break-all whitespace-pre-wrap',
-              expanded ? 'max-h-40 overflow-y-auto' : 'line-clamp-3'
-            )
-          "
-        >
+      <div class="card-body" :class="{ 'card-body--offset': selected }">
+        <p ref="textEl" class="card-text" :class="expanded ? 'is-expanded' : 'is-clamped'">
           {{ record.text }}
         </p>
-        <div class="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <div class="card-meta">
           <span>{{ formatTime(record.createdAt) }}</span>
-          <span class="opacity-40">·</span>
-          <span>{{ record.text?.length ?? 0 }} 字符</span>
-          <button
-            v-if="canToggle"
-            type="button"
-            class="inline-flex cursor-pointer items-center gap-0.5 text-primary hover:underline"
-            @click="toggleExpand"
-          >
+          <span class="dot">·</span>
+          <span>{{ record.text?.length ?? 0 }} 字</span>
+          <button v-if="canToggle" type="button" class="expand-btn" @click="toggleExpand">
             <template v-if="expanded">
               收起
-              <ChevronUp class="size-3" />
+              <ChevronUp class="expand-icon" aria-hidden="true" />
             </template>
             <template v-else>
               展开
-              <ChevronDown class="size-3" />
+              <ChevronDown class="expand-icon" aria-hidden="true" />
             </template>
           </button>
         </div>
       </div>
     </template>
 
-    <!-- 图片记录 -->
     <template v-else>
       <img
         :src="imageDataUrl"
-        class="h-14 w-24 shrink-0 rounded-md border border-border/60 bg-card object-cover"
+        class="thumb"
         draggable="false"
+        alt=""
         @mouseenter="emit('preview', record)"
         @mouseleave="emit('preview', null)"
       />
-      <div class="min-w-0 flex-1">
-        <p class="text-[13px]">图片</p>
-        <div class="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+      <div class="card-body">
+        <p class="card-title">图片</p>
+        <div class="card-meta">
           <span>{{ formatTime(record.createdAt) }}</span>
-          <span class="opacity-40">·</span>
+          <span class="dot">·</span>
           <span>{{ record.image?.width }} × {{ record.image?.height }}</span>
-          <span class="opacity-40">·</span>
+          <span class="dot">·</span>
           <span>{{ formatBytes(record.image?.base64.length ?? 0) }}</span>
         </div>
       </div>
     </template>
 
-    <!-- 右侧操作：收藏在上、删除在下 -->
-    <div class="flex shrink-0 flex-col items-center gap-0.5">
+    <div class="card-actions">
       <button
-        class="flex size-7 cursor-pointer items-center justify-center rounded-md transition-all"
-        :class="
-          favorited
-            ? 'text-amber-500 opacity-100 hover:bg-amber-500/10'
-            : 'text-muted-foreground opacity-0 hover:bg-accent hover:text-amber-500 group-hover:opacity-100'
-        "
+        type="button"
+        class="action-btn"
+        :class="favorited ? 'is-favorited' : 'is-ghost'"
         :title="favorited ? '取消收藏' : '收藏'"
+        :aria-label="favorited ? '取消收藏' : '收藏'"
+        :aria-pressed="favorited"
         @click.stop="emit('toggle-favorite', record)"
       >
-        <Star class="size-3.5" :fill="favorited ? 'currentColor' : 'none'" />
+        <Star class="action-icon" :fill="favorited ? 'currentColor' : 'none'" aria-hidden="true" />
       </button>
       <button
         v-if="!favorited"
-        class="flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+        type="button"
+        class="action-btn is-ghost is-danger"
         title="删除"
+        aria-label="删除"
         @click.stop="emit('remove', record)"
       >
-        <Trash2 class="size-3.5" />
+        <Trash2 class="action-icon" aria-hidden="true" />
       </button>
-      <Badge v-if="selected" variant="soft" class="mt-0.5">已选</Badge>
     </div>
   </div>
 </template>
+
+<style scoped>
+.card {
+  position: relative;
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  gap: 14px;
+  border-radius: 12px;
+  padding: 12px 14px;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.card:hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+.card[data-active='true'] {
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 40%, transparent);
+}
+
+.card[data-selected='true']:not([data-active='true']) {
+  background: color-mix(in oklab, var(--primary) 5%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 25%, transparent);
+}
+
+.card-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.card-check-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.card-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.card-body--offset {
+  padding-left: 12px;
+}
+
+.card-text {
+  font-size: 13.5px;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: color-mix(in oklab, var(--foreground) 95%, transparent);
+}
+
+.card-text.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.card-text.is-expanded {
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.card-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: color-mix(in oklab, var(--foreground) 90%, transparent);
+}
+
+.card-meta {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.dot {
+  opacity: 0.3;
+}
+
+.expand-btn {
+  display: inline-flex;
+  cursor: pointer;
+  align-items: center;
+  gap: 2px;
+  color: var(--primary);
+  transition: opacity 0.15s ease;
+}
+
+.expand-btn:hover {
+  opacity: 0.8;
+}
+
+.expand-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.thumb {
+  height: 56px;
+  width: 96px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+.card-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.action-btn {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.action-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.action-btn.is-favorited {
+  color: #fbbf24;
+  opacity: 1;
+}
+
+.action-btn.is-favorited:hover {
+  background: color-mix(in oklab, #fbbf24 10%, transparent);
+}
+
+.action-btn.is-ghost {
+  color: var(--muted-foreground);
+  opacity: 0;
+}
+
+.card:hover .action-btn.is-ghost,
+.action-btn.is-ghost:focus-visible {
+  opacity: 1;
+}
+
+.action-btn.is-ghost:hover {
+  background: rgb(255 255 255 / 5%);
+  color: #fbbf24;
+}
+
+.action-btn.is-danger:hover {
+  background: color-mix(in oklab, var(--destructive) 10%, transparent);
+  color: var(--destructive);
+}
+</style>

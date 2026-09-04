@@ -13,7 +13,7 @@ import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import ClipCard from '@renderer/modules/clipboard/components/ClipCard.vue'
 import { useHistory } from '@renderer/modules/clipboard/composables/useHistory'
-import { ClipboardList, Search, Settings2, Trash2 } from 'lucide-vue-next'
+import { ClipboardList, Image as ImageIcon, Search, Star, Trash2, Type } from 'lucide-vue-next'
 
 type FilterType = 'all' | 'text' | 'image' | 'favorite'
 
@@ -30,11 +30,11 @@ const showClearConfirm = ref(false)
 const preview = ref<ClipRecord | null>(null)
 const toastMsg = ref('')
 
-const tabs: { label: string; value: FilterType }[] = [
-  { label: '全部', value: 'all' },
-  { label: '文本', value: 'text' },
-  { label: '图片', value: 'image' },
-  { label: '收藏', value: 'favorite' }
+const tabs: { label: string; value: FilterType; icon: typeof ClipboardList }[] = [
+  { label: '全部', value: 'all', icon: ClipboardList },
+  { label: '文本', value: 'text', icon: Type },
+  { label: '图片', value: 'image', icon: ImageIcon },
+  { label: '收藏', value: 'favorite', icon: Star }
 ]
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -223,10 +223,6 @@ function hidePanel(): void {
   window.api.hidePanel()
 }
 
-function openSettings(): void {
-  window.api.openSettings()
-}
-
 // ---------- 键盘导航 ----------
 function isTypingTarget(e: KeyboardEvent): boolean {
   const el = e.target as HTMLElement | null
@@ -340,44 +336,46 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen flex-col overflow-hidden">
-    <!-- 顶栏：搜索 + 类型过滤 -->
-    <header
-      class="drag-region flex shrink-0 items-center gap-2 border-b border-border/50 px-3 py-2.5"
-    >
-      <div ref="searchWrap" class="relative min-w-0 flex-1">
-        <Search
-          class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-        />
+  <div class="page">
+    <header class="header drag-region">
+      <div ref="searchWrap" class="search">
+        <Search class="search-icon" aria-hidden="true" />
         <Input
           v-model="search"
           placeholder="搜索剪贴记录…"
-          class="no-drag h-10 rounded-lg bg-card/50 pl-9"
+          aria-label="搜索剪贴记录"
+          class="search-input no-drag"
         />
+        <kbd v-if="!search" class="search-hint">⌘F</kbd>
       </div>
-      <div class="no-drag flex shrink-0 items-center gap-0.5 rounded-lg bg-card/50 p-0.5">
+
+      <div class="filters no-drag" role="tablist" aria-label="类型筛选">
         <button
           v-for="tab in tabs"
           :key="tab.value"
-          class="cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors"
-          :class="filter === tab.value ? 'bg-primary/15 text-primary' : 'hover:text-foreground'"
+          type="button"
+          class="filter-chip"
+          role="tab"
+          :aria-selected="filter === tab.value"
           @click="filter = tab.value"
         >
+          <component :is="tab.icon" class="filter-icon" aria-hidden="true" />
           {{ tab.label }}
         </button>
       </div>
     </header>
 
-    <!-- 记录列表 -->
-    <main class="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+    <main class="list">
       <template v-if="filtered.length > 0">
         <ClipCard
           v-for="(record, index) in filtered"
           :key="record.id"
+          class="clip-enter"
           :record="record"
           :active="index === highlight"
           :selected="selectedIds.has(record.id)"
           :favorited="isFavorited(record)"
+          :style="{ animationDelay: `${Math.min(index, 8) * 28}ms` }"
           @activate="onActivate"
           @commit="onCommit"
           @remove="onRemoveCard"
@@ -385,79 +383,78 @@ onUnmounted(() => {
           @preview="onPreview"
         />
       </template>
-      <div
-        v-else
-        class="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground"
-      >
-        <ClipboardList class="size-10 opacity-30" />
-        <p class="text-sm">
-          {{
-            viewingFavorites
-              ? search
-                ? '没有匹配的收藏'
-                : '暂无收藏，点星标可将记录加入收藏'
-              : search || filter !== 'all'
-                ? '没有匹配的记录'
-                : '暂无剪贴记录，去复制点什么吧'
-          }}
-        </p>
+      <div v-else class="empty">
+        <div class="empty-icon-wrap">
+          <ClipboardList class="empty-icon" aria-hidden="true" />
+        </div>
+        <div class="empty-copy">
+          <p class="empty-title">
+            {{
+              viewingFavorites
+                ? search
+                  ? '没有匹配的收藏'
+                  : '还没有收藏'
+                : search || filter !== 'all'
+                  ? '没有匹配的记录'
+                  : '剪贴板还是空的'
+            }}
+          </p>
+          <p class="empty-desc">
+            {{
+              viewingFavorites
+                ? search
+                  ? '试试换个关键词'
+                  : '点星标即可把常用内容钉在这里'
+                : search || filter !== 'all'
+                  ? '调整筛选或清空搜索再试试'
+                  : '去复制一段文字或截图，马上会出现在这里'
+            }}
+          </p>
+        </div>
       </div>
     </main>
 
-    <!-- 底栏：统计 + 操作 -->
-    <footer
-      class="flex shrink-0 items-center gap-3 border-t border-border/50 px-3 py-2 text-xs text-muted-foreground"
-    >
-      <span>
-        共 {{ filtered.length }} 条
-        <template v-if="selectedIds.size > 0"> · 已选 {{ selectedIds.size }} 条</template>
+    <footer class="footer">
+      <span class="count">
+        {{ filtered.length }} 条
+        <template v-if="selectedIds.size > 0">
+          · <span class="count-selected">已选 {{ selectedIds.size }}</span>
+        </template>
       </span>
-      <span class="ml-auto hidden opacity-70 md:block"
-        >双击/↵ 粘贴 · ←/→ 筛选 · 空格 多选 · ⌫ 删除</span
-      >
-      <div class="no-drag flex shrink-0 items-center gap-0.5">
+      <div class="hints">
+        <span class="hint"><kbd class="kbd">↵</kbd> 粘贴</span>
+        <span class="hint"><kbd class="kbd">←→</kbd> 筛选</span>
+        <span class="hint"><kbd class="kbd">⌫</kbd> 删</span>
+      </div>
+      <div class="footer-actions no-drag">
         <Button
           v-if="!viewingFavorites"
           variant="ghost"
           size="icon-sm"
           title="清空历史"
-          class="hover:bg-destructive/10 hover:text-destructive"
+          aria-label="清空历史"
+          class="clear-btn"
           @click="showClearConfirm = true"
         >
-          <Trash2 class="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon-sm" title="设置" @click="openSettings">
-          <Settings2 class="size-4" />
+          <Trash2 class="clear-icon" aria-hidden="true" />
         </Button>
       </div>
     </footer>
 
-    <!-- 图片悬停预览 -->
-    <div
-      v-if="preview?.image"
-      class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-8"
-    >
+    <div v-if="preview?.image" class="preview-scrim">
       <img
         :src="`data:image/png;base64,${preview.image.base64}`"
-        class="max-h-[70%] max-w-[70%] rounded-lg border border-border/60 bg-card object-contain shadow-2xl"
+        class="preview-img"
+        alt="预览"
       />
     </div>
 
-    <!-- 轻提示 -->
     <Transition name="toast">
-      <div
-        v-if="toastMsg"
-        class="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center"
-      >
-        <div
-          class="rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground shadow-lg"
-        >
-          {{ toastMsg }}
-        </div>
+      <div v-if="toastMsg" class="toast-wrap">
+        <div class="toast">{{ toastMsg }}</div>
       </div>
     </Transition>
 
-    <!-- 清空确认 -->
     <Dialog :open="showClearConfirm" @update:open="showClearConfirm = $event">
       <DialogContent class="max-w-sm">
         <DialogHeader>
@@ -476,21 +473,328 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.page {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  flex-shrink: 0;
+  padding: 16px 16px 12px;
+}
+
+.header > * + * {
+  margin-top: 12px;
+}
+
+.search {
+  position: relative;
+  min-width: 0;
+}
+
+.search-icon {
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--muted-foreground);
+}
+
+.search-input {
+  height: 44px;
+  border-radius: 12px;
+  border-color: color-mix(in oklab, var(--border) 50%, transparent);
+  background: var(--surface-elevated);
+  padding-left: 40px;
+  font-size: 15px;
+  box-shadow: none;
+  backdrop-filter: blur(8px);
+}
+
+.search-input::placeholder {
+  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+}
+
+.search-hint {
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: none;
+  transform: translateY(-50%);
+  border-radius: 6px;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+@media (min-width: 640px) {
+  .search-hint {
+    display: inline;
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  height: 32px;
+  cursor: pointer;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--muted) 50%, transparent);
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.filter-chip:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.filter-chip[aria-selected='true'] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+}
+
+.filter-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.list {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 8px;
+}
+
+.list > * + * {
+  margin-top: 6px;
+}
+
+.empty {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 24px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+
+.empty-icon-wrap {
+  display: flex;
+  width: 56px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--border) 50%, transparent);
+}
+
+.empty-icon {
+  width: 28px;
+  height: 28px;
+  opacity: 0.5;
+}
+
+.empty-copy > * + * {
+  margin-top: 4px;
+}
+
+.empty-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: color-mix(in oklab, var(--foreground) 80%, transparent);
+}
+
+.empty-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+}
+
+.count-selected {
+  color: var(--primary);
+}
+
+.hints {
+  margin-left: auto;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.6;
+}
+
+@media (min-width: 768px) {
+  .hints {
+    display: flex;
+  }
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kbd {
+  display: inline-flex;
+  height: 20px;
+  min-width: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  background: color-mix(in oklab, var(--muted) 50%, transparent);
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+.footer-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.clear-btn {
+  color: var(--muted-foreground);
+}
+
+.clear-btn:hover {
+  background: color-mix(in oklab, var(--destructive) 10%, transparent);
+  color: var(--destructive);
+}
+
+.clear-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.preview-scrim {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 35%);
+  padding: 40px;
+  backdrop-filter: blur(2px);
+}
+
+.preview-img {
+  max-height: 72%;
+  max-width: 72%;
+  border-radius: 16px;
+  border: 1px solid rgb(255 255 255 / 15%);
+  background: var(--card);
+  object-fit: contain;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 40%);
+}
+
+.toast-wrap {
+  pointer-events: none;
+  position: fixed;
+  inset-inline: 0;
+  top: 16px;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+}
+
+.toast {
+  border-radius: 999px;
+  background: var(--primary);
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-foreground);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 20%);
+}
+
 .drag-region {
   -webkit-app-region: drag;
 }
+
 .no-drag {
   -webkit-app-region: no-drag;
 }
+
+.clip-enter {
+  animation: clip-in 0.28s ease both;
+}
+
+@keyframes clip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .toast-enter-active,
 .toast-leave-active {
   transition:
     opacity 0.18s ease,
     transform 0.18s ease;
 }
+
 .toast-enter-from,
 .toast-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clip-enter {
+    animation: none;
+  }
 }
 </style>

@@ -3,50 +3,54 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ---------- 设计令牌：Teal 主色 + 极简暗色面板（默认暗色） ---------- */
+/* ---------- 设计令牌：Teal + 深空玻璃（默认暗色，面向年轻生产力工具） ---------- */
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.985 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
+  --radius: 0.875rem;
+  --background: oklch(0.985 0.005 190);
+  --foreground: oklch(0.2 0.02 190);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
+  --card-foreground: oklch(0.2 0.02 190);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.6 0.106 189.9);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.6 0.106 189.9);
+  --popover-foreground: oklch(0.2 0.02 190);
+  --primary: oklch(0.55 0.12 185);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.01 190);
+  --secondary-foreground: oklch(0.25 0.02 190);
+  --muted: oklch(0.955 0.01 190);
+  --muted-foreground: oklch(0.48 0.02 190);
+  --accent: oklch(0.955 0.015 185);
+  --accent-foreground: oklch(0.25 0.03 185);
+  --destructive: oklch(0.55 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.9 0.01 190);
+  --input: oklch(0.9 0.01 190);
+  --ring: oklch(0.55 0.12 185);
+  --surface-elevated: oklch(1 0 0 / 70%);
+  --rail: oklch(0.97 0.01 190);
 }
 
 .dark {
-  --background: oklch(0.145 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.704 0.14 182.503);
-  --primary-foreground: oklch(0.145 0.005 285.823);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.704 0.14 182.503);
+  --background: oklch(0.16 0.012 220);
+  --foreground: oklch(0.96 0.005 220);
+  --card: oklch(0.2 0.014 220);
+  --card-foreground: oklch(0.96 0.005 220);
+  --popover: oklch(0.2 0.014 220);
+  --popover-foreground: oklch(0.96 0.005 220);
+  --primary: oklch(0.74 0.13 180);
+  --primary-foreground: oklch(0.16 0.02 180);
+  --secondary: oklch(0.24 0.014 220);
+  --secondary-foreground: oklch(0.92 0.005 220);
+  --muted: oklch(0.24 0.014 220);
+  --muted-foreground: oklch(0.68 0.015 220);
+  --accent: oklch(0.26 0.02 190);
+  --accent-foreground: oklch(0.96 0.005 220);
+  --destructive: oklch(0.68 0.17 22);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.74 0.13 180);
+  --surface-elevated: oklch(0.22 0.016 220 / 72%);
+  --rail: oklch(0.14 0.012 220);
 }
 
 @theme inline {
@@ -69,6 +73,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-rail: var(--rail);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -102,20 +108,38 @@
   #app {
     height: 100vh;
   }
+
+  /* 可点击区域统一手型 */
+  button,
+  [role='button'],
+  a {
+    cursor: pointer;
+  }
 }
 
 /* 细滚动条 */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--foreground) 15%, transparent);
+  background: color-mix(in oklab, var(--foreground) 14%, transparent);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklab, var(--foreground) 25%, transparent);
+  background: color-mix(in oklab, var(--foreground) 26%, transparent);
+}
+
+/* 动效：尊重系统「减少动态效果」 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
