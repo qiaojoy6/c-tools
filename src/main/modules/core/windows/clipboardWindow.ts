@@ -1,29 +1,22 @@
 import { execFile, execFileSync } from 'child_process'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'path'
+import type { AppConfig } from '@shared/types'
 import { delay, loadRoute } from './loadRoute'
 
 const RESTORE_FOCUS_DELAY_MS = 100
 
-/** 功能面板通栏高度，与渲染侧表头、titleBarOverlay 一致 */
-export const PANEL_TITLE_BAR_HEIGHT = 40
-
-/** Windows / Linux 原生窗控覆盖层（与暗色面板表头接近） */
-export const PANEL_TITLE_BAR_OVERLAY = {
-  color: '#1c1f26',
-  symbolColor: '#c8c8c8',
-  height: PANEL_TITLE_BAR_HEIGHT
-} as const
-
 /**
- * 功能面板窗口：titleBarStyle hidden + 原生窗控，顶部自定义通栏
- * 托盘呼出；ESC / 失焦不关闭
+ * 独立剪贴板浮层：无边框、置顶、失焦隐藏；由全局快捷键呼出
  */
-export class PanelWindow {
+export class ClipboardWindow {
   private win: BrowserWindow | null = null
   private previousAppBundleId: string | null = null
 
-  constructor(private isQuitting: () => boolean) {}
+  constructor(
+    private getConfig: () => AppConfig,
+    private isQuitting: () => boolean
+  ) {}
 
   get browserWindow(): BrowserWindow | null {
     return this.win
@@ -34,36 +27,34 @@ export class PanelWindow {
   }
 
   create(): BrowserWindow {
+    const cfg = this.getConfig().window
     const win = new BrowserWindow({
-      width: 880,
-      height: 600,
-      minWidth: 720,
-      minHeight: 480,
+      width: cfg.width,
+      height: cfg.height,
+      minWidth: cfg.minWidth,
+      minHeight: cfg.minHeight,
       show: false,
-      title: '功能面板',
-      // 隐藏系统标题栏，保留原生最小化 / 最大化 / 关闭
-      titleBarStyle: 'hidden',
-      trafficLightPosition: { x: 14, y: 12 },
-      ...(process.platform !== 'darwin'
-        ? {
-            titleBarOverlay: { ...PANEL_TITLE_BAR_OVERLAY }
-          }
-        : {}),
-      transparent: false,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      resizable: true,
+      frame: false,
+      transparent: cfg.transparent,
+      alwaysOnTop: cfg.alwaysOnTop,
+      skipTaskbar: cfg.skipTaskbar,
+      resizable: cfg.resizable,
       fullscreenable: false,
-      maximizable: true,
+      maximizable: false,
       hasShadow: true,
       autoHideMenuBar: true,
+      backgroundColor: cfg.transparent ? '#00000000' : undefined,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false
       }
     })
 
-    win.center()
+    this.position(win)
+
+    win.on('blur', () => {
+      if (this.getConfig().window.hideOnBlur) this.hide()
+    })
 
     win.on('close', (e) => {
       if (!this.isQuitting()) {
@@ -72,7 +63,7 @@ export class PanelWindow {
       }
     })
 
-    loadRoute(win, '/panel')
+    loadRoute(win, '/clipboard')
     this.win = win
     return win
   }
@@ -80,8 +71,8 @@ export class PanelWindow {
   show(): void {
     const win = this.win ?? this.create()
     this.capturePreviousFocusTarget()
+    this.position(win)
     if (win.isMinimized()) win.restore()
-    if (!win.isVisible()) win.center()
     win.show()
     win.focus()
     if (process.platform === 'darwin') {
@@ -99,7 +90,7 @@ export class PanelWindow {
     else this.show()
   }
 
-  /** 隐藏并恢复呼出前的前台应用（macOS）；面板内剪贴板粘贴时使用 */
+  /** 隐藏并恢复呼出前的前台应用（macOS） */
   async restorePreviousFocus(): Promise<boolean> {
     this.hide()
 
@@ -131,6 +122,15 @@ export class PanelWindow {
     const id = this.previousAppBundleId
     this.previousAppBundleId = null
     return id
+  }
+
+  private position(win: BrowserWindow): void {
+    const cfg = this.getConfig().window
+    const { workArea } = screen.getPrimaryDisplay()
+    const [w] = win.getSize()
+    const x = workArea.x + Math.round((workArea.width - w) / 2)
+    const y = workArea.y + cfg.topOffset
+    win.setPosition(x, y, false)
   }
 
   private capturePreviousFocusTarget(): void {

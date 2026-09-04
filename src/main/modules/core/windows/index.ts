@@ -1,4 +1,5 @@
 export { WindowManager } from './windowManager'
-export { PanelWindow, type PanelRoute } from './panelWindow'
+export { ClipboardWindow } from './clipboardWindow'
+export { PanelWindow, PANEL_TITLE_BAR_HEIGHT, PANEL_TITLE_BAR_OVERLAY } from './panelWindow'
 export { SettingsWindow } from './settingsWindow'
 export { loadRoute, delay } from './loadRoute'

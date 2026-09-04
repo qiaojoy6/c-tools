@@ -16,7 +16,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: true,
-    topOffset: 72
+    topOffset: 72,
+    hideOnBlur: true
   },
   shortcuts: {
     togglePanel: DEFAULT_TOGGLE_PANEL_SHORTCUT

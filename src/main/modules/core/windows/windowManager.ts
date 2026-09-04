@@ -1,19 +1,25 @@
 import type { AppConfig } from '@shared/types'
+import { execFile } from 'child_process'
+import { delay } from './loadRoute'
+import { ClipboardWindow } from './clipboardWindow'
 import { PanelWindow } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
 
+const RESTORE_FOCUS_DELAY_MS = 100
+
 /**
- * 窗口枢纽：组合主浮层与其它窗口，对外保持稳定 API。
- * 新增窗口时在此挂载对应 Controller，勿把逻辑堆回单文件。
+ * 窗口枢纽：独立剪贴板浮层 + 功能面板 + 设置窗
  */
 export class WindowManager {
   private quitting = false
+  readonly clipboard: ClipboardWindow
   readonly panel: PanelWindow
   readonly settings: SettingsWindow
 
   constructor(getConfig: () => AppConfig) {
     const isQuitting = (): boolean => this.quitting
-    this.panel = new PanelWindow(getConfig, isQuitting)
+    this.clipboard = new ClipboardWindow(getConfig, isQuitting)
+    this.panel = new PanelWindow(isQuitting)
     this.settings = new SettingsWindow(isQuitting)
   }
 
@@ -23,6 +29,10 @@ export class WindowManager {
 
   get panelWindow() {
     return this.panel.browserWindow
+  }
+
+  get clipboardWindow() {
+    return this.clipboard.browserWindow
   }
 
   get settingsWindow() {
@@ -38,33 +48,37 @@ export class WindowManager {
   }
 
   isVisible(): boolean {
-    return this.panel.isVisible()
+    return this.clipboard.isVisible() || this.panel.isVisible()
   }
 
+  /** 预创建独立剪贴板（快捷键主路径） */
   createPanel() {
-    return this.panel.create()
+    return this.clipboard.create()
   }
 
-  /** 独立剪贴板浮层（无左侧轨） */
   showClipboard(): void {
-    this.panel.show('/clipboard')
+    this.panel.hide()
+    this.clipboard.show()
   }
 
-  /** 功能面板浮层（左侧模块 Tab） */
   showPanel(): void {
-    this.panel.show('/panel')
+    this.clipboard.hide()
+    this.panel.show()
   }
 
   hidePanel(): void {
+    this.clipboard.hide()
     this.panel.hide()
   }
 
   toggleClipboard(): void {
-    this.panel.toggleClipboard()
+    if (this.clipboard.isVisible()) this.clipboard.hide()
+    else this.showClipboard()
   }
 
   togglePanel(): void {
-    this.panel.togglePanel()
+    if (this.panel.isVisible()) this.panel.hide()
+    else this.showPanel()
   }
 
   showSettings(): void {
@@ -75,7 +89,35 @@ export class WindowManager {
     this.settings.hide()
   }
 
-  restorePreviousFocus(): Promise<boolean> {
-    return this.panel.restorePreviousFocus()
+  /**
+   * 粘贴前：关闭剪贴板/面板并恢复呼出前应用焦点（macOS）
+   * 优先使用最近呼出窗口捕获的 bundle id
+   */
+  async restorePreviousFocus(): Promise<boolean> {
+    const bundleId =
+      this.clipboard.takePreviousAppBundleId() ?? this.panel.takePreviousAppBundleId()
+
+    this.clipboard.hide()
+    this.panel.hide()
+
+    if (process.platform !== 'darwin') {
+      return true
+    }
+    if (!bundleId) return true
+
+    return new Promise((resolve) => {
+      execFile(
+        'osascript',
+        ['-e', `tell application id "${bundleId}" to activate`],
+        async (err) => {
+          if (err) {
+            resolve(false)
+            return
+          }
+          await delay(RESTORE_FOCUS_DELAY_MS)
+          resolve(true)
+        }
+      )
+    })
   }
 }

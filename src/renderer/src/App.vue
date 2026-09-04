@@ -1,29 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 
 const route = useRoute()
-const router = useRouter()
 
-/** 浮层壳：独立剪贴板与功能面板共用毛玻璃样式 */
-const isOverlayShell = computed(() => route.name === 'clipboard' || route.name === 'panel')
-
-let offNavigate: (() => void) | null = null
-
-onMounted(() => {
-  // 主进程切换 /clipboard ↔ /panel 时不整页 reload
-  offNavigate = window.api.onNavigate((path) => {
-    void router.push(path)
-  })
-})
-
-onUnmounted(() => {
-  offNavigate?.()
-})
+/** 独立剪贴板用毛玻璃浮层壳；功能面板 / 设置为普通窗 */
+const isOverlayShell = computed(() => route.name === 'clipboard')
 </script>
 
 <template>
-  <div :class="isOverlayShell ? 'app-shell app-shell--panel' : 'app-shell'">
+  <div :class="isOverlayShell ? 'app-shell app-shell--overlay' : 'app-shell'">
     <router-view />
   </div>
 </template>
@@ -36,7 +22,7 @@ onUnmounted(() => {
   background: var(--background);
 }
 
-.app-shell--panel {
+.app-shell--overlay {
   border-radius: 20px;
   border: 1px solid rgb(255 255 255 / 10%);
   background-color: color-mix(in oklab, var(--background) 90%, transparent);

@@ -22,7 +22,8 @@ import {
   TrayManager,
   WindowManager,
   registerCoreIpc,
-  normalizeAccelerator
+  normalizeAccelerator,
+  setupAppMenu
 } from './modules/core'
 
 let configManager: ConfigManager
@@ -53,6 +54,14 @@ if (!gotSingleLock) {
     // ---- 通用模块（core）----
     configManager = new ConfigManager()
     const cfg = configManager.get()
+
+    // 精简菜单：去掉 File / Edit / Window；View 含失焦隐藏开关
+    setupAppMenu({
+      getConfig: () => configManager.get(),
+      updateConfig: (patch) => {
+        configManager.update(patch)
+      }
+    })
 
     windowManager = new WindowManager(() => configManager.get())
 

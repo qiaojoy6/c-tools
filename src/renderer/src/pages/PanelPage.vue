@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { Settings2 } from 'lucide-vue-next'
 import { PANEL_MODULES } from '@renderer/modules/panel/tabs'
+import WindowTitleBar from '@renderer/modules/panel/components/WindowTitleBar.vue'
 import ClipboardPage from '@renderer/pages/ClipboardPage.vue'
 
-/** 功能面板：左侧模块轨 + 内容区（剪贴板也可经快捷键以 /clipboard 独立浮层打开） */
+/** 功能面板：通栏自定义表头 + 左侧模块轨 + 内容区 */
 const activeModule = ref(PANEL_MODULES[0]!.id)
+
+onMounted(() => {
+  document.title = '功能面板'
+})
 
 function openSettings(): void {
   window.api.openSettings()
@@ -14,37 +19,41 @@ function openSettings(): void {
 
 <template>
   <div class="panel">
-    <!-- 左侧图标轨道 -->
-    <aside class="rail drag-region">
-      <nav class="rail-nav no-drag" aria-label="功能模块">
+    <WindowTitleBar />
+
+    <div class="panel-main">
+      <!-- 左侧图标轨道 -->
+      <aside class="rail">
+        <nav class="rail-nav" aria-label="功能模块">
+          <button
+            v-for="mod in PANEL_MODULES"
+            :key="mod.id"
+            type="button"
+            class="rail-btn"
+            :title="mod.label"
+            :aria-label="mod.label"
+            :aria-current="activeModule === mod.id ? 'page' : undefined"
+            @click="activeModule = mod.id"
+          >
+            <span v-if="activeModule === mod.id" class="rail-indicator" aria-hidden="true" />
+            <component :is="mod.icon" class="rail-icon" aria-hidden="true" />
+          </button>
+        </nav>
+
         <button
-          v-for="mod in PANEL_MODULES"
-          :key="mod.id"
           type="button"
-          class="rail-btn"
-          :title="mod.label"
-          :aria-label="mod.label"
-          :aria-current="activeModule === mod.id ? 'page' : undefined"
-          @click="activeModule = mod.id"
+          class="rail-btn rail-settings"
+          title="设置"
+          aria-label="打开设置"
+          @click="openSettings"
         >
-          <span v-if="activeModule === mod.id" class="rail-indicator" aria-hidden="true" />
-          <component :is="mod.icon" class="rail-icon" aria-hidden="true" />
+          <Settings2 class="rail-icon" aria-hidden="true" />
         </button>
-      </nav>
+      </aside>
 
-      <button
-        type="button"
-        class="rail-btn rail-settings no-drag"
-        title="设置"
-        aria-label="打开设置"
-        @click="openSettings"
-      >
-        <Settings2 class="rail-icon" aria-hidden="true" />
-      </button>
-    </aside>
-
-    <div class="panel-body">
-      <ClipboardPage v-if="activeModule === 'clipboard'" />
+      <div class="panel-body">
+        <ClipboardPage v-if="activeModule === 'clipboard'" />
+      </div>
     </div>
   </div>
 </template>
@@ -53,7 +62,14 @@ function openSettings(): void {
 .panel {
   display: flex;
   height: 100vh;
+  flex-direction: column;
   overflow: hidden;
+}
+
+.panel-main {
+  display: flex;
+  min-height: 0;
+  flex: 1;
 }
 
 .rail {
@@ -133,13 +149,5 @@ function openSettings(): void {
 .panel-body {
   min-width: 0;
   flex: 1;
-}
-
-.drag-region {
-  -webkit-app-region: drag;
-}
-
-.no-drag {
-  -webkit-app-region: no-drag;
 }
 </style>

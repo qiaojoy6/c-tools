@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ClipRecord } from '@shared/types'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,10 @@ import { useHistory } from '@renderer/modules/clipboard/composables/useHistory'
 import { ClipboardList, Image as ImageIcon, Search, Star, Trash2, Type } from 'lucide-vue-next'
 
 type FilterType = 'all' | 'text' | 'image' | 'favorite'
+
+const route = useRoute()
+/** 仅独立剪贴板浮层可用 ESC 关闭；功能面板内嵌时 ESC 只清搜索/预览 */
+const escToClose = computed(() => route.name === 'clipboard')
 
 const { records, favorites, refresh, remove, clear, addFavorite, removeFavorite, paste } =
   useHistory()
@@ -241,7 +246,7 @@ function onKeydown(e: KeyboardEvent): void {
       search.value = ''
       preview.value = null
       blurSearch()
-    } else {
+    } else if (escToClose.value) {
       hidePanel()
     }
     return
@@ -510,7 +515,7 @@ onUnmounted(() => {
   border-radius: 12px;
   border-color: color-mix(in oklab, var(--border) 50%, transparent);
   background: var(--surface-elevated);
-  padding-left: 40px;
+  padding-left: 15px;
   font-size: 15px;
   box-shadow: none;
   backdrop-filter: blur(8px);
@@ -525,7 +530,7 @@ onUnmounted(() => {
   position: absolute;
   top: 50%;
   right: 12px;
-  display: none;
+  display: inline;
   transform: translateY(-50%);
   border-radius: 6px;
   border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
@@ -534,12 +539,6 @@ onUnmounted(() => {
   font-family: inherit;
   font-size: 10px;
   color: var(--muted-foreground);
-}
-
-@media (min-width: 640px) {
-  .search-hint {
-    display: inline;
-  }
 }
 
 .filters {
@@ -666,7 +665,7 @@ onUnmounted(() => {
   opacity: 0.6;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 500px) {
   .hints {
     display: flex;
   }

@@ -19,6 +19,8 @@ export interface WindowConfig {
   resizable: boolean
   /** 面板距工作区顶部的偏移 */
   topOffset: number
+  /** 失焦 / 点击窗口外空白时是否自动隐藏面板 */
+  hideOnBlur: boolean
 }
 
 /** 全局快捷键配置（可配置化） */

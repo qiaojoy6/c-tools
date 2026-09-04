@@ -24,11 +24,11 @@ export interface CoreIpcDeps {
  * | config:update       | 渲染→主 invoke | 局部更新；快捷键失败会回滚 |
  * | shortcuts:suspend   | 渲染→主 invoke | 录制快捷键前卸掉全局注册 |
  * | shortcuts:resume    | 渲染→主 invoke | 录制结束或取消后恢复 |
- * | panel:hide          | 渲染→主 send   | 隐藏浮层窗口 |
+ * | panel:hide          | 渲染→主 send   | 隐藏剪贴板/功能面板 |
  * | settings:open       | 渲染→主 send   | 打开设置窗口 |
  *
  * 主→渲染（由 WindowManager 发出，preload 订阅）：
- * panel:shown / settings:shown / route:navigate
+ * panel:shown / settings:shown
  */
 export function registerCoreIpc(deps: CoreIpcDeps): void {
   const { config, shortcuts, tray, windows } = deps
