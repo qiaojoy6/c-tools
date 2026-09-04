@@ -85,6 +85,15 @@ function move(delta: number): void {
   scrollActive()
 }
 
+/** 左右键切换类型 Tab：全部 → 文本 → 图片 */
+function switchFilter(delta: number): void {
+  const i = tabs.findIndex((t) => t.value === filter.value)
+  const next = (i + delta + tabs.length) % tabs.length
+  filter.value = tabs[next]!.value
+  selectedIds.value = new Set()
+  preview.value = null
+}
+
 function toggleSelect(index: number): void {
   const record = filtered.value[index]
   if (!record) return
@@ -191,6 +200,7 @@ function onKeydown(e: KeyboardEvent): void {
     if (search.value || preview.value) {
       search.value = ''
       preview.value = null
+      blurSearch()
     } else {
       hidePanel()
     }
@@ -203,19 +213,41 @@ function onKeydown(e: KeyboardEvent): void {
     return
   }
 
+  // 上下/左右始终导航，不进搜索框
   switch (e.key) {
     case 'ArrowDown':
       e.preventDefault()
       move(1)
-      break
+      return
     case 'ArrowUp':
       e.preventDefault()
       move(-1)
-      break
+      return
+    case 'ArrowLeft':
+      if (isTypingTarget(e)) return
+      e.preventDefault()
+      switchFilter(-1)
+      return
+    case 'ArrowRight':
+      if (isTypingTarget(e)) return
+      e.preventDefault()
+      switchFilter(1)
+      return
     case 'Tab':
       e.preventDefault()
       move(e.shiftKey ? -1 : 1)
-      break
+      return
+  }
+
+  // 未聚焦搜索时：仅英文/数字敲键才拉起搜索并写入
+  if (!isTypingTarget(e) && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z0-9]$/.test(e.key)) {
+    e.preventDefault()
+    search.value += e.key
+    focusSearch()
+    return
+  }
+
+  switch (e.key) {
     case ' ':
       if (isTypingTarget(e)) return
       e.preventDefault()
@@ -238,6 +270,10 @@ function focusSearch(): void {
   searchWrap.value?.querySelector('input')?.focus()
 }
 
+function blurSearch(): void {
+  searchWrap.value?.querySelector('input')?.blur()
+}
+
 // ---------- 生命周期 ----------
 onMounted(() => {
   offShown = window.api.onPanelShown(() => {
@@ -247,7 +283,7 @@ onMounted(() => {
     selectedIds.value = new Set()
     preview.value = null
     void refresh()
-    focusSearch()
+    blurSearch()
   })
   window.addEventListener('keydown', onKeydown, true)
 })
@@ -322,7 +358,9 @@ onUnmounted(() => {
         共 {{ filtered.length }} 条
         <template v-if="selectedIds.size > 0"> · 已选 {{ selectedIds.size }} 条</template>
       </span>
-      <span class="ml-auto hidden opacity-70 md:block">双击/↵ 粘贴 · 空格 多选 · ⌫ 删除</span>
+      <span class="ml-auto hidden opacity-70 md:block"
+        >双击/↵ 粘贴 · ←/→ 筛选 · 空格 多选 · ⌫ 删除</span
+      >
       <div class="no-drag flex shrink-0 items-center gap-0.5">
         <Button
           variant="ghost"
