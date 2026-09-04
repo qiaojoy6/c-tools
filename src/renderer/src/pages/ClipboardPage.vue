@@ -15,9 +15,10 @@ import ClipCard from '@renderer/modules/clipboard/components/ClipCard.vue'
 import { useHistory } from '@renderer/modules/clipboard/composables/useHistory'
 import { ClipboardList, Search, Settings2, Trash2 } from 'lucide-vue-next'
 
-type FilterType = 'all' | 'text' | 'image'
+type FilterType = 'all' | 'text' | 'image' | 'favorite'
 
-const { records, refresh, remove, clear, paste } = useHistory()
+const { records, favorites, refresh, remove, clear, addFavorite, removeFavorite, paste } =
+  useHistory()
 
 // ---------- 状态 ----------
 const search = ref('')
@@ -32,7 +33,8 @@ const toastMsg = ref('')
 const tabs: { label: string; value: FilterType }[] = [
   { label: '全部', value: 'all' },
   { label: '文本', value: 'text' },
-  { label: '图片', value: 'image' }
+  { label: '图片', value: 'image' },
+  { label: '收藏', value: 'favorite' }
 ]
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -40,11 +42,28 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null
 let anchorIndex = -1
 let offShown: (() => void) | null = null
 
+const viewingFavorites = computed(() => filter.value === 'favorite')
+
+/** 按内容匹配是否已收藏（历史与收藏 id 不同，用内容关联点亮） */
+function contentKey(r: ClipRecord): string {
+  if (r.type === 'text') return `text:${r.text ?? ''}`
+  return `image:${r.image?.base64 ?? ''}`
+}
+
+const favoriteKeys = computed(() => new Set(favorites.value.map(contentKey)))
+
+function isFavorited(record: ClipRecord): boolean {
+  return viewingFavorites.value || favoriteKeys.value.has(contentKey(record))
+}
+
 // ---------- 过滤 ----------
 const filtered = computed<ClipRecord[]>(() => {
   const keyword = search.value.trim().toLowerCase()
-  return records.value.filter((r) => {
-    if (filter.value !== 'all' && r.type !== filter.value) return false
+  const source = viewingFavorites.value ? favorites.value : records.value
+  return source.filter((r) => {
+    if (filter.value === 'text' || filter.value === 'image') {
+      if (r.type !== filter.value) return false
+    }
     if (keyword && (r.type !== 'text' || !r.text?.toLowerCase().includes(keyword))) return false
     return true
   })
@@ -85,7 +104,7 @@ function move(delta: number): void {
   scrollActive()
 }
 
-/** 左右键切换类型 Tab：全部 → 文本 → 图片 */
+/** 左右键切换类型 Tab：全部 → 文本 → 图片 → 收藏 */
 function switchFilter(delta: number): void {
   const i = tabs.findIndex((t) => t.value === filter.value)
   const next = (i + delta + tabs.length) % tabs.length
@@ -149,10 +168,35 @@ async function onCommit(record: ClipRecord): Promise<void> {
 }
 
 function onRemoveCard(record: ClipRecord): void {
-  void remove(record.id)
+  if (viewingFavorites.value) {
+    void removeFavorite(record.id)
+  } else {
+    void remove(record.id)
+  }
   const next = new Set(selectedIds.value)
   next.delete(record.id)
   selectedIds.value = next
+}
+
+async function onToggleFavorite(record: ClipRecord): Promise<void> {
+  if (viewingFavorites.value) {
+    await removeFavorite(record.id)
+    const next = new Set(selectedIds.value)
+    next.delete(record.id)
+    selectedIds.value = next
+    return
+  }
+
+  // 历史列表：已点亮则按内容取消对应收藏，否则新增
+  const key = contentKey(record)
+  if (favoriteKeys.value.has(key)) {
+    const fav = favorites.value.find((f) => contentKey(f) === key)
+    if (fav) await removeFavorite(fav.id)
+    return
+  }
+
+  const ok = await addFavorite(record.id)
+  if (!ok) showToast('已在收藏中')
 }
 
 function removeCurrent(): void {
@@ -168,7 +212,7 @@ async function confirmClear(): Promise<void> {
   await clear()
   selectedIds.value = new Set()
   highlight.value = 0
-  showToast('已清空全部记录')
+  showToast('已清空历史记录（收藏不受影响）')
 }
 
 function onPreview(record: ClipRecord | null): void {
@@ -333,9 +377,11 @@ onUnmounted(() => {
           :record="record"
           :active="index === highlight"
           :selected="selectedIds.has(record.id)"
+          :favorited="isFavorited(record)"
           @activate="onActivate"
           @commit="onCommit"
           @remove="onRemoveCard"
+          @toggle-favorite="onToggleFavorite"
           @preview="onPreview"
         />
       </template>
@@ -345,7 +391,15 @@ onUnmounted(() => {
       >
         <ClipboardList class="size-10 opacity-30" />
         <p class="text-sm">
-          {{ search || filter !== 'all' ? '没有匹配的记录' : '暂无剪贴记录，去复制点什么吧' }}
+          {{
+            viewingFavorites
+              ? search
+                ? '没有匹配的收藏'
+                : '暂无收藏，点星标可将记录加入收藏'
+              : search || filter !== 'all'
+                ? '没有匹配的记录'
+                : '暂无剪贴记录，去复制点什么吧'
+          }}
         </p>
       </div>
     </main>
@@ -363,9 +417,10 @@ onUnmounted(() => {
       >
       <div class="no-drag flex shrink-0 items-center gap-0.5">
         <Button
+          v-if="!viewingFavorites"
           variant="ghost"
           size="icon-sm"
-          title="清空全部"
+          title="清空历史"
           class="hover:bg-destructive/10 hover:text-destructive"
           @click="showClearConfirm = true"
         >
@@ -406,9 +461,9 @@ onUnmounted(() => {
     <Dialog :open="showClearConfirm" @update:open="showClearConfirm = $event">
       <DialogContent class="max-w-sm">
         <DialogHeader>
-          <DialogTitle>清空全部记录？</DialogTitle>
+          <DialogTitle>清空历史记录？</DialogTitle>
           <DialogDescription>
-            将删除全部 {{ records.length }} 条剪贴记录，此操作不可撤销。
+            将删除全部 {{ records.length }} 条历史记录，收藏不受影响。此操作不可撤销。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

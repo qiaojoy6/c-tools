@@ -12,6 +12,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { ConfigManager, applyLoginItem, DEFAULT_CONFIG } from './config'
 import {
   ClipboardWatcher,
+  FavoritesManager,
   HistoryManager,
   PasteService,
   registerClipboardIpc
@@ -26,6 +27,7 @@ import {
 
 let configManager: ConfigManager
 let historyManager: HistoryManager
+let favoritesManager: FavoritesManager
 let pasteService: PasteService
 let windowManager: WindowManager
 let shortcutManager: ShortcutManager
@@ -96,9 +98,14 @@ if (!gotSingleLock) {
 
     // 历史变更时推送到所有渲染窗口（history:updated）
     historyManager = new HistoryManager(() => configManager.get(), (records) => {
-      broadcastRecords(records)
+      broadcastHistory(records)
     })
     historyManager.init()
+
+    favoritesManager = new FavoritesManager((records) => {
+      broadcastFavorites(records)
+    })
+    favoritesManager.init()
 
     clipboardWatcher = new ClipboardWatcher(
       () => configManager.get().clipboard.pollIntervalMs,
@@ -117,10 +124,15 @@ if (!gotSingleLock) {
       // 模块联动通过回调注入，core 不依赖具体功能模块
       onModuleConfigChanged: () => {
         historyManager.applyConfigChanged()
-        broadcastRecords(historyManager.getAll())
+        broadcastHistory(historyManager.getAll())
       }
     })
-    registerClipboardIpc({ history: historyManager, paste: pasteService, windows: windowManager })
+    registerClipboardIpc({
+      history: historyManager,
+      favorites: favoritesManager,
+      paste: pasteService,
+      windows: windowManager
+    })
 
     // 配置中的开机自启与系统保持同步
     applyLoginItem(cfg.general.launchAtLogin)
@@ -139,10 +151,17 @@ if (!gotSingleLock) {
   app.on('will-quit', () => shortcutManager?.unregisterAll())
 }
 
-/** 主→渲染：广播剪贴历史（面板订阅后刷新列表） */
-function broadcastRecords(records: unknown): void {
+/** 主→渲染：广播剪贴历史 */
+function broadcastHistory(records: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('history:updated', records)
+  }
+}
+
+/** 主→渲染：广播收藏列表 */
+function broadcastFavorites(records: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('favorite:updated', records)
   }
 }
 
@@ -150,6 +169,7 @@ function quitApp(): void {
   const cfg = configManager?.get()
   if (cfg?.privacy.clearOnQuit) historyManager?.clear()
   historyManager?.dispose()
+  favoritesManager?.dispose()
   clipboardWatcher?.stop()
   windowManager?.markQuitting()
   app.quit()

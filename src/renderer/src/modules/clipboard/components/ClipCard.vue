@@ -2,7 +2,7 @@
 import type { ClipRecord } from '@shared/types'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Badge } from '@renderer/components/ui/badge'
-import { Check, ChevronDown, ChevronUp, Trash2 } from 'lucide-vue-next'
+import { Check, ChevronDown, ChevronUp, Star, Trash2 } from 'lucide-vue-next'
 import { formatBytes, formatTime } from '@renderer/modules/clipboard/lib/time'
 import { cn } from '@renderer/lib/utils'
 
@@ -10,12 +10,15 @@ const props = defineProps<{
   record: ClipRecord
   active: boolean
   selected: boolean
+  /** 是否为收藏条目（决定星标实心/空心与点击语义） */
+  favorited?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'activate', record: ClipRecord, event: MouseEvent): void
   (e: 'commit', record: ClipRecord): void
   (e: 'remove', record: ClipRecord): void
+  (e: 'toggle-favorite', record: ClipRecord): void
   (e: 'preview', record: ClipRecord | null): void
 }>()
 
@@ -145,16 +148,29 @@ onMounted(() => {
       </div>
     </template>
 
-    <!-- 右侧操作 -->
-    <div class="flex shrink-0 items-center gap-1">
-      <Badge v-if="selected" variant="soft">已选</Badge>
+    <!-- 右侧操作：收藏在上、删除在下 -->
+    <div class="flex shrink-0 flex-col items-center gap-0.5">
       <button
+        class="flex size-7 cursor-pointer items-center justify-center rounded-md transition-all"
+        :class="
+          favorited
+            ? 'text-amber-500 opacity-100 hover:bg-amber-500/10'
+            : 'text-muted-foreground opacity-0 hover:bg-accent hover:text-amber-500 group-hover:opacity-100'
+        "
+        :title="favorited ? '取消收藏' : '收藏'"
+        @click.stop="emit('toggle-favorite', record)"
+      >
+        <Star class="size-3.5" :fill="favorited ? 'currentColor' : 'none'" />
+      </button>
+      <button
+        v-if="!favorited"
         class="flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
         title="删除"
         @click.stop="emit('remove', record)"
       >
         <Trash2 class="size-3.5" />
       </button>
+      <Badge v-if="selected" variant="soft" class="mt-0.5">已选</Badge>
     </div>
   </div>
 </template>

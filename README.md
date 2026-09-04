@@ -81,10 +81,14 @@ Renderer (window.api.xxx)
 | Renderer `window.api` | Preload | Main Channel | 说明 |
 |-----------------------|---------|--------------|------|
 | `listHistory()` | `invoke` | `history:list` | 拉取全部历史 → `ClipRecord[]` |
-| `removeHistory(id)` | `invoke` | `history:remove` | 删除单条 |
-| `clearHistory()` | `invoke` | `history:clear` | 清空全部 |
-| `pasteItems(ids)` | `invoke` | `clip:paste` | 恢复原焦点后模拟粘贴 |
-| `onHistoryUpdated(cb)` | `on` ← | `history:updated` | 监听捕获或配置裁剪后同步列表（返回取消函数） |
+| `removeHistory(id)` | `invoke` | `history:remove` | 删除单条历史 |
+| `clearHistory()` | `invoke` | `history:clear` | 清空历史（不影响收藏） |
+| `listFavorites()` | `invoke` | `favorite:list` | 拉取全部收藏 → `ClipRecord[]` |
+| `addFavorite(historyId)` | `invoke` | `favorite:add` | 从历史拷贝到收藏（内容去重） |
+| `removeFavorite(id)` | `invoke` | `favorite:remove` | 取消收藏（删除） |
+| `pasteItems(ids)` | `invoke` | `clip:paste` | 恢复原焦点后模拟粘贴（历史或收藏） |
+| `onHistoryUpdated(cb)` | `on` ← | `history:updated` | 历史变更后同步列表 |
+| `onFavoritesUpdated(cb)` | `on` ← | `favorite:updated` | 收藏变更后同步列表 |
 
 表中 `on ←` 表示推送方向为 Main → Preload → Renderer 回调；其余为 Renderer 主动发起。
 
