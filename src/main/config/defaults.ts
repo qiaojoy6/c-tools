@@ -1,5 +1,5 @@
-import type { AppConfig } from '../../shared/types'
-import { DEFAULT_TOGGLE_PANEL_SHORTCUT } from '../../shared/config'
+import type { AppConfig } from '@shared/types'
+import { DEFAULT_TOGGLE_PANEL_SHORTCUT } from '@shared/config'
 
 /**
  * 默认配置（Source of Truth）

@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import type { AppConfig, ConfigPatch } from '../../shared/types'
+import type { AppConfig, ConfigPatch } from '@shared/types'
 import { DEFAULT_CONFIG } from './defaults'
 
 /** 应用开机自启设置 */

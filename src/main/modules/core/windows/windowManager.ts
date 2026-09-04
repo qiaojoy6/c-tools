@@ -1,4 +1,4 @@
-import type { AppConfig } from '../../../../shared/types'
+import type { AppConfig } from '@shared/types'
 import { PanelWindow } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
 

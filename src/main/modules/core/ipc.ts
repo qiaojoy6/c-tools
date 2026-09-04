@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { applyLoginItem, DEFAULT_CONFIG } from '../../config'
-import type { AppConfig, ConfigPatch, ConfigUpdateResult } from '../../../shared/types'
 import type { ConfigManager } from '../../config'
+import type { AppConfig, ConfigPatch, ConfigUpdateResult } from '@/shared/types'
 import { normalizeAccelerator, type ShortcutManager } from './shortcutManager'
 import type { TrayManager } from './trayManager'
 import type { WindowManager } from './windows'
@@ -15,7 +15,21 @@ export interface CoreIpcDeps {
   onModuleConfigChanged: () => void
 }
 
-/** 通用 IPC：配置读写与面板控制（与具体功能无关） */
+/**
+ * 通用 IPC（主进程 handle / on）
+ *
+ * | Channel             | 方向           | 说明 |
+ * |---------------------|----------------|------|
+ * | config:get          | 渲染→主 invoke | 读取完整配置 |
+ * | config:update       | 渲染→主 invoke | 局部更新；快捷键失败会回滚 |
+ * | shortcuts:suspend   | 渲染→主 invoke | 录制快捷键前卸掉全局注册 |
+ * | shortcuts:resume    | 渲染→主 invoke | 录制结束或取消后恢复 |
+ * | panel:hide          | 渲染→主 send   | 隐藏剪贴板面板 |
+ * | settings:open       | 渲染→主 send   | 打开设置窗口 |
+ *
+ * 主→渲染（由 WindowManager 发出，preload 订阅）：
+ * panel:shown / settings:shown
+ */
 export function registerCoreIpc(deps: CoreIpcDeps): void {
   const { config, shortcuts, tray, windows } = deps
 
@@ -25,6 +39,7 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
     const warnings: string[] = []
     const prevShortcut = config.get().shortcuts.togglePanel
 
+    // 规范化加速键（如把非法 "Alt+ " 修成 Alt+Space）后再落盘
     const normalizedPatch: ConfigPatch = patch?.shortcuts?.togglePanel
       ? {
           ...patch,
@@ -37,6 +52,7 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
 
     const cfg = config.update(normalizedPatch)
 
+    // 快捷键变更：注册失败则回滚，避免配置与真实注册不一致
     if (normalizedPatch?.shortcuts?.togglePanel !== undefined) {
       const next = cfg.shortcuts.togglePanel
       const ok = shortcuts.register(next)
@@ -65,7 +81,7 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
     return { config: cfg, warnings }
   })
 
-  /** 录制快捷键期间先卸掉全局注册，避免抢键/关掉面板 */
+  // 录制快捷键期间先卸掉全局注册，避免抢键 / 关掉面板
   ipcMain.handle('shortcuts:suspend', (): boolean => {
     shortcuts.unregisterAll()
     return true

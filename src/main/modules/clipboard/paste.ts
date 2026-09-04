@@ -1,6 +1,6 @@
 import { spawn } from 'child_process'
 import { clipboard, nativeImage, shell, systemPreferences } from 'electron'
-import type { ClipRecord } from '../../../shared/types'
+import type { ClipRecord } from '@shared/types'
 
 /** 激活目标应用后、发粘贴键前的短等待（等焦点落地） */
 const MAC_PRE_PASTE_DELAY_MS = 10

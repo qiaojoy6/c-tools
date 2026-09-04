@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import { join } from 'path'
-import type { AppConfig, ClipRecord } from '../../../shared/types'
+import type { AppConfig, ClipRecord } from '@shared/types'
 import { JsonStore } from '../core/storage'
 
 interface HistoryFile {

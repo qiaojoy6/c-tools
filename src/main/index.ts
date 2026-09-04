@@ -1,3 +1,12 @@
+/**
+ * 主进程入口：组装 core / clipboard，注册 IPC，启动托盘与面板。
+ *
+ * 进程通信约定：
+ * - invoke / handle：请求-响应（配置、历史、粘贴）
+ * - send / on：单向通知（隐藏面板、打开设置）
+ * - webContents.send / ipcRenderer.on：主→渲染推送（面板显示、历史更新）
+ * Preload 经 contextBridge 暴露为 window.api，渲染进程不直接碰 ipcRenderer。
+ */
 import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { ConfigManager, applyLoginItem, DEFAULT_CONFIG } from './config'
@@ -23,11 +32,13 @@ let shortcutManager: ShortcutManager
 let trayManager: TrayManager
 let clipboardWatcher: ClipboardWatcher
 
+/** 单实例：已有进程时二次启动会触发 second-instance，本进程直接退出 */
 const gotSingleLock = app.requestSingleInstanceLock()
 
 if (!gotSingleLock) {
   app.quit()
 } else {
+  // 用户再次打开应用时，唤起已有实例的面板
   app.on('second-instance', () => windowManager?.showPanel())
 
   app.whenReady().then(() => {
@@ -43,6 +54,7 @@ if (!gotSingleLock) {
 
     windowManager = new WindowManager(() => configManager.get())
 
+    // 全局快捷键 → 切换剪贴板面板；非法配置写回规范化或默认值
     shortcutManager = new ShortcutManager(() => windowManager.togglePanel())
     const shortcut = normalizeAccelerator(cfg.shortcuts.togglePanel)
     if (shortcut !== cfg.shortcuts.togglePanel) {
@@ -58,6 +70,7 @@ if (!gotSingleLock) {
       windowManager.showSettings()
     }
 
+    // 设置窗关闭后重新挂上全局快捷键（录制期间可能 suspend 过）
     windowManager.onSettingsClosed = () => {
       void shortcutManager.register(configManager.get().shortcuts.togglePanel)
     }
@@ -81,6 +94,7 @@ if (!gotSingleLock) {
     // ---- 功能模块（clipboard）----
     pasteService = new PasteService()
 
+    // 历史变更时推送到所有渲染窗口（history:updated）
     historyManager = new HistoryManager(() => configManager.get(), (records) => {
       broadcastRecords(records)
     })
@@ -91,9 +105,10 @@ if (!gotSingleLock) {
       (capture) => historyManager.add(capture)
     )
     clipboardWatcher.start()
+    // 粘贴写入系统剪贴板后同步监听基线，避免把自身写入再入库一遍
     pasteService.onClipboardWritten = () => clipboardWatcher.syncBaseline()
 
-    // ---- IPC 装配：通用与功能分离 ----
+    // ---- IPC：core 与 clipboard 分开注册，channel 见各 ipc.ts ----
     registerCoreIpc({
       config: configManager,
       shortcuts: shortcutManager,
@@ -110,12 +125,13 @@ if (!gotSingleLock) {
     // 配置中的开机自启与系统保持同步
     applyLoginItem(cfg.general.launchAtLogin)
 
+    // 预创建面板（隐藏）；托盘 / 快捷键 / activate 再显示
     windowManager.createPanel()
 
     app.on('activate', () => windowManager.showPanel())
   })
 
-  // 托盘常驻：关闭窗口不退出
+  // 托盘常驻：关闭所有窗口不退出进程
   app.on('window-all-closed', () => {})
 
   app.on('before-quit', () => quitApp())
@@ -123,6 +139,7 @@ if (!gotSingleLock) {
   app.on('will-quit', () => shortcutManager?.unregisterAll())
 }
 
+/** 主→渲染：广播剪贴历史（面板订阅后刷新列表） */
 function broadcastRecords(records: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('history:updated', records)

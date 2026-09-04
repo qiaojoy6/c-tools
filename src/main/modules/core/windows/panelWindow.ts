@@ -1,7 +1,7 @@
 import { execFile, execFileSync } from 'child_process'
 import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'path'
-import type { AppConfig } from '../../../../shared/types'
+import type { AppConfig } from '@shared/types'
 import { delay, loadRoute } from './loadRoute'
 
 const RESTORE_FOCUS_DELAY_MS = 100

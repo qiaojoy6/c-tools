@@ -4,7 +4,13 @@ import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
-  main: {},
+  main: {
+    resolve: {
+      alias: {
+        '@shared': resolve('src/shared')
+      }
+    },
+  },
   preload: {},
   renderer: {
     resolve: {
