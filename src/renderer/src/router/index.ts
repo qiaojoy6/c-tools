@@ -2,7 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 
 /**
  * 路由配置：每个功能模块对应一个页面（懒加载）
- * 新增功能时在 modules/<feature>/views 下建页面并在此注册
+ * 主进程按 hash 打开对应窗口（面板 /clipboard，设置 /settings）
  */
 const router = createRouter({
   history: createWebHashHistory(),
@@ -12,6 +12,11 @@ const router = createRouter({
       path: '/clipboard',
       name: 'clipboard',
       component: () => import('@renderer/pages/ClipboardPanel.vue')
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@renderer/pages/SettingsPage.vue')
     }
   ]
 })

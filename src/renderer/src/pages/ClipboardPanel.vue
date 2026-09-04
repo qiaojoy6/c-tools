@@ -12,13 +12,12 @@ import {
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import ClipCard from '@renderer/modules/clipboard/components/ClipCard.vue'
-import SettingsDialog from '@renderer/modules/settings/components/SettingsDialog.vue'
 import { useHistory } from '../modules/clipboard/composables/useHistory.js'
 import { ClipboardList, Search, Settings2, Trash2 } from 'lucide-vue-next'
 
 type FilterType = 'all' | 'text' | 'image'
 
-const { records, remove, clear, paste } = useHistory()
+const { records, refresh, remove, clear, paste } = useHistory()
 
 // ---------- 状态 ----------
 const search = ref('')
@@ -26,7 +25,6 @@ const searchWrap = ref<HTMLElement | null>(null)
 const filter = ref<FilterType>('all')
 const highlight = ref(0)
 const selectedIds = ref<Set<string>>(new Set())
-const showSettings = ref(false)
 const showClearConfirm = ref(false)
 const preview = ref<ClipRecord | null>(null)
 const toastMsg = ref('')
@@ -41,7 +39,6 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null
 /** Shift 范围多选的锚点索引 */
 let anchorIndex = -1
 let offShown: (() => void) | null = null
-let offSettings: (() => void) | null = null
 
 // ---------- 过滤 ----------
 const filtered = computed<ClipRecord[]>(() => {
@@ -173,6 +170,10 @@ function hidePanel(): void {
   window.api.hidePanel()
 }
 
+function openSettings(): void {
+  window.api.openSettings()
+}
+
 // ---------- 键盘导航 ----------
 function isTypingTarget(e: KeyboardEvent): boolean {
   const el = e.target as HTMLElement | null
@@ -180,7 +181,7 @@ function isTypingTarget(e: KeyboardEvent): boolean {
 }
 
 function onKeydown(e: KeyboardEvent): void {
-  if (showSettings.value || showClearConfirm.value) return
+  if (showClearConfirm.value) return
 
   // 输入法组合中（如中文候选确认）：不拦截按键，让回车先确认候选并输入到搜索框
   if (e.isComposing || e.keyCode === 229) return
@@ -240,20 +241,19 @@ function focusSearch(): void {
 // ---------- 生命周期 ----------
 onMounted(() => {
   offShown = window.api.onPanelShown(() => {
+    search.value = ''
+    filter.value = 'all'
     highlight.value = 0
     selectedIds.value = new Set()
     preview.value = null
+    void refresh()
     focusSearch()
-  })
-  offSettings = window.api.onOpenSettings(() => {
-    showSettings.value = true
   })
   window.addEventListener('keydown', onKeydown, true)
 })
 
 onUnmounted(() => {
   offShown?.()
-  offSettings?.()
   window.removeEventListener('keydown', onKeydown, true)
   if (toastTimer) clearTimeout(toastTimer)
 })
@@ -333,7 +333,7 @@ onUnmounted(() => {
         >
           <Trash2 class="size-4" />
         </Button>
-        <Button variant="ghost" size="icon-sm" title="设置" @click="showSettings = true">
+        <Button variant="ghost" size="icon-sm" title="设置" @click="openSettings">
           <Settings2 class="size-4" />
         </Button>
       </div>
@@ -379,9 +379,6 @@ onUnmounted(() => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
-    <!-- 设置 -->
-    <SettingsDialog v-model:open="showSettings" @toast="showToast" />
   </div>
 </template>
 

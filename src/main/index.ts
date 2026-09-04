@@ -55,8 +55,11 @@ if (!gotSingleLock) {
     }
 
     const openSettings = (): void => {
-      windowManager.showPanel()
-      windowManager.panelWindow?.webContents.send('panel:open-settings')
+      windowManager.showSettings()
+    }
+
+    windowManager.onSettingsClosed = () => {
+      void shortcutManager.register(configManager.get().shortcuts.togglePanel)
     }
 
     trayManager = new TrayManager(
@@ -100,8 +103,7 @@ if (!gotSingleLock) {
       onModuleConfigChanged: () => {
         historyManager.applyConfigChanged()
         broadcastRecords(historyManager.getAll())
-      },
-      openSettings
+      }
     })
     registerClipboardIpc({ history: historyManager, paste: pasteService, windows: windowManager })
 

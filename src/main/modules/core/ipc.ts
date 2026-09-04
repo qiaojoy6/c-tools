@@ -4,7 +4,7 @@ import type { AppConfig, ConfigPatch, ConfigUpdateResult } from '../../../shared
 import type { ConfigManager } from '../../config'
 import { normalizeAccelerator, type ShortcutManager } from './shortcutManager'
 import type { TrayManager } from './trayManager'
-import type { WindowManager } from './windowManager'
+import type { WindowManager } from './windows'
 
 export interface CoreIpcDeps {
   config: ConfigManager
@@ -13,7 +13,6 @@ export interface CoreIpcDeps {
   windows: WindowManager
   /** 各功能模块对配置变更的联动（由入口装配注入，如剪贴板裁剪/清理/广播） */
   onModuleConfigChanged: () => void
-  openSettings: () => void
 }
 
 /** 通用 IPC：配置读写与面板控制（与具体功能无关） */
@@ -81,5 +80,5 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
   })
 
   ipcMain.on('panel:hide', () => windows.hidePanel())
-  ipcMain.on('panel:open-settings', () => deps.openSettings())
+  ipcMain.on('settings:open', () => windows.showSettings())
 }

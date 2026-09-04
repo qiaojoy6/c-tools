@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import type { ClipRecord } from '../../../shared/types'
-import type { WindowManager } from '../core/windowManager'
+import type { WindowManager } from '../core/windows'
 import type { HistoryManager } from './history'
 import type { PasteService } from './paste'
 

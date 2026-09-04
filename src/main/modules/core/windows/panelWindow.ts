@@ -1,34 +1,32 @@
 import { execFile, execFileSync } from 'child_process'
 import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'path'
-import type { AppConfig } from '../../../shared/types'
+import type { AppConfig } from '../../../../shared/types'
+import { delay, loadRoute } from './loadRoute'
 
 const RESTORE_FOCUS_DELAY_MS = 100
 
 /**
- * 窗口管理：面板窗口创建完全由 WindowConfig 驱动
+ * 主窗口：剪贴板面板（无边框、置顶、失焦隐藏）
  */
-export class WindowManager {
-  private panel: BrowserWindow | null = null
-  private quitting = false
+export class PanelWindow {
+  private win: BrowserWindow | null = null
   private previousAppBundleId: string | null = null
 
-  constructor(private getConfig: () => AppConfig) {}
+  constructor(
+    private getConfig: () => AppConfig,
+    private isQuitting: () => boolean
+  ) {}
 
-  markQuitting(): void {
-    this.quitting = true
-  }
-
-  get panelWindow(): BrowserWindow | null {
-    return this.panel
+  get browserWindow(): BrowserWindow | null {
+    return this.win
   }
 
   isVisible(): boolean {
-    return this.panel?.isVisible() ?? false
+    return this.win?.isVisible() ?? false
   }
 
-  /** 创建面板窗口（配置化创建） */
-  createPanel(): BrowserWindow {
+  create(): BrowserWindow {
     const cfg = this.getConfig().window
     const win = new BrowserWindow({
       width: cfg.width,
@@ -52,30 +50,25 @@ export class WindowManager {
       }
     })
 
-    this.positionPanel(win)
+    this.position(win)
 
-    win.on('blur', () => this.hidePanel())
+    win.on('blur', () => this.hide())
     win.on('close', (e) => {
-      if (!this.quitting) {
+      if (!this.isQuitting()) {
         e.preventDefault()
         win.hide()
       }
     })
 
-    if (process.env['ELECTRON_RENDERER_URL']) {
-      win.loadURL(process.env['ELECTRON_RENDERER_URL'])
-    } else {
-      win.loadFile(join(__dirname, '../renderer/index.html'))
-    }
-
-    this.panel = win
+    loadRoute(win, '/clipboard')
+    this.win = win
     return win
   }
 
-  showPanel(): void {
-    const win = this.panel ?? this.createPanel()
+  show(): void {
+    const win = this.win ?? this.create()
     this.capturePreviousFocusTarget()
-    this.positionPanel(win)
+    this.position(win)
     if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
@@ -85,12 +78,18 @@ export class WindowManager {
     win.webContents.send('panel:shown')
   }
 
-  hidePanel(): void {
-    if (this.panel?.isVisible()) this.panel.hide()
+  hide(): void {
+    if (this.win?.isVisible()) this.win.hide()
   }
 
+  toggle(): void {
+    if (this.isVisible()) this.hide()
+    else this.show()
+  }
+
+  /** 隐藏面板并恢复呼出前的前台应用（macOS） */
   async restorePreviousFocus(): Promise<boolean> {
-    this.hidePanel()
+    this.hide()
 
     if (process.platform !== 'darwin') {
       return true
@@ -116,16 +115,7 @@ export class WindowManager {
     })
   }
 
-  togglePanel(): void {
-    if (this.isVisible()) {
-      this.hidePanel()
-    } else {
-      this.showPanel()
-    }
-  }
-
-  /** 面板定位：工作区顶部居中（Spotlight 风格） */
-  private positionPanel(win: BrowserWindow): void {
+  private position(win: BrowserWindow): void {
     const cfg = this.getConfig().window
     const { workArea } = screen.getPrimaryDisplay()
     const [w] = win.getSize()
@@ -156,8 +146,4 @@ export class WindowManager {
       this.previousAppBundleId = null
     }
   }
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
