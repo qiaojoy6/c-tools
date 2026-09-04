@@ -14,7 +14,7 @@ import {
   SelectViewport
 } from 'reka-ui'
 import { Check, ChevronDown, ChevronUp } from 'lucide-vue-next'
-import { cn } from '@/lib/utils'
+import { cn } from '@renderer/lib/utils'
 
 export interface SelectOption {
   label: string

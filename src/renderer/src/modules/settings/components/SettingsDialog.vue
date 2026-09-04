@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import type { AppConfig, ConfigPatch } from '@shared/types'
-import { ref, watch } from 'vue'
+import { DEFAULT_TOGGLE_PANEL_SHORTCUT } from '@shared/config'
+import { computed, ref, watch } from 'vue'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog'
-import { Select, type SelectOption } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
+} from '@renderer/components/ui/dialog'
+import { Button } from '@renderer/components/ui/button'
+import { Select, type SelectOption } from '@renderer/components/ui/select'
+import { Separator } from '@renderer/components/ui/separator'
+import { Switch } from '@renderer/components/ui/switch'
 import HotkeyInput from './HotkeyInput.vue'
 
 const props = defineProps<{ open: boolean }>()
@@ -21,10 +23,19 @@ const emit = defineEmits<{
 
 const config = ref<AppConfig | null>(null)
 
+const isDefaultShortcut = computed(
+  () => config.value?.shortcuts.togglePanel === DEFAULT_TOGGLE_PANEL_SHORTCUT
+)
+
 watch(
   () => props.open,
   async (open) => {
-    if (open) config.value = await window.api.getConfig()
+    if (open) {
+      config.value = await window.api.getConfig()
+      return
+    }
+    // 关闭设置时若仍在录制，恢复全局快捷键
+    await window.api.resumeShortcuts()
   }
 )
 
@@ -34,6 +45,11 @@ async function apply(patch: ConfigPatch): Promise<void> {
   for (const warning of result.warnings) {
     emit('toast', warning)
   }
+}
+
+function restoreDefaultShortcut(): void {
+  if (isDefaultShortcut.value) return
+  void apply({ shortcuts: { togglePanel: DEFAULT_TOGGLE_PANEL_SHORTCUT } })
 }
 
 const maxOptions: SelectOption[] = [50, 100, 150, 200].map((v) => ({ label: `${v} 条`, value: v }))
@@ -60,14 +76,25 @@ const cleanOptions: SelectOption[] = [
             快捷键
           </h3>
           <div class="flex items-center justify-between gap-4">
-            <div>
+            <div class="min-w-0">
               <p class="text-sm">呼出 / 隐藏面板</p>
               <p class="mt-0.5 text-xs text-muted-foreground">点击右侧录制新的组合键</p>
             </div>
-            <HotkeyInput
-              :model-value="config.shortcuts.togglePanel"
-              @update:model-value="(v) => apply({ shortcuts: { togglePanel: v } })"
-            />
+            <div class="flex shrink-0 items-center gap-2">
+              <HotkeyInput
+                :model-value="config.shortcuts.togglePanel"
+                @update:model-value="(v) => apply({ shortcuts: { togglePanel: v } })"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                class="text-muted-foreground"
+                :disabled="isDefaultShortcut"
+                @click="restoreDefaultShortcut"
+              >
+                恢复默认
+              </Button>
+            </div>
           </div>
         </section>
 

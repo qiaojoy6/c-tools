@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { ConfigManager, applyLoginItem } from './config'
+import { ConfigManager, applyLoginItem, DEFAULT_CONFIG } from './config'
 import {
   ClipboardWatcher,
   HistoryManager,
@@ -11,7 +11,8 @@ import {
   ShortcutManager,
   TrayManager,
   WindowManager,
-  registerCoreIpc
+  registerCoreIpc,
+  normalizeAccelerator
 } from './modules/core'
 
 let configManager: ConfigManager
@@ -43,7 +44,15 @@ if (!gotSingleLock) {
     windowManager = new WindowManager(() => configManager.get())
 
     shortcutManager = new ShortcutManager(() => windowManager.togglePanel())
-    shortcutManager.register(cfg.shortcuts.togglePanel)
+    const shortcut = normalizeAccelerator(cfg.shortcuts.togglePanel)
+    if (shortcut !== cfg.shortcuts.togglePanel) {
+      configManager.update({ shortcuts: { togglePanel: shortcut } })
+    }
+    if (!shortcutManager.register(shortcut)) {
+      const fallback = DEFAULT_CONFIG.shortcuts.togglePanel
+      configManager.update({ shortcuts: { togglePanel: fallback } })
+      shortcutManager.register(fallback)
+    }
 
     const openSettings = (): void => {
       windowManager.showPanel()
@@ -79,6 +88,7 @@ if (!gotSingleLock) {
       (capture) => historyManager.add(capture)
     )
     clipboardWatcher.start()
+    pasteService.onClipboardWritten = () => clipboardWatcher.syncBaseline()
 
     // ---- IPC 装配：通用与功能分离 ----
     registerCoreIpc({

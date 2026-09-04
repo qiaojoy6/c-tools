@@ -1,4 +1,5 @@
 import type { AppConfig } from '../../shared/types'
+import { DEFAULT_TOGGLE_PANEL_SHORTCUT } from '../../shared/config'
 
 /**
  * 默认配置（Source of Truth）
@@ -18,7 +19,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     topOffset: 72
   },
   shortcuts: {
-    togglePanel: 'Alt+Space'
+    togglePanel: DEFAULT_TOGGLE_PANEL_SHORTCUT
   },
   clipboard: {
     pollIntervalMs: 500,

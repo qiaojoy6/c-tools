@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@renderer/components/ui/button'
 import { Keyboard } from 'lucide-vue-next'
-import { cn } from '@/lib/utils'
+import { cn } from '@renderer/lib/utils'
 
 const props = defineProps<{
   modelValue: string
@@ -64,7 +64,10 @@ function pretty(accelerator: string): string {
     .join(isMac ? ' ' : ' + ')
 }
 
+/** 用 e.code 映射物理键，避免 macOS Option 改写 e.key */
 function keyToAccelerator(e: KeyboardEvent): string | null {
+  if (['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return null
+
   const parts: string[] = []
   if (isMac) {
     if (e.metaKey) parts.push('Command')
@@ -76,43 +79,55 @@ function keyToAccelerator(e: KeyboardEvent): string | null {
   if (e.altKey) parts.push('Alt')
   if (e.shiftKey) parts.push('Shift')
 
-  const named: Record<string, string> = {
-    ArrowUp: 'Up',
-    ArrowDown: 'Down',
-    ArrowLeft: 'Left',
-    ArrowRight: 'Right',
-    ' ': 'Space',
-    Spacebar: 'Space'
-  }
-
+  const code = e.code
   let keyName = ''
-  const k = e.key
-  if (named[k]) {
-    keyName = named[k]
-  } else if (k.length === 1) {
-    keyName = /[a-z]/.test(k) ? k.toUpperCase() : k
-  } else if (/^F\d{1,2}$/.test(k)) {
-    keyName = k
+  // Space：部分环境 e.key 为字面量空格，必须写成 Electron 的 "Space"
+  if (code === 'Space' || e.key === ' ' || e.key === 'Spacebar') {
+    keyName = 'Space'
+  } else if (/^Key[A-Z]$/.test(code)) {
+    keyName = code.slice(3)
+  } else if (/^Digit[0-9]$/.test(code)) {
+    keyName = code.slice(5)
+  } else if (/^F\d{1,2}$/.test(code)) {
+    keyName = code
+  } else if (code.startsWith('Arrow')) {
+    keyName = code.slice(5)
   } else if (
     ['Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete', 'Backspace', 'Enter', 'Tab'].includes(
-      k
+      e.key
     )
   ) {
-    keyName = k
+    keyName = e.key
   } else {
     return null
   }
+
+  if (!keyName || /\s/.test(keyName)) return null
+
+  // 功能键可单独使用，其余必须带修饰键
+  if (parts.length === 0 && !/^F\d{1,2}$/.test(keyName)) return null
 
   parts.push(keyName)
   return parts.join('+')
 }
 
-function startRecording(): void {
+async function startRecording(): Promise<void> {
+  if (recording.value) return
   recording.value = true
+  await window.api.suspendShortcuts()
 }
 
-function cancelRecording(): void {
+async function cancelRecording(): Promise<void> {
+  if (!recording.value) return
   recording.value = false
+  await window.api.resumeShortcuts()
+}
+
+async function commitRecording(accelerator: string): Promise<void> {
+  if (!recording.value) return
+  recording.value = false
+  // 由父级 updateConfig 注册新快捷键，此处不再 resume 旧键
+  emit('update:modelValue', accelerator)
 }
 
 function onKeydown(e: KeyboardEvent): void {
@@ -120,17 +135,19 @@ function onKeydown(e: KeyboardEvent): void {
   e.preventDefault()
   e.stopPropagation()
   if (e.key === 'Escape') {
-    cancelRecording()
+    void cancelRecording()
     return
   }
   const accelerator = keyToAccelerator(e)
   if (!accelerator) return
-  emit('update:modelValue', accelerator)
-  cancelRecording()
+  void commitRecording(accelerator)
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown, true))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown, true))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown, true)
+  if (recording.value) void window.api.resumeShortcuts()
+})
 </script>
 
 <template>
@@ -138,7 +155,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown, true))
     variant="outline"
     :class="cn('min-w-40 justify-start gap-2 font-normal', props.buttonClass)"
     @click="startRecording"
-    @blur="cancelRecording"
   >
     <Keyboard class="size-4 text-primary" />
     <span v-if="recording" class="animate-pulse text-primary">按下组合键…（Esc 取消）</span>

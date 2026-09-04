@@ -1,6 +1,9 @@
+import { execFile, execFileSync } from 'child_process'
 import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import type { AppConfig } from '../../../shared/types'
+
+const RESTORE_FOCUS_DELAY_MS = 100
 
 /**
  * 窗口管理：面板窗口创建完全由 WindowConfig 驱动
@@ -8,6 +11,7 @@ import type { AppConfig } from '../../../shared/types'
 export class WindowManager {
   private panel: BrowserWindow | null = null
   private quitting = false
+  private previousAppBundleId: string | null = null
 
   constructor(private getConfig: () => AppConfig) {}
 
@@ -70,6 +74,7 @@ export class WindowManager {
 
   showPanel(): void {
     const win = this.panel ?? this.createPanel()
+    this.capturePreviousFocusTarget()
     this.positionPanel(win)
     if (win.isMinimized()) win.restore()
     win.show()
@@ -82,6 +87,33 @@ export class WindowManager {
 
   hidePanel(): void {
     if (this.panel?.isVisible()) this.panel.hide()
+  }
+
+  async restorePreviousFocus(): Promise<boolean> {
+    this.hidePanel()
+
+    if (process.platform !== 'darwin') {
+      return true
+    }
+
+    const bundleId = this.previousAppBundleId
+    this.previousAppBundleId = null
+    if (!bundleId) return true
+
+    return new Promise((resolve) => {
+      execFile(
+        'osascript',
+        ['-e', `tell application id "${bundleId}" to activate`],
+        async (err) => {
+          if (err) {
+            resolve(false)
+            return
+          }
+          await delay(RESTORE_FOCUS_DELAY_MS)
+          resolve(true)
+        }
+      )
+    })
   }
 
   togglePanel(): void {
@@ -101,4 +133,31 @@ export class WindowManager {
     const y = workArea.y + cfg.topOffset
     win.setPosition(x, y, false)
   }
+
+  private capturePreviousFocusTarget(): void {
+    if (process.platform !== 'darwin') {
+      this.previousAppBundleId = null
+      return
+    }
+
+    try {
+      const bundleId = execFileSync(
+        'osascript',
+        [
+          '-e',
+          'tell application "System Events" to get bundle identifier of first application process whose frontmost is true'
+        ],
+        { encoding: 'utf8' }
+      ).trim()
+
+      if (!bundleId) return
+      this.previousAppBundleId = bundleId
+    } catch {
+      this.previousAppBundleId = null
+    }
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

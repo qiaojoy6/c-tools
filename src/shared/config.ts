@@ -27,6 +27,9 @@ export interface ShortcutConfig {
   togglePanel: string
 }
 
+/** 默认呼出快捷键（与 DEFAULT_CONFIG 保持一致） */
+export const DEFAULT_TOGGLE_PANEL_SHORTCUT = 'Alt+Space'
+
 /** 隐私配置 */
 export interface PrivacyConfig {
   /** 退出时清空全部记录 */

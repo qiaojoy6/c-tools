@@ -3,7 +3,7 @@ import type { PrimitiveProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
 import { Primitive } from 'reka-ui'
 import { type BadgeVariants, badgeVariants } from '.'
-import { cn } from '@/lib/utils'
+import { cn } from '@renderer/lib/utils'
 
 interface Props extends PrimitiveProps {
   variant?: BadgeVariants['variant']

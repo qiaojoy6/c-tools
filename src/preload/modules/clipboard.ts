@@ -1,13 +1,12 @@
 import { ipcRenderer } from 'electron'
 import type { ClipRecord } from '../../shared/types'
 
-/** 剪贴板模块 bridge：历史记录管理与复制/粘贴 */
+/** 剪贴板模块 bridge：历史记录管理与粘贴 */
 export const clipboardApi = {
   listHistory: (): Promise<ClipRecord[]> => ipcRenderer.invoke('history:list'),
   removeHistory: (id: string): Promise<boolean> => ipcRenderer.invoke('history:remove', id),
   clearHistory: (): Promise<boolean> => ipcRenderer.invoke('history:clear'),
 
-  copyItem: (id: string): Promise<boolean> => ipcRenderer.invoke('clip:copy', id),
   pasteItems: (ids: string[]): Promise<boolean> => ipcRenderer.invoke('clip:paste', ids),
 
   onHistoryUpdated: (callback: (records: ClipRecord[]) => void): (() => void) => {

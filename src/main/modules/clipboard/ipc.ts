@@ -10,7 +10,7 @@ export interface ClipboardIpcDeps {
   windows: WindowManager
 }
 
-/** 剪贴板模块 IPC：历史记录管理与复制/粘贴 */
+/** 剪贴板模块 IPC：历史记录管理与粘贴 */
 export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
   const { history, paste, windows } = deps
 
@@ -26,21 +26,14 @@ export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
     return true
   })
 
-  ipcMain.handle('clip:copy', (_e, id: string): boolean => {
-    const record = history.get(id)
-    if (!record) return false
-    paste.copy(record)
-    history.touch([id])
-    return true
-  })
-
   ipcMain.handle('clip:paste', async (_e, ids: string[]): Promise<boolean> => {
     const records = (ids ?? [])
       .map((id) => history.get(id))
       .filter((r): r is ClipRecord => Boolean(r))
     if (!records.length) return false
     history.touch(records.map((r) => r.id))
-    windows.hidePanel()
+    const restored = await windows.restorePreviousFocus()
+    if (!restored) return false
     return paste.paste(records)
   })
 }

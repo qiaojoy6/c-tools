@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron'
-import { applyLoginItem } from '../../config'
+import { applyLoginItem, DEFAULT_CONFIG } from '../../config'
 import type { AppConfig, ConfigPatch, ConfigUpdateResult } from '../../../shared/types'
 import type { ConfigManager } from '../../config'
-import type { ShortcutManager } from './shortcutManager'
+import { normalizeAccelerator, type ShortcutManager } from './shortcutManager'
 import type { TrayManager } from './trayManager'
 import type { WindowManager } from './windowManager'
 
@@ -24,23 +24,60 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
 
   ipcMain.handle('config:update', (_e, patch: ConfigPatch): ConfigUpdateResult => {
     const warnings: string[] = []
-    const cfg = config.update(patch)
+    const prevShortcut = config.get().shortcuts.togglePanel
 
-    if (patch?.shortcuts?.togglePanel !== undefined) {
-      const ok = shortcuts.register(cfg.shortcuts.togglePanel)
+    const normalizedPatch: ConfigPatch = patch?.shortcuts?.togglePanel
+      ? {
+          ...patch,
+          shortcuts: {
+            ...patch.shortcuts,
+            togglePanel: normalizeAccelerator(patch.shortcuts.togglePanel)
+          }
+        }
+      : patch
+
+    const cfg = config.update(normalizedPatch)
+
+    if (normalizedPatch?.shortcuts?.togglePanel !== undefined) {
+      const next = cfg.shortcuts.togglePanel
+      const ok = shortcuts.register(next)
       if (!ok) {
-        warnings.push(`快捷键 ${cfg.shortcuts.togglePanel} 注册失败，可能已被其他应用占用`)
+        warnings.push(`快捷键 ${next} 注册失败，可能已被其他应用占用`)
+        const safePrev =
+          normalizeAccelerator(prevShortcut) || DEFAULT_CONFIG.shortcuts.togglePanel
+        const reverted = config.update({ shortcuts: { togglePanel: safePrev } })
+        if (!shortcuts.register(safePrev)) {
+          const fallback = DEFAULT_CONFIG.shortcuts.togglePanel
+          config.update({ shortcuts: { togglePanel: fallback } })
+          shortcuts.register(fallback)
+          return { config: config.get(), warnings }
+        }
+        return { config: reverted, warnings }
       }
     }
-    if (patch?.general?.launchAtLogin !== undefined) {
+    if (normalizedPatch?.general?.launchAtLogin !== undefined) {
       applyLoginItem(cfg.general.launchAtLogin)
       tray.rebuild()
     }
-    if (patch?.clipboard) {
+    if (normalizedPatch?.clipboard) {
       deps.onModuleConfigChanged()
     }
 
     return { config: cfg, warnings }
+  })
+
+  /** 录制快捷键期间先卸掉全局注册，避免抢键/关掉面板 */
+  ipcMain.handle('shortcuts:suspend', (): boolean => {
+    shortcuts.unregisterAll()
+    return true
+  })
+
+  ipcMain.handle('shortcuts:resume', (): boolean => {
+    const current = config.get().shortcuts.togglePanel
+    if (shortcuts.register(current)) return true
+    const fallback = DEFAULT_CONFIG.shortcuts.togglePanel
+    config.update({ shortcuts: { togglePanel: fallback } })
+    return shortcuts.register(fallback)
   })
 
   ipcMain.on('panel:hide', () => windows.hidePanel())

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { ClipRecord } from '@shared/types'
-import { computed } from 'vue'
-import { Badge } from '@/components/ui/badge'
-import { Check, Trash2 } from 'lucide-vue-next'
-import { formatBytes, formatTime } from '@/modules/clipboard/lib/time'
-import { cn } from '@/lib/utils'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { Badge } from '@renderer/components/ui/badge'
+import { Check, ChevronDown, ChevronUp, Trash2 } from 'lucide-vue-next'
+import { formatBytes, formatTime } from '@renderer/modules/clipboard/lib/time'
+import { cn } from '@renderer/lib/utils'
 
 const props = defineProps<{
   record: ClipRecord
@@ -23,9 +23,55 @@ const imageDataUrl = computed(() =>
   props.record.image ? `data:image/png;base64,${props.record.image.base64}` : ''
 )
 
+const textEl = ref<HTMLElement | null>(null)
+const expanded = ref(false)
+const canToggle = ref(false)
+
+function measureOverflow(): void {
+  if (expanded.value) return
+  const el = textEl.value
+  if (!el) {
+    canToggle.value = false
+    return
+  }
+  canToggle.value = el.scrollHeight > el.clientHeight + 1
+}
+
+function toggleExpand(e: MouseEvent): void {
+  e.stopPropagation()
+  expanded.value = !expanded.value
+  if (!expanded.value) nextTick(measureOverflow)
+}
+
 function onClick(e: MouseEvent): void {
   emit('activate', props.record, e)
 }
+
+watch(
+  () => [props.record.id, props.record.text] as const,
+  () => {
+    expanded.value = false
+    nextTick(measureOverflow)
+  }
+)
+
+let resizeObserver: ResizeObserver | null = null
+
+onMounted(() => {
+  nextTick(() => {
+    measureOverflow()
+    if (!textEl.value || typeof ResizeObserver === 'undefined') return
+    resizeObserver = new ResizeObserver(() => {
+      if (!expanded.value) measureOverflow()
+    })
+    resizeObserver.observe(textEl.value)
+  })
+})
+
+onUnmounted(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+})
 </script>
 
 <template>
@@ -43,8 +89,6 @@ function onClick(e: MouseEvent): void {
     "
     @click="onClick"
     @dblclick="emit('commit', record)"
-    @mouseenter="emit('preview', record)"
-    @mouseleave="emit('preview', null)"
   >
     <!-- 选中标记 -->
     <span
@@ -57,13 +101,33 @@ function onClick(e: MouseEvent): void {
     <!-- 文本记录 -->
     <template v-if="record.type === 'text'">
       <div class="min-w-0 flex-1">
-        <p class="line-clamp-2 text-[13px] leading-5 break-all whitespace-pre-wrap">
+        <p
+          ref="textEl"
+          :class="
+            cn('text-[13px] leading-5 break-all whitespace-pre-wrap', !expanded && 'line-clamp-3')
+          "
+        >
           {{ record.text }}
         </p>
         <div class="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
           <span>{{ formatTime(record.createdAt) }}</span>
           <span class="opacity-40">·</span>
           <span>{{ record.text?.length ?? 0 }} 字符</span>
+          <button
+            v-if="canToggle"
+            type="button"
+            class="inline-flex cursor-pointer items-center gap-0.5 text-primary hover:underline"
+            @click="toggleExpand"
+          >
+            <template v-if="expanded">
+              收起
+              <ChevronUp class="size-3" />
+            </template>
+            <template v-else>
+              展开
+              <ChevronDown class="size-3" />
+            </template>
+          </button>
         </div>
       </div>
     </template>
@@ -74,6 +138,8 @@ function onClick(e: MouseEvent): void {
         :src="imageDataUrl"
         class="h-14 w-24 shrink-0 rounded-md border border-border/60 bg-card object-cover"
         draggable="false"
+        @mouseenter="emit('preview', record)"
+        @mouseleave="emit('preview', null)"
       />
       <div class="min-w-0 flex-1">
         <p class="text-[13px]">图片</p>

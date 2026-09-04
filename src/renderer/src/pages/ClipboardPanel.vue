@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import type { ClipRecord } from '@shared/types'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import ClipCard from '../components/ClipCard.vue'
-import SettingsDialog from '@/modules/settings/components/SettingsDialog.vue'
-import { useHistory } from '../composables/useHistory'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@renderer/components/ui/dialog'
+import { Button } from '@renderer/components/ui/button'
+import { Input } from '@renderer/components/ui/input'
+import ClipCard from '@renderer/modules/clipboard/components/ClipCard.vue'
+import SettingsDialog from '@renderer/modules/settings/components/SettingsDialog.vue'
+import { useHistory } from '../modules/clipboard/composables/useHistory.js'
 import { ClipboardList, Search, Settings2, Trash2 } from 'lucide-vue-next'
 
 type FilterType = 'all' | 'text' | 'image'
@@ -345,7 +352,10 @@ onUnmounted(() => {
 
     <!-- 轻提示 -->
     <Transition name="toast">
-      <div v-if="toastMsg" class="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center">
+      <div
+        v-if="toastMsg"
+        class="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center"
+      >
         <div
           class="rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground shadow-lg"
         >

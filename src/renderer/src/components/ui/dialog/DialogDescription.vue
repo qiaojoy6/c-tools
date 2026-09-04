@@ -3,7 +3,7 @@ import type { DialogDescriptionProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
 import { DialogDescription } from 'reka-ui'
 import { computed } from 'vue'
-import { cn } from '@/lib/utils'
+import { cn } from '@renderer/lib/utils'
 
 const props = defineProps<DialogDescriptionProps & { class?: HTMLAttributes['class'] }>()
 

@@ -10,7 +10,7 @@ import {
 } from 'reka-ui'
 import { X } from 'lucide-vue-next'
 import { computed } from 'vue'
-import { cn } from '@/lib/utils'
+import { cn } from '@renderer/lib/utils'
 
 const props = defineProps<DialogContentProps & { class?: HTMLAttributes['class'] }>()
 const emits = defineEmits<DialogContentEmits>()

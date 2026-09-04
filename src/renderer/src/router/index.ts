@@ -11,7 +11,7 @@ const router = createRouter({
     {
       path: '/clipboard',
       name: 'clipboard',
-      component: () => import('@/modules/clipboard/views/ClipboardPanel.vue')
+      component: () => import('@renderer/pages/ClipboardPanel.vue')
     }
   ]
 })

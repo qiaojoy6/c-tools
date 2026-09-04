@@ -22,7 +22,7 @@ export class ClipboardWatcher {
   ) {}
 
   start(): void {
-    this.baseline()
+    this.syncBaseline()
     this.stop()
     this.timer = setInterval(() => this.poll(), this.getPollMs())
   }
@@ -34,8 +34,8 @@ export class ClipboardWatcher {
     }
   }
 
-  /** 初始化基线：启动时不收录启动前已存在的剪贴内容 */
-  private baseline(): void {
+  /** 将当前剪贴板设为基线（粘贴写入后调用，避免重复入库与额外读图） */
+  syncBaseline(): void {
     this.lastText = clipboard.readText()
     this.lastImageSig = this.imageSignature()
   }
@@ -57,13 +57,13 @@ export class ClipboardWatcher {
         return
       }
       const size = img.getSize()
-      const png = img.toPNG()
-      const sig = `${size.width}x${size.height}:${png.byteLength}`
+      const sig = `${size.width}x${size.height}:${img.toBitmap().byteLength}`
       if (sig !== this.lastImageSig) {
         this.lastImageSig = sig
+        // 仅在确认变更时才做 PNG 编码入库
         this.onCapture({
           type: 'image',
-          base64: png.toString('base64'),
+          base64: img.toPNG().toString('base64'),
           width: size.width,
           height: size.height
         })
@@ -74,10 +74,11 @@ export class ClipboardWatcher {
     }
   }
 
+  /** 轻量签名：避免轮询路径上反复 toPNG（会卡住系统剪贴板） */
   private imageSignature(): string {
     const img = clipboard.readImage()
     if (img.isEmpty()) return ''
     const size = img.getSize()
-    return `${size.width}x${size.height}:${img.toPNG().byteLength}`
+    return `${size.width}x${size.height}:${img.toBitmap().byteLength}`
   }
 }

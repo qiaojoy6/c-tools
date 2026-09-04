@@ -7,6 +7,10 @@ export const appApi = {
   updateConfig: (patch: ConfigPatch): Promise<ConfigUpdateResult> =>
     ipcRenderer.invoke('config:update', patch),
 
+  /** 录制快捷键时暂停/恢复全局快捷键 */
+  suspendShortcuts: (): Promise<boolean> => ipcRenderer.invoke('shortcuts:suspend'),
+  resumeShortcuts: (): Promise<boolean> => ipcRenderer.invoke('shortcuts:resume'),
+
   hidePanel: (): void => ipcRenderer.send('panel:hide'),
   onPanelShown: (callback: () => void): (() => void) => {
     const listener = (): void => callback()
