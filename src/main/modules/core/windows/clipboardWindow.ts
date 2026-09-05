@@ -158,9 +158,11 @@ export class ClipboardWindow {
     this.onExternalAppCaptured?.(bundleId)
   }
 
+  /** 居中贴在鼠标所在显示器顶部（多屏时不再固定主屏） */
   private position(win: BrowserWindow): void {
     const cfg = this.getConfig().window
-    const { workArea } = screen.getPrimaryDisplay()
+    const cursor = screen.getCursorScreenPoint()
+    const { workArea } = screen.getDisplayNearestPoint(cursor)
     const [w] = win.getSize()
     const x = workArea.x + Math.round((workArea.width - w) / 2)
     const y = workArea.y + cfg.topOffset
