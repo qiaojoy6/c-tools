@@ -110,6 +110,11 @@ const emit = defineEmits<{
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 500;
+  outline: none;
+}
+
+.chip:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 45%, transparent);
 }
 
 .chip:hover:not(:disabled) {

@@ -68,7 +68,7 @@ Renderer (window.api.xxx)
 | `updateConfig(patch)` | `invoke` | `config:update` | 局部更新；快捷键失败回滚 → `ConfigUpdateResult` |
 | `suspendShortcuts()` | `invoke` | `shortcuts:suspend` | 录制快捷键前卸掉全局注册 |
 | `resumeShortcuts()` | `invoke` | `shortcuts:resume` | 录制结束 / 取消 / 关设置窗后恢复 |
-| `hidePanel()` | `send` | `panel:hide` | 隐藏剪贴板面板 |
+| `hidePanel()` | `send` | `panel:hide` | 隐藏独立剪贴板浮层（不影响功能面板） |
 | `openSettings()` | `send` | `settings:open` | 打开设置窗口 |
 | `onPanelShown(cb)` | `on` ← | `panel:shown` | 面板每次显示时推送（返回取消函数） |
 | `onSettingsShown(cb)` | `on` ← | `settings:shown` | 设置窗再次打开时推送（返回取消函数） |

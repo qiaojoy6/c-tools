@@ -1,8 +1,9 @@
 import type { AppConfig } from '@shared/types'
+import { app } from 'electron'
 import { execFile } from 'child_process'
 import { delay } from './loadRoute'
 import { ClipboardWindow } from './clipboardWindow'
-import { PanelWindow } from './panelWindow'
+import { PanelWindow, type PanelShowOptions } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
 
 const RESTORE_FOCUS_DELAY_MS = 100
@@ -51,34 +52,44 @@ export class WindowManager {
     return this.clipboard.isVisible() || this.panel.isVisible()
   }
 
-  /** 预创建独立剪贴板（快捷键主路径） */
-  createPanel() {
-    return this.clipboard.create()
+  /** 预创建剪贴板 + 功能面板（隐藏），避免首次点程序坞再冷创建 */
+  createPanel(): void {
+    this.clipboard.create()
+    this.panel.create()
   }
 
   showClipboard(): void {
-    this.panel.hide()
     this.clipboard.show()
   }
 
-  showPanel(): void {
-    this.clipboard.hide()
-    this.panel.show()
+  showPanel(opts?: PanelShowOptions): void {
+    this.panel.show(opts)
   }
 
+  /** 隐藏独立剪贴板浮层（ESC；不影响功能面板） */
+  hideClipboard(): void {
+    this.clipboard.hide()
+  }
+
+  /** IPC `panel:hide` 兼容名 → 仅关剪贴板浮层 */
   hidePanel(): void {
+    this.hideClipboard()
+  }
+
+  /** 同时隐藏两者（粘贴到外部应用时） */
+  hideAllOverlays(): void {
     this.clipboard.hide()
     this.panel.hide()
   }
 
   toggleClipboard(): void {
     if (this.clipboard.isVisible()) this.clipboard.hide()
-    else this.showClipboard()
+    else this.clipboard.show()
   }
 
   togglePanel(): void {
     if (this.panel.isVisible()) this.panel.hide()
-    else this.showPanel()
+    else this.panel.show({ captureFocus: false })
   }
 
   showSettings(): void {
@@ -90,15 +101,23 @@ export class WindowManager {
   }
 
   /**
-   * 粘贴前：关闭剪贴板/面板并恢复呼出前应用焦点（macOS）
-   * 优先使用最近呼出窗口捕获的 bundle id
+   * 粘贴前恢复焦点：
+   * - 功能面板与独立剪贴板同时开着 → 只关浮层，焦点回到面板（可贴进面板输入框）
+   * - 否则关掉浮层/面板，并激活呼出前的外部应用
    */
   async restorePreviousFocus(): Promise<boolean> {
+    const pasteIntoPanel = this.panel.isVisible() && this.clipboard.isVisible()
     const bundleId =
       this.clipboard.takePreviousAppBundleId() ?? this.panel.takePreviousAppBundleId()
 
-    this.clipboard.hide()
-    this.panel.hide()
+    if (pasteIntoPanel) {
+      this.hideClipboard()
+      this.focusPanel()
+      await delay(RESTORE_FOCUS_DELAY_MS)
+      return true
+    }
+
+    this.hideAllOverlays()
 
     if (process.platform !== 'darwin') {
       return true
@@ -119,5 +138,18 @@ export class WindowManager {
         }
       )
     })
+  }
+
+  /** 仅把焦点还给功能面板（不触发 panel:shown，避免重置面板内状态） */
+  private focusPanel(): void {
+    const win = this.panel.browserWindow
+    if (!win || win.isDestroyed()) return
+    if (win.isMinimized()) win.restore()
+    if (!win.isVisible()) win.show()
+    win.moveTop()
+    win.focus()
+    if (process.platform === 'darwin') {
+      app.focus({ steal: true })
+    }
   }
 }

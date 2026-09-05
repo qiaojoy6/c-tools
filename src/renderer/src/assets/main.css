@@ -115,6 +115,16 @@
   a {
     cursor: pointer;
   }
+
+  /*
+   * 窗口唤醒时 Chromium 常自动聚焦第一个按钮，会冒出「选中」环；
+   * 鼠标聚焦不显示，仅键盘导航时用 :focus-visible。
+   */
+  button:focus,
+  [role='button']:focus,
+  a:focus {
+    outline: none;
+  }
 }
 
 /* 细滚动条 */

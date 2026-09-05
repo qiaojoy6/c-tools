@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Settings2 } from 'lucide-vue-next'
 import { PANEL_MODULES } from '@renderer/modules/panel/tabs'
 import WindowTitleBar from '@renderer/modules/panel/components/WindowTitleBar.vue'
@@ -18,8 +18,23 @@ watch(activeModule, (id) => {
   if (id === 'projects') projectsMounted.value = true
 })
 
+let offPanelShown: (() => void) | null = null
+
 onMounted(() => {
   document.title = '功能面板'
+  // 唤醒/show 后去掉自动聚焦，避免第一个按钮残留「选中」外观
+  offPanelShown = window.api.onPanelShown(() => {
+    // focus() 后 Chromium 异步落到首个可聚焦控件，延后 blur
+    requestAnimationFrame(() => {
+      const el = document.activeElement
+      if (el instanceof HTMLElement && el !== document.body) el.blur()
+    })
+  })
+})
+
+onUnmounted(() => {
+  offPanelShown?.()
+  offPanelShown = null
 })
 
 function openSettings(): void {

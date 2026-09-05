@@ -2,7 +2,7 @@ import { Menu, app, type MenuItemConstructorOptions } from 'electron'
 import type { AppConfig, ConfigPatch } from '@shared/types'
 
 /**
- * 应用菜单：去掉 File / Edit / Window，仅保留 View（开发用开关）
+ * 应用菜单：保留 Edit（系统复制粘贴依赖菜单 role），View 含开发开关；无 File / Window
  */
 export function setupAppMenu(deps: {
   getConfig: () => AppConfig
@@ -10,6 +10,22 @@ export function setupAppMenu(deps: {
 }): void {
   const rebuild = (): void => {
     const hideOnBlur = deps.getConfig().window.hideOnBlur
+
+    // Edit role 必须保留，否则 webview / 输入框里 ⌘C ⌘V 等全部失效
+    const editMenu: MenuItemConstructorOptions = {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo', label: '撤销' },
+        { role: 'redo', label: '重做' },
+        { type: 'separator' },
+        { role: 'cut', label: '剪切' },
+        { role: 'copy', label: '复制' },
+        { role: 'paste', label: '粘贴' },
+        { role: 'pasteAndMatchStyle', label: '粘贴并匹配样式' },
+        { role: 'delete', label: '删除' },
+        { role: 'selectAll', label: '全选' }
+      ]
+    }
 
     const viewMenu: MenuItemConstructorOptions = {
       label: 'View',
@@ -24,9 +40,9 @@ export function setupAppMenu(deps: {
           }
         },
         { type: 'separator' },
-        { role: 'reload',label: '刷新' },
-        { role: 'forceReload',label: '强制刷新' },
-        { role: 'toggleDevTools',label: '打开开发者工具' }
+        { role: 'reload', label: '刷新' },
+        { role: 'forceReload', label: '强制刷新' },
+        { role: 'toggleDevTools', label: '打开开发者工具' }
       ]
     }
 
@@ -50,7 +66,7 @@ export function setupAppMenu(deps: {
       })
     }
 
-    template.push(viewMenu)
+    template.push(editMenu, viewMenu)
     Menu.setApplicationMenu(Menu.buildFromTemplate(template))
   }
 

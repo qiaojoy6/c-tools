@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from 'child_process'
+import { execFile } from 'child_process'
 import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { delay, loadRoute } from './loadRoute'
@@ -15,9 +15,17 @@ export const PANEL_TITLE_BAR_OVERLAY = {
   height: PANEL_TITLE_BAR_HEIGHT
 } as const
 
+export interface PanelShowOptions {
+  /**
+   * 是否在显示前记录前台应用（粘贴后还原用）。
+   * 程序坞 / 二次启动应关：同步 osascript 会卡住主进程，导致要点好几下才出来。
+   */
+  captureFocus?: boolean
+}
+
 /**
  * 功能面板窗口：titleBarStyle hidden + 原生窗控，顶部自定义通栏
- * 托盘呼出；ESC / 失焦不关闭
+ * 托盘 / 程序坞呼出；ESC / 失焦不关闭
  */
 export class PanelWindow {
   private win: BrowserWindow | null = null
@@ -34,6 +42,8 @@ export class PanelWindow {
   }
 
   create(): BrowserWindow {
+    if (this.win && !this.win.isDestroyed()) return this.win
+
     const win = new BrowserWindow({
       width: 880,
       height: 600,
@@ -79,12 +89,26 @@ export class PanelWindow {
     return win
   }
 
-  show(): void {
+  show(opts?: PanelShowOptions): void {
+    void this.showAsync(opts)
+  }
+
+  private async showAsync(opts?: PanelShowOptions): Promise<void> {
     const win = this.win ?? this.create()
-    this.capturePreviousFocusTarget()
+    if (win.isDestroyed()) return
+
+    // 程序坞唤起不采焦：避免等 osascript 导致「要点好几下」
+    if (opts?.captureFocus === false) {
+      this.previousAppBundleId = null
+    } else {
+      await this.capturePreviousFocusTargetAsync()
+      if (win.isDestroyed()) return
+    }
+
     if (win.isMinimized()) win.restore()
     if (!win.isVisible()) win.center()
     win.show()
+    win.moveTop()
     win.focus()
     if (process.platform === 'darwin') {
       app.focus({ steal: true })
@@ -135,26 +159,32 @@ export class PanelWindow {
     return id
   }
 
-  private capturePreviousFocusTarget(): void {
+  /** 异步读取前台 app，不阻塞主进程事件循环 */
+  private capturePreviousFocusTargetAsync(): Promise<void> {
     if (process.platform !== 'darwin') {
       this.previousAppBundleId = null
-      return
+      return Promise.resolve()
     }
 
-    try {
-      const bundleId = execFileSync(
+    return new Promise((resolve) => {
+      execFile(
         'osascript',
         [
           '-e',
           'tell application "System Events" to get bundle identifier of first application process whose frontmost is true'
         ],
-        { encoding: 'utf8' }
-      ).trim()
-
-      if (!bundleId) return
-      this.previousAppBundleId = bundleId
-    } catch {
-      this.previousAppBundleId = null
-    }
+        { encoding: 'utf8', timeout: 800 },
+        (err, stdout) => {
+          if (err) {
+            this.previousAppBundleId = null
+            resolve()
+            return
+          }
+          const bundleId = stdout.trim()
+          this.previousAppBundleId = bundleId || null
+          resolve()
+        }
+      )
+    })
   }
 }

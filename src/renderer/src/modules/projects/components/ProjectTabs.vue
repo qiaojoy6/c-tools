@@ -77,6 +77,11 @@ const emit = defineEmits<{
   font-size: 12px;
   white-space: nowrap;
   user-select: none;
+  outline: none;
+}
+
+.tab-pill:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 45%, transparent);
 }
 
 .tab-pill:hover {

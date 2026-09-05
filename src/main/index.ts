@@ -43,8 +43,8 @@ const gotSingleLock = app.requestSingleInstanceLock()
 if (!gotSingleLock) {
   app.quit()
 } else {
-  // 用户再次打开应用时，唤起已有实例的独立剪贴板
-  app.on('second-instance', () => windowManager?.showClipboard())
+  // 用户再次打开应用 / 点程序坞：立刻唤起功能面板（不采焦，避免卡主进程）
+  app.on('second-instance', () => windowManager?.showPanel({ captureFocus: false }))
 
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.ctools.clipboard')
@@ -57,7 +57,7 @@ if (!gotSingleLock) {
     configManager = new ConfigManager()
     const cfg = configManager.get()
 
-    // 精简菜单：去掉 File / Edit / Window；View 含失焦隐藏开关
+    // 菜单：Edit（⌘C/V 等）+ View；全局快捷键仅呼出剪贴板，不拦截页面内编辑键
     setupAppMenu({
       getConfig: () => configManager.get(),
       updateConfig: (patch) => {
@@ -91,7 +91,7 @@ if (!gotSingleLock) {
     trayManager = new TrayManager(
       () => ({ launchAtLogin: configManager.get().general.launchAtLogin }),
       {
-        // 托盘左键：功能面板；快捷键仍呼出独立剪贴板
+        // 托盘左键：功能面板（不采焦，立刻显示）
         togglePanel: () => windowManager.togglePanel(),
         openSettings,
         toggleLogin: () => {
@@ -109,9 +109,12 @@ if (!gotSingleLock) {
     pasteService = new PasteService()
 
     // 历史变更时推送到所有渲染窗口（history:updated）
-    historyManager = new HistoryManager(() => configManager.get(), (records) => {
-      broadcastHistory(records)
-    })
+    historyManager = new HistoryManager(
+      () => configManager.get(),
+      (records) => {
+        broadcastHistory(records)
+      }
+    )
     historyManager.init()
 
     favoritesManager = new FavoritesManager((records) => {
@@ -156,10 +159,11 @@ if (!gotSingleLock) {
     // 配置中的开机自启与系统保持同步
     applyLoginItem(cfg.general.launchAtLogin)
 
-    // 预创建浮层（隐藏，默认 /clipboard）；快捷键 / 托盘 / activate 再显示
+    // 预创建剪贴板 + 功能面板（隐藏）；快捷键呼出剪贴板，托盘/程序坞呼出功能面板
     windowManager.createPanel()
 
-    app.on('activate', () => windowManager.showClipboard())
+    // macOS 点程序坞：强制显示面板（不采焦）
+    app.on('activate', () => windowManager.showPanel({ captureFocus: false }))
   })
 
   // 托盘常驻：关闭所有窗口不退出进程
