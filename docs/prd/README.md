@@ -17,8 +17,9 @@
 - 配置本地持久化
 - 开机自启
 - 单实例（二次启动 / 点程序坞唤起功能面板；唤起时不做同步采焦，避免卡顿需连点）
-- 粘贴前恢复焦点：macOS 用 bundle id + activate；Windows 用 hwnd（koffi/user32）尽量 SetForegroundWindow；失败发系统通知并重新打开来源窗（浮层关闭后页面 toast 不可见）
-- Windows 粘贴：优先 WM_PASTE，其次 SendInput Ctrl+V；焦点仍在本应用时视为失败并提示
+- 粘贴：先写入系统剪贴板，再关窗并模拟粘贴；自动粘贴失败时提示手动 Ctrl+V / ⌘V（不再因焦点失败而跳过写入）
+- Windows 粘贴：统一模拟 Ctrl+V（SendInput / keybd_event；不用 WM_PASTE 抢先返回，避免 VS Code 等误判成功）；koffi 不可用时回退 PowerShell SendKeys
+- Windows 焦点：快捷键瞬间同步采 hwnd；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）
 
 ### 相关文件
 

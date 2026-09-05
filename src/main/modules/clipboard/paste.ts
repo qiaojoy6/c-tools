@@ -19,10 +19,11 @@ export class PasteService {
   /** 复制单条内容到系统剪贴板 */
   copy(record: ClipRecord): void {
     if (record.type === 'text') {
-      clipboard.writeText(record.text ?? '')
+      // write() 比 writeText 在 Windows 上更完整地注册 CF_UNICODETEXT
+      clipboard.write({ text: record.text ?? '' })
     } else if (record.image) {
       const img = nativeImage.createFromBuffer(Buffer.from(record.image.base64, 'base64'))
-      clipboard.writeImage(img)
+      clipboard.write({ image: img })
     }
     this.onClipboardWritten?.()
   }

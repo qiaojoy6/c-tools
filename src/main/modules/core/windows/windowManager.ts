@@ -4,9 +4,16 @@ import { delay } from './loadRoute'
 import { ClipboardWindow } from './clipboardWindow'
 import { PanelWindow, type PanelShowOptions } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
-import { activateFocusTarget, asExternalBundleId, isOurAppForeground } from './focusTarget'
+import {
+  activateFocusTarget,
+  asExternalBundleId,
+  captureWindowsForegroundHwnd,
+  isWindowsForegroundOurs,
+  isWindowsForegroundTarget,
+  prepareWindowsFocusHandoff
+} from './focusTarget'
 
-const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 180 : 120
+const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 220 : 120
 
 /**
  * 窗口枢纽：独立剪贴板浮层 + 功能面板 + 设置窗
@@ -92,6 +99,18 @@ export class WindowManager {
     else this.clipboard.show()
   }
 
+  /**
+   * Windows：快捷键回调里同步记下当前前台，再 show 浮层。
+   * 必须在 toggle/show 之前调用，避免采焦时已经是本应用。
+   */
+  noteForegroundBeforeShow(): void {
+    if (process.platform !== 'win32') return
+    const token = asExternalBundleId(captureWindowsForegroundHwnd())
+    if (!token) return
+    this.lastExternalBundleId = token
+    this.clipboard.seedPreviousAppBundleId(token)
+  }
+
   togglePanel(): void {
     if (this.panel.isVisible()) this.panel.hide()
     else this.panel.show()
@@ -129,6 +148,11 @@ export class WindowManager {
         this.lastExternalBundleId
     )
 
+    // Windows：hide 前放行目标抢前台（AllowSetForegroundWindow 要求调用方仍是前台）
+    if (process.platform === 'win32' && bundleId) {
+      prepareWindowsFocusHandoff(bundleId)
+    }
+
     this.hideAllOverlays()
 
     // macOS：必须能 activate 到外部 app，否则 Cmd+V 会落到本进程
@@ -140,21 +164,21 @@ export class WindowManager {
       return true
     }
 
-    // Windows：隐藏浮层后系统常自动还原上一前台窗；有 hwnd 则再强制激活。
-    // 若隐藏后前台仍是本应用，Ctrl+V 无效 → 返回 false 供提示（勿假装成功）。
+    // Windows：hide 后尽量激活原窗口；只要前台已不在本进程就继续模拟 Ctrl+V
+    // （不要求精确命中原 hwnd——hide 后系统常已还焦，过严校验会跳过填充）
     if (process.platform === 'win32') {
       if (bundleId) {
+        await delay(50)
         await activateFocusTarget(bundleId)
-      }
-      await delay(RESTORE_FOCUS_DELAY_MS)
-      if (isOurAppForeground()) {
-        if (bundleId) {
+        await delay(RESTORE_FOCUS_DELAY_MS)
+        if (isWindowsForegroundOurs() || !isWindowsForegroundTarget(bundleId)) {
           await activateFocusTarget(bundleId)
-          await delay(100)
+          await delay(120)
         }
-        if (isOurAppForeground()) return false
+      } else {
+        await delay(RESTORE_FOCUS_DELAY_MS + 80)
       }
-      return true
+      return !isWindowsForegroundOurs()
     }
 
     await delay(RESTORE_FOCUS_DELAY_MS)

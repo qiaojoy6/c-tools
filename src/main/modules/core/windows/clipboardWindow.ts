@@ -87,6 +87,10 @@ export class ClipboardWindow {
 
     this.position(win)
     if (win.isMinimized()) win.restore()
+    // Windows：show 前恢复置顶（hide 时为让出焦点曾关掉）
+    if (process.platform === 'win32') {
+      win.setAlwaysOnTop(this.getConfig().window.alwaysOnTop)
+    }
     win.show()
     win.focus()
     if (process.platform === 'darwin') {
@@ -96,7 +100,16 @@ export class ClipboardWindow {
   }
 
   hide(): void {
-    if (this.win?.isVisible()) this.win.hide()
+    if (!this.win?.isVisible()) return
+    // Windows：先取消置顶，再 setFocusable(false) 强迫系统把焦点还给上一窗口
+    if (process.platform === 'win32') {
+      this.win.setAlwaysOnTop(false)
+      this.win.setFocusable(false)
+      this.win.hide()
+      this.win.setFocusable(true)
+      return
+    }
+    this.win.hide()
   }
 
   toggle(): void {
@@ -136,6 +149,13 @@ export class ClipboardWindow {
     const id = this.previousAppBundleId
     this.previousAppBundleId = null
     return id
+  }
+
+  /** Windows：快捷键瞬间写入外部目标，避免 show 异步采焦丢失 */
+  seedPreviousAppBundleId(bundleId: string): void {
+    if (!bundleId || asExternalBundleId(bundleId) == null) return
+    this.previousAppBundleId = bundleId
+    this.onExternalAppCaptured?.(bundleId)
   }
 
   private position(win: BrowserWindow): void {

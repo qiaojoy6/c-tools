@@ -23,7 +23,7 @@ export interface ClipboardIpcDeps {
  * | favorite:list     | 渲染→主 invoke | 拉取全部收藏 |
  * | favorite:add      | 渲染→主 invoke | 从历史 id 拷贝到收藏 |
  * | favorite:remove   | 渲染→主 invoke | 取消收藏（删除） |
- * | clip:paste        | 渲染→主 invoke | 恢复焦点后模拟粘贴；成功返回 true |
+ * | clip:paste        | 渲染→主 invoke | 先写入系统剪贴板，再恢复焦点并模拟粘贴 |
  *
  * 主→渲染推送：
  * history:updated / favorite:updated
@@ -59,7 +59,7 @@ export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
 
   /**
    * 粘贴：历史或收藏均可；仅历史 id 会 touch 置顶。
-   * 失败时发系统通知（浮层已关，页面 toast 看不见），并尽量重新打开来源窗。
+   * 必须先写入系统剪贴板，再关窗/切焦点——否则自动粘贴失败时手动 Ctrl+V 也是空的。
    */
   ipcMain.handle('clip:paste', async (_e, ids: string[]): Promise<boolean> => {
     const records = (ids ?? [])
@@ -70,51 +70,37 @@ export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
     const historyIds = records.filter((r) => history.get(r.id)).map((r) => r.id)
     if (historyIds.length) history.touch(historyIds)
 
-    const reopenPanel = windows.panel.isVisible()
-    const reopenClipboardOnly =
-      windows.clipboard.isVisible() && !windows.panel.isVisible()
+    // 先落到系统剪贴板（单条或多条的第一条），保证手动 Ctrl+V 可用
+    paste.copy(records[0]!)
 
     const restored = await windows.restorePreviousFocus()
     if (!restored) {
-      notifyPasteFailed(
+      // 内容已在剪贴板：不抢回焦点，提示手动粘贴
+      notifyPasteHint(
         process.platform === 'darwin'
-          ? '无法切回原应用，请检查辅助功能权限'
-          : '无法切回原窗口，请先点击目标输入框后再试'
+          ? '已复制，请到目标处按 ⌘V'
+          : '已复制，请到目标窗口按 Ctrl+V'
       )
-      reopenAfterPasteFailure(windows, reopenPanel, reopenClipboardOnly)
-      return false
+      return true
     }
 
     const ok = await paste.paste(records)
     if (!ok) {
-      notifyPasteFailed(
+      notifyPasteHint(
         process.platform === 'darwin'
-          ? '模拟粘贴失败，请检查辅助功能权限'
-          : '模拟粘贴失败，请再试一次'
+          ? '已复制，请到目标处按 ⌘V'
+          : '已复制，请到目标窗口按 Ctrl+V'
       )
-      reopenAfterPasteFailure(windows, reopenPanel, reopenClipboardOnly)
-      return false
+      return true
     }
     return true
   })
 }
 
-function reopenAfterPasteFailure(
-  windows: WindowManager,
-  reopenPanel: boolean,
-  reopenClipboardOnly: boolean
-): void {
-  if (reopenPanel) {
-    windows.showPanel({ captureFocus: false })
-    return
-  }
-  if (reopenClipboardOnly) windows.showClipboard()
-}
-
-function notifyPasteFailed(body: string): void {
+function notifyPasteHint(body: string): void {
   try {
     if (!Notification.isSupported()) return
-    new Notification({ title: '粘贴失败', body }).show()
+    new Notification({ title: 'c-tools', body }).show()
   } catch {
     /* ignore */
   }

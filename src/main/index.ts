@@ -67,8 +67,13 @@ if (!gotSingleLock) {
 
     windowManager = new WindowManager(() => configManager.get())
 
-    // 全局快捷键 → 独立剪贴板浮层；非法配置写回规范化或默认值
-    shortcutManager = new ShortcutManager(() => windowManager.toggleClipboard())
+    // 全局快捷键 → 独立剪贴板浮层；Windows 先同步采焦再 toggle
+    shortcutManager = new ShortcutManager(() => {
+      if (!windowManager.clipboard.isVisible()) {
+        windowManager.noteForegroundBeforeShow()
+      }
+      windowManager.toggleClipboard()
+    })
     const shortcut = normalizeAccelerator(cfg.shortcuts.togglePanel)
     if (shortcut !== cfg.shortcuts.togglePanel) {
       configManager.update({ shortcuts: { togglePanel: shortcut } })

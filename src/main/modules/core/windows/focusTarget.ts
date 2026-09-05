@@ -17,9 +17,29 @@ type WinApi = {
   koffi: typeof import('koffi')
   GetForegroundWindow: () => Hwnd
   SetForegroundWindow: (h: Hwnd) => number
+  SetActiveWindow: (h: Hwnd) => Hwnd
   ShowWindow: (h: Hwnd, n: number) => number
   IsIconic: (h: Hwnd) => number
+  IsWindow: (h: Hwnd) => number
   BringWindowToTop: (h: Hwnd) => number
+  SetWindowPos: (
+    h: Hwnd,
+    insertAfter: Hwnd | number,
+    x: number,
+    y: number,
+    cx: number,
+    cy: number,
+    flags: number
+  ) => number
+  AllowSetForegroundWindow: (pid: number) => number
+  LockSetForegroundWindow: (lock: number) => number
+  SwitchToThisWindow: (h: Hwnd, altTab: number) => void
+  SystemParametersInfoW: (
+    action: number,
+    uiParam: number,
+    pvParam: Buffer | number,
+    fWinIni: number
+  ) => number
   GetWindowThreadProcessId: (h: Hwnd, pid: Buffer) => number
   AttachThreadInput: (a: number, b: number, f: number) => number
   GetCurrentThreadId: () => number
@@ -49,9 +69,26 @@ function loadWinApi(): WinApi | null {
       koffi,
       GetForegroundWindow: user32.func('void * __stdcall GetForegroundWindow()'),
       SetForegroundWindow: user32.func('bool __stdcall SetForegroundWindow(void *hWnd)'),
+      SetActiveWindow: user32.func('void * __stdcall SetActiveWindow(void *hWnd)'),
       ShowWindow: user32.func('bool __stdcall ShowWindow(void *hWnd, int nCmdShow)'),
       IsIconic: user32.func('bool __stdcall IsIconic(void *hWnd)'),
+      IsWindow: user32.func('bool __stdcall IsWindow(void *hWnd)'),
       BringWindowToTop: user32.func('bool __stdcall BringWindowToTop(void *hWnd)'),
+      SetWindowPos: user32.func(
+        'bool __stdcall SetWindowPos(void *hWnd, void *hWndInsertAfter, int X, int Y, int cx, int cy, uint32 uFlags)'
+      ),
+      AllowSetForegroundWindow: user32.func(
+        'bool __stdcall AllowSetForegroundWindow(uint32 dwProcessId)'
+      ),
+      LockSetForegroundWindow: user32.func(
+        'bool __stdcall LockSetForegroundWindow(uint32 uLockCode)'
+      ),
+      SwitchToThisWindow: user32.func(
+        'void __stdcall SwitchToThisWindow(void *hWnd, bool fAltTab)'
+      ),
+      SystemParametersInfoW: user32.func(
+        'bool __stdcall SystemParametersInfoW(uint32 uiAction, uint32 uiParam, void *pvParam, uint32 fWinIni)'
+      ),
       GetWindowThreadProcessId: user32.func(
         'uint32 __stdcall GetWindowThreadProcessId(void *hWnd, _Out_ uint32 *lpdwProcessId)'
       ),
@@ -132,6 +169,21 @@ function isOurHwnd(token: string): boolean {
   return false
 }
 
+/** 句柄是否属于本进程（含子窗；仅比顶层 BrowserWindow 更准） */
+function isOurProcessHwnd(token: string): boolean {
+  if (isOurHwnd(token)) return true
+  const api = loadWinApi()
+  const h = tokenToHwnd(token)
+  if (!api || !h) return false
+  try {
+    const pidBuf = Buffer.alloc(4)
+    api.GetWindowThreadProcessId(h, pidBuf)
+    return pidBuf.readUInt32LE(0) === process.pid
+  } catch {
+    return false
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
@@ -193,14 +245,16 @@ export function getFrontmostBundleId(_timeoutMs = CAPTURE_TIMEOUT_MS): Promise<s
   return Promise.resolve(null)
 }
 
-function captureWindowsForegroundHwnd(): string | null {
+/** Windows：同步采前台 hwnd（快捷键回调里尽早采，避免 show 后丢目标） */
+export function captureWindowsForegroundHwnd(): string | null {
+  if (process.platform !== 'win32') return null
   const api = loadWinApi()
   if (!api) return null
   try {
     const h = api.GetForegroundWindow()
     const token = hwndToToken(h)
     if (!token) return null
-    if (isOurHwnd(token)) return null
+    if (isOurProcessHwnd(token)) return null
     return token
   } catch (err) {
     console.error('[focusTarget] GetForegroundWindow 失败:', err)
@@ -210,7 +264,7 @@ function captureWindowsForegroundHwnd(): string | null {
 
 export function isOwnBundleId(bundleId: string | null | undefined): boolean {
   if (!bundleId) return false
-  if (bundleId.startsWith('hwnd:')) return isOurHwnd(bundleId)
+  if (bundleId.startsWith('hwnd:')) return isOurProcessHwnd(bundleId)
   const own = getOwnBundleId()
   if (own && bundleId === own) return true
   if (bundleId === 'com.github.Electron' || bundleId === 'com.electron.app') return true
@@ -242,120 +296,238 @@ export async function activateFocusTarget(target: string): Promise<boolean> {
   return false
 }
 
+/**
+ * Windows only：在本进程仍占前台时放行目标进程抢焦点。
+ * 必须在 hide 浮层之前调用，否则 AllowSetForegroundWindow 无效。
+ */
+export function prepareWindowsFocusHandoff(token: string): void {
+  if (process.platform !== 'win32' || !token.startsWith('hwnd:')) return
+  const api = loadWinApi()
+  const h = tokenToHwnd(token)
+  if (!api || !h) return
+  try {
+    api.LockSetForegroundWindow(2) // LSFW_UNLOCK
+    const pidBuf = Buffer.alloc(4)
+    api.GetWindowThreadProcessId(h, pidBuf)
+    const pid = pidBuf.readUInt32LE(0)
+    if (pid) api.AllowSetForegroundWindow(pid)
+    api.AllowSetForegroundWindow(0xffffffff) // ASFW_ANY
+  } catch (err) {
+    console.error('[focusTarget] prepareWindowsFocusHandoff 失败:', err)
+  }
+}
+
+/** Windows：当前前台是否属于本进程（含子窗） */
+export function isWindowsForegroundOurs(): boolean {
+  if (process.platform !== 'win32') return false
+  const api = loadWinApi()
+  if (!api) return false
+  try {
+    const fg = hwndToToken(api.GetForegroundWindow())
+    return Boolean(fg && isOurProcessHwnd(fg))
+  } catch {
+    return false
+  }
+}
+
+/** Windows：当前前台是否已是目标 hwnd（或其同进程顶层窗） */
+export function isWindowsForegroundTarget(token: string): boolean {
+  if (process.platform !== 'win32' || !token.startsWith('hwnd:')) return false
+  const api = loadWinApi()
+  if (!api) return false
+  try {
+    const fg = api.GetForegroundWindow()
+    const fgToken = hwndToToken(fg)
+    if (!fgToken) return false
+    if (fgToken === token) return true
+    if (isOurProcessHwnd(fgToken)) return false
+    const a = Buffer.alloc(4)
+    const b = Buffer.alloc(4)
+    const hTarget = tokenToHwnd(token)
+    if (!hTarget || !fg) return false
+    api.GetWindowThreadProcessId(hTarget, a)
+    api.GetWindowThreadProcessId(fg, b)
+    return a.readUInt32LE(0) !== 0 && a.readUInt32LE(0) === b.readUInt32LE(0)
+  } catch {
+    return false
+  }
+}
+
+/** 临时把前台锁超时清零，提高 SetForegroundWindow 成功率 */
+function withForegroundLockDisabled(api: WinApi, fn: () => void): void {
+  const SPI_GETFOREGROUNDLOCKTIMEOUT = 0x2000
+  const SPI_SETFOREGROUNDLOCKTIMEOUT = 0x2001
+  const prev = Buffer.alloc(8)
+  prev.writeUInt32LE(0, 0)
+  let hadPrev = false
+  try {
+    hadPrev = !!api.SystemParametersInfoW(SPI_GETFOREGROUNDLOCKTIMEOUT, 0, prev, 0)
+    const zero = Buffer.alloc(8)
+    api.SystemParametersInfoW(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, zero, 0)
+    fn()
+  } catch {
+    fn()
+  } finally {
+    if (hadPrev) {
+      try {
+        api.SystemParametersInfoW(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, prev, 0)
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
 function activateWindowsHwnd(token: string): boolean {
   const api = loadWinApi()
   const h = tokenToHwnd(token)
   if (!api || !h) return false
   try {
+    if (!api.IsWindow(h)) return false
     if (api.IsIconic(h)) api.ShowWindow(h, 9) // SW_RESTORE
-    // Alt 空按，放宽 SetForegroundWindow 前台限制
+
+    const targetPidBuf = Buffer.alloc(4)
+    const targetTid = api.GetWindowThreadProcessId(h, targetPidBuf)
+    const targetPid = targetPidBuf.readUInt32LE(0)
+    if (targetPid) api.AllowSetForegroundWindow(targetPid)
+    api.LockSetForegroundWindow(2)
+
+    // Alt 空按，放宽前台限制
     api.keybd_event(0x12, 0, 0, 0)
     api.keybd_event(0x12, 0, 2, 0)
 
     const fg = api.GetForegroundWindow()
-    const pidBuf = Buffer.alloc(4)
-    const foreTid = fg ? api.GetWindowThreadProcessId(fg, pidBuf) : 0
+    const fgPidBuf = Buffer.alloc(4)
+    const foreTid = fg ? api.GetWindowThreadProcessId(fg, fgPidBuf) : 0
     const curTid = api.GetCurrentThreadId()
-    let attached = false
+
+    let attachedFore = false
+    let attachedTarget = false
     if (foreTid && foreTid !== curTid) {
-      attached = !!api.AttachThreadInput(curTid, foreTid, 1)
+      attachedFore = !!api.AttachThreadInput(curTid, foreTid, 1)
     }
-    api.ShowWindow(h, 5) // SW_SHOW
-    api.BringWindowToTop(h)
-    const ok = !!api.SetForegroundWindow(h)
-    if (attached) api.AttachThreadInput(curTid, foreTid, 0)
-    return ok
+    if (targetTid && targetTid !== curTid && targetTid !== foreTid) {
+      attachedTarget = !!api.AttachThreadInput(curTid, targetTid, 1)
+    }
+    // 前台线程与目标线程互挂，进一步放宽限制
+    let attachedCross = false
+    if (foreTid && targetTid && foreTid !== targetTid) {
+      attachedCross = !!api.AttachThreadInput(foreTid, targetTid, 1)
+    }
+
+    withForegroundLockDisabled(api, () => {
+      api.ShowWindow(h, 5) // SW_SHOW
+      api.BringWindowToTop(h)
+      api.SetWindowPos(h, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040)
+      api.SetForegroundWindow(h)
+      try {
+        api.SetActiveWindow(h)
+      } catch {
+        /* ignore */
+      }
+    })
+
+    if (attachedCross) api.AttachThreadInput(foreTid, targetTid, 0)
+    if (attachedTarget) api.AttachThreadInput(curTid, targetTid, 0)
+    if (attachedFore) api.AttachThreadInput(curTid, foreTid, 0)
+
+    if (!isWindowsForegroundTarget(token)) {
+      try {
+        api.SwitchToThisWindow(h, 1)
+      } catch {
+        /* ignore */
+      }
+      api.SetForegroundWindow(h)
+    }
+
+    return isWindowsForegroundTarget(token)
   } catch (err) {
     console.error('[focusTarget] SetForegroundWindow 失败:', err)
     return false
   }
 }
 
-/** 当前前台是否仍是本应用窗口（隐藏浮层后若仍为 true，Ctrl+V 会无效） */
-export function isOurAppForeground(): boolean {
-  if (process.platform !== 'win32') return false
-  const api = loadWinApi()
-  if (!api) return false
-  try {
-    const token = hwndToToken(api.GetForegroundWindow())
-    return Boolean(token && isOurHwnd(token))
-  } catch {
-    return false
-  }
-}
-
 /**
- * Windows 粘贴：优先 WM_PASTE 到焦点控件，再 SendInput Ctrl+V。
- * 任一步成功即 true；全失败返回 false（供上层提示，不再假装成功）。
+ * Windows 粘贴：一律走 Ctrl+V（SendInput / keybd_event）。
+ * 不用 WM_PASTE 抢先返回——VS Code / Chrome 等多数应用不吃 WM_PASTE，会误判成功却没贴上。
  */
 export async function simulateWindowsPasteKey(): Promise<boolean> {
   if (process.platform !== 'win32') return false
   const api = loadWinApi()
-  if (!api) return false
 
   try {
-    await sleep(40)
-    if (sendWmPaste(api)) return true
-    if (sendInputCtrlV(api)) {
-      // SendInput 计数成功但前台仍是本应用 → 键没落到外部
-      return !isOurAppForeground()
+    await sleep(50)
+    // 前台仍在本进程时再等一小会（hide 还焦有延迟），仍不行才放弃
+    if (isWindowsForegroundOurs()) {
+      await sleep(120)
+    }
+    if (isWindowsForegroundOurs()) {
+      console.warn('[focusTarget] 粘贴时前台仍是本进程，跳过模拟键')
+      return false
     }
 
-    api.keybd_event(0x11, 0, 0, 0)
-    await sleep(15)
-    api.keybd_event(0x56, 0, 0, 0)
-    await sleep(15)
-    api.keybd_event(0x56, 0, 2, 0)
-    await sleep(15)
-    api.keybd_event(0x11, 0, 2, 0)
-    await sleep(20)
-    return !isOurAppForeground()
+    if (api) {
+      if (sendInputCtrlV(api)) return true
+
+      releaseModifiers(api)
+      await sleep(20)
+      api.keybd_event(0x11, 0, 0, 0) // Ctrl down
+      await sleep(20)
+      api.keybd_event(0x56, 0, 0, 0) // V down
+      await sleep(20)
+      api.keybd_event(0x56, 0, 2, 0) // V up
+      await sleep(20)
+      api.keybd_event(0x11, 0, 2, 0) // Ctrl up
+      return true
+    }
+    return await simulateWindowsPasteKeyPowershell()
   } catch (err) {
     console.error('[focusTarget] 模拟 Ctrl+V 失败:', err)
-    return false
+    return simulateWindowsPasteKeyPowershell()
   }
 }
 
-/** 向当前焦点控件发 WM_PASTE（比模拟按键更稳） */
-function sendWmPaste(api: WinApi): boolean {
-  try {
-    const WM_PASTE = 0x0302
-    const info = Buffer.alloc(Math.max(api.guiThreadInfoSize, 72))
-    info.writeUInt32LE(api.guiThreadInfoSize, 0)
-    if (!api.GetGUIThreadInfo(0, info)) return false
-
-    // hwndFocus @ 8+ptrSize；hwndActive @ 8
-    const focusOff = 8 + api.ptrSize
-    const focusAddr =
-      api.ptrSize >= 8 ? info.readBigUInt64LE(focusOff) : BigInt(info.readUInt32LE(focusOff))
-    const activeOff = 8
-    const activeAddr =
-      api.ptrSize >= 8 ? info.readBigUInt64LE(activeOff) : BigInt(info.readUInt32LE(activeOff))
-    const targetAddr = focusAddr !== 0n ? focusAddr : activeAddr
-    if (targetAddr === 0n) return false
-
-    const token = `hwnd:${targetAddr.toString()}`
-    if (isOurHwnd(token)) return false
-
-    const h = api.koffi.as(targetAddr, 'void *')
-    api.SendMessageW(h, WM_PASTE, 0, 0)
-    return true
-  } catch (err) {
-    console.warn('[focusTarget] WM_PASTE 失败:', err)
-    return false
+function releaseModifiers(api: WinApi): void {
+  const KEYUP = 2
+  for (const vk of [0x10, 0x11, 0x12]) {
+    // Shift / Ctrl / Alt
+    api.keybd_event(vk, 0, KEYUP, 0)
   }
+}
+
+/** koffi 不可用时的兜底：WScript.Shell SendKeys */
+function simulateWindowsPasteKeyPowershell(): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-STA',
+        '-Command',
+        `$w=New-Object -ComObject WScript.Shell; Start-Sleep -Milliseconds 80; $w.SendKeys('^v')`
+      ],
+      { timeout: 5000, windowsHide: true },
+      (err) => resolve(!err)
+    )
+  })
 }
 
 function sendInputCtrlV(api: WinApi): boolean {
   try {
     const KEYEVENTF_KEYUP = 0x0002
     const INPUT_KEYBOARD = 1
+    const VK_SHIFT = 0x10
     const VK_CONTROL = 0x11
+    const VK_MENU = 0x12
     const VK_V = 0x56
 
     // x64 INPUT = 40；x86 = 28
     const stride = api.ptrSize >= 8 ? 40 : 28
+    // 先抬起修饰键，避免组合键状态异常
     const entries = [
+      { vk: VK_SHIFT, up: true },
+      { vk: VK_MENU, up: true },
+      { vk: VK_CONTROL, up: true },
       { vk: VK_CONTROL, up: false },
       { vk: VK_V, up: false },
       { vk: VK_V, up: true },

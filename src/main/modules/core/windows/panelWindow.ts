@@ -123,7 +123,15 @@ export class PanelWindow {
   }
 
   hide(): void {
-    if (this.win?.isVisible()) this.win.hide()
+    if (!this.win?.isVisible()) return
+    // Windows：粘贴还焦时同样用 setFocusable(false) 把焦点让出去
+    if (process.platform === 'win32') {
+      this.win.setFocusable(false)
+      this.win.hide()
+      this.win.setFocusable(true)
+      return
+    }
+    this.win.hide()
   }
 
   toggle(): void {
