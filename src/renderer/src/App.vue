@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { logApi } from './utils/logApi'
 
 const route = useRoute()
+
+onMounted(() => {
+  logApi.info('App.vue')
+})
 
 /** 独立剪贴板用毛玻璃浮层壳；功能面板 / 设置为普通窗 */
 const isOverlayShell = computed(() => route.name === 'clipboard')

@@ -22,20 +22,25 @@
 - 自动粘贴失败时的「已复制，请手动 ⌘V/Ctrl+V」每个进程只提示一次
 - Windows 粘贴：统一模拟 Ctrl+V（SendInput / keybd_event；不用 WM_PASTE 抢先返回，避免 VS Code 等误判成功）；koffi 不可用时回退 PowerShell SendKeys
 - Windows 焦点：快捷键瞬间同步采 hwnd；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）
+- 渲染进程日志 `window.logApi` / `import { logApi }`：debug/info/warn/error；先安全序列化再经 `api.logWrite` 打到主进程终端；DevTools 仍打印原始对象
 
 ### 相关文件
 
 - `src/main/modules/core/windows/` — ClipboardWindow / PanelWindow / SettingsWindow / WindowManager
 - `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac` osascript；`win` koffi+user32）
-- `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu
+- `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu / logIpc
 - `src/main/config/` — 默认配置与读写
 - `src/renderer/src/pages/PanelPage.vue` — 功能面板壳（表头 + 左侧模块 Tab）
 - `src/renderer/src/modules/panel/components/WindowTitleBar.vue` — 通栏自定义表头（无自绘窗控）
 - `src/renderer/src/pages/ClipboardPage.vue` — 独立剪贴板入口（亦内嵌于面板）
 - `src/renderer/src/modules/panel/tabs.ts` — 面板模块注册
 - `src/renderer/src/router/index.ts` — `/clipboard` / `/panel` / `/settings`
+- `src/renderer/src/utils/logApi.ts` — 渲染日志安装与封装
+- `src/shared/logFormat.ts` — 日志安全序列化
 - `src/preload/modules/app.ts`
+- `src/preload/modules/log.ts`
 - `src/shared/config.ts`
+- `src/shared/modules/log.ts`
 
 ---
 

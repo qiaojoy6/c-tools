@@ -22,6 +22,7 @@ import {
   TrayManager,
   WindowManager,
   registerCoreIpc,
+  registerLogIpc,
   normalizeAccelerator,
   setupAppMenu
 } from './modules/core'
@@ -146,6 +147,7 @@ if (!gotSingleLock) {
     pasteService.onClipboardWritten = () => clipboardWatcher.syncBaseline()
 
     // ---- IPC：core 与 clipboard 分开注册，channel 见各 ipc.ts ----
+    registerLogIpc()
     registerCoreIpc({
       config: configManager,
       shortcuts: shortcutManager,
