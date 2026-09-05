@@ -42,6 +42,12 @@ export const appApi = {
     const listener = (): void => callback()
     ipcRenderer.on('settings:shown', listener)
     return () => ipcRenderer.removeListener('settings:shown', listener)
+  },
+  /** 订阅 config:updated（托盘等改配置时设置页实时同步） */
+  onConfigUpdated: (callback: (config: AppConfig) => void): (() => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, config: AppConfig): void => callback(config)
+    ipcRenderer.on('config:updated', listener)
+    return () => ipcRenderer.removeListener('config:updated', listener)
   }
 }
 

@@ -4,12 +4,23 @@ import { join } from 'path'
 import type { AppConfig, ConfigPatch, ProjectsConfig } from '@shared/types'
 import { DEFAULT_CONFIG } from './defaults'
 
-/** 应用开机自启设置 */
+/** 配置变更回调（prev 为变更前快照） */
+export type ConfigChangedHandler = (cfg: AppConfig, prev: AppConfig) => void
+
+/** 应用开机自启（macOS 13+ 勿再用已废弃的 openAsHidden） */
 export function applyLoginItem(enabled: boolean): void {
-  app.setLoginItemSettings({
-    openAtLogin: enabled,
-    openAsHidden: true
-  })
+  try {
+    if (process.platform === 'darwin') {
+      app.setLoginItemSettings({
+        openAtLogin: enabled,
+        type: 'mainAppService'
+      })
+      return
+    }
+    app.setLoginItemSettings({ openAtLogin: enabled })
+  } catch (err) {
+    console.warn('[config] setLoginItemSettings 失败:', err)
+  }
 }
 
 const SETTINGS_FILE = 'settings.json'
@@ -34,6 +45,8 @@ function deepMerge<T>(base: T, override: unknown): T {
 export class ConfigManager {
   private filePath: string
   private config: AppConfig
+  /** 任意落盘更新后通知（托盘 / 设置窗同步） */
+  onChanged: ConfigChangedHandler | null = null
 
   constructor() {
     this.filePath = join(app.getPath('userData'), SETTINGS_FILE)
@@ -46,8 +59,10 @@ export class ConfigManager {
 
   /** 局部更新配置并持久化 */
   update(patch: ConfigPatch): AppConfig {
+    const prev = this.config
     this.config = deepMerge(this.config, patch)
     this.save()
+    this.onChanged?.(this.config, prev)
     return this.config
   }
 
@@ -55,8 +70,10 @@ export class ConfigManager {
    * 整段替换 projects（overrides 为动态键，deepMerge 不会写入新 folderName）
    */
   replaceProjects(projects: ProjectsConfig): AppConfig {
+    const prev = this.config
     this.config = { ...this.config, projects: structuredClone(projects) }
     this.save()
+    this.onChanged?.(this.config, prev)
     return this.config
   }
 

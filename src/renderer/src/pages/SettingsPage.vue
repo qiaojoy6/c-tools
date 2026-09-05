@@ -10,6 +10,7 @@ const activeModule = ref(SETTINGS_MODULES[0]!.id)
 const toastMsg = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 let offShown: (() => void) | null = null
+let offConfig: (() => void) | null = null
 
 const activeTab = computed(
   () => SETTINGS_MODULES.find((m) => m.id === activeModule.value) ?? SETTINGS_MODULES[0]!
@@ -39,10 +40,15 @@ onMounted(() => {
   offShown = window.api.onSettingsShown(() => {
     void loadConfig()
   })
+  // 托盘等改配置时立刻刷新，避免开关状态滞后
+  offConfig = window.api.onConfigUpdated((cfg) => {
+    config.value = cfg
+  })
 })
 
 onUnmounted(() => {
   offShown?.()
+  offConfig?.()
   if (toastTimer) clearTimeout(toastTimer)
   void window.api.resumeShortcuts()
 })

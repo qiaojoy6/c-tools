@@ -1,16 +1,14 @@
 import { ipcMain } from 'electron'
-import { applyLoginItem, DEFAULT_CONFIG } from '../../config'
+import { DEFAULT_CONFIG } from '../../config'
 import type { ConfigManager } from '../../config'
 import type { AppConfig, ConfigPatch, ConfigUpdateResult, WebviewContextMenuPayload } from '@shared/types'
 import { normalizeAccelerator, type ShortcutManager } from './shortcutManager'
-import type { TrayManager } from './trayManager'
 import type { WindowManager } from './windows'
 import { popupWebviewContextMenu } from './webviewContextMenu'
 
 export interface CoreIpcDeps {
   config: ConfigManager
   shortcuts: ShortcutManager
-  tray: TrayManager
   windows: WindowManager
   /** 各功能模块对配置变更的联动（由入口装配注入，如剪贴板裁剪/清理/广播） */
   onModuleConfigChanged: () => void
@@ -29,11 +27,11 @@ export interface CoreIpcDeps {
  * | settings:open       | 渲染→主 send   | 打开设置窗口 |
  * | webview:contextMenu | 渲染→主 invoke | webview guest 右键菜单 |
  *
- * 主→渲染（由 WindowManager 发出，preload 订阅）：
- * panel:shown / settings:shown
+ * 主→渲染（preload 订阅）：
+ * panel:shown / settings:shown / config:updated
  */
 export function registerCoreIpc(deps: CoreIpcDeps): void {
-  const { config, shortcuts, tray, windows } = deps
+  const { config, shortcuts, windows } = deps
 
   ipcMain.handle('config:get', (): AppConfig => config.get())
 
@@ -72,10 +70,7 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
         return { config: reverted, warnings }
       }
     }
-    if (normalizedPatch?.general?.launchAtLogin !== undefined) {
-      applyLoginItem(cfg.general.launchAtLogin)
-      tray.rebuild()
-    }
+    // 开机自启 / 托盘勾选：由 ConfigManager.onChanged 统一同步系统与各窗口
     if (normalizedPatch?.clipboard) {
       deps.onModuleConfigChanged()
     }

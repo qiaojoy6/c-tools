@@ -32,7 +32,7 @@ export class TrayManager {
       icon = icon.resize({ width: 16, height: 16 })
     }
     this.tray = new Tray(icon)
-    this.tray.setToolTip('剪贴板增强工具')
+    this.tray.setToolTip('c-tools')
 
     if (process.platform === 'darwin') {
       // macOS：左键呼出面板，右键菜单
@@ -46,6 +46,7 @@ export class TrayManager {
 
   rebuild(): void {
     if (!this.tray) return
+    // Windows / Linux：常驻 contextMenu 需重建；macOS 右键时现建菜单，这里无操作
     if (process.platform === 'darwin') return
     this.tray.setContextMenu(this.buildMenu())
   }

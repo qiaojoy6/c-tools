@@ -47,7 +47,7 @@ if (!gotSingleLock) {
   app.on('second-instance', () => windowManager?.showPanel())
 
   app.whenReady().then(() => {
-    electronApp.setAppUserModelId('com.ctools.clipboard')
+    electronApp.setAppUserModelId('com.ctools.app')
 
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
@@ -99,16 +99,26 @@ if (!gotSingleLock) {
         // 托盘左键：功能面板（不采焦，立刻显示）
         togglePanel: () => windowManager.togglePanel(),
         openSettings,
+        // 只改配置；系统登录项 / 托盘勾选 / 设置窗由 onChanged 统一同步
         toggleLogin: () => {
           const enabled = !configManager.get().general.launchAtLogin
           configManager.update({ general: { launchAtLogin: enabled } })
-          applyLoginItem(enabled)
-          trayManager.rebuild()
         },
         quit: () => quitApp()
       }
     )
     trayManager.create()
+
+    // 配置变更：开机自启 ↔ 系统、托盘勾选、所有设置窗实时刷新
+    configManager.onChanged = (next, prev) => {
+      if (next.general.launchAtLogin !== prev.general.launchAtLogin) {
+        applyLoginItem(next.general.launchAtLogin)
+      }
+      trayManager.rebuild()
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send('config:updated', next)
+      }
+    }
 
     // ---- 功能模块（clipboard）----
     pasteService = new PasteService()
@@ -139,7 +149,6 @@ if (!gotSingleLock) {
     registerCoreIpc({
       config: configManager,
       shortcuts: shortcutManager,
-      tray: trayManager,
       windows: windowManager,
       // 模块联动通过回调注入，core 不依赖具体功能模块
       onModuleConfigChanged: () => {

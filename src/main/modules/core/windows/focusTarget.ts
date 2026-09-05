@@ -267,7 +267,12 @@ export function isOwnBundleId(bundleId: string | null | undefined): boolean {
   if (bundleId.startsWith('hwnd:')) return isOurProcessHwnd(bundleId)
   const own = getOwnBundleId()
   if (own && bundleId === own) return true
-  if (bundleId === 'com.github.Electron' || bundleId === 'com.electron.app') return true
+  if (
+    bundleId === 'com.ctools.app' ||
+    bundleId === 'com.github.Electron' ||
+    bundleId === 'com.electron.app'
+  )
+    return true
   if (!app.isPackaged && bundleId.includes('Electron')) return true
   return false
 }
