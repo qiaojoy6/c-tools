@@ -1,13 +1,12 @@
 import type { AppConfig } from '@shared/types'
 import { app } from 'electron'
-import { execFile } from 'child_process'
 import { delay } from './loadRoute'
 import { ClipboardWindow } from './clipboardWindow'
 import { PanelWindow, type PanelShowOptions } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
-import { asExternalBundleId } from './focusTarget'
+import { activateFocusTarget, asExternalBundleId } from './focusTarget'
 
-const RESTORE_FOCUS_DELAY_MS = 100
+const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 180 : 120
 
 /**
  * 窗口枢纽：独立剪贴板浮层 + 功能面板 + 设置窗
@@ -132,27 +131,16 @@ export class WindowManager {
 
     this.hideAllOverlays()
 
-    if (process.platform !== 'darwin') {
+    // 没有外部目标：粘贴会落到空处
+    if (!bundleId) {
+      if (process.platform === 'darwin' || process.platform === 'win32') return false
       return true
     }
 
-    // 没有外部目标：粘贴会落到空处，视为失败（面板内剪贴板「有时不可以」）
-    if (!bundleId) return false
-
-    return new Promise((resolve) => {
-      execFile(
-        'osascript',
-        ['-e', `tell application id "${bundleId}" to activate`],
-        async (err) => {
-          if (err) {
-            resolve(false)
-            return
-          }
-          await delay(RESTORE_FOCUS_DELAY_MS)
-          resolve(true)
-        }
-      )
-    })
+    const ok = await activateFocusTarget(bundleId)
+    if (!ok) return false
+    await delay(RESTORE_FOCUS_DELAY_MS)
+    return true
   }
 
   private focusPanel(): void {

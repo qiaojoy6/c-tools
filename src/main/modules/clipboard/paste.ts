@@ -1,9 +1,11 @@
 import { spawn } from 'child_process'
 import { clipboard, nativeImage, shell, systemPreferences } from 'electron'
 import type { ClipRecord } from '@shared/types'
+import { simulateWindowsPasteKey } from '../core/windows/focusTarget'
 
 /** 激活目标应用后、发粘贴键前的短等待（等焦点落地） */
 const MAC_PRE_PASTE_DELAY_MS = 10
+const WIN_PRE_PASTE_DELAY_MS = 80
 /** 多条连续粘贴时，条目之间的间隔（最后一条不等待） */
 const BETWEEN_PASTE_DELAY_MS = 100
 
@@ -41,6 +43,8 @@ export class PasteService {
       this.copy(record)
       if (process.platform === 'darwin') {
         await delay(MAC_PRE_PASTE_DELAY_MS)
+      } else if (process.platform === 'win32') {
+        await delay(WIN_PRE_PASTE_DELAY_MS)
       }
       const ok = await this.simulatePasteKey()
       if (!ok) return false
@@ -57,7 +61,6 @@ export class PasteService {
     return new Promise((resolve) => {
       try {
         if (process.platform === 'darwin') {
-          // osascript 远快于每次 xcrun swift 冷编译
           const child = spawn('osascript', [
             '-e',
             'tell application "System Events" to keystroke "v" using command down'
@@ -76,18 +79,8 @@ export class PasteService {
             resolve(code === 0)
           })
         } else if (process.platform === 'win32') {
-          const child = spawn(
-            'powershell.exe',
-            [
-              '-NoProfile',
-              '-NonInteractive',
-              '-Command',
-              'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^v")'
-            ],
-            { windowsHide: true }
-          )
-          child.on('error', () => resolve(false))
-          child.on('exit', (code) => resolve(code === 0))
+          // SendKeys 在独立 powershell 进程里经常贴不到目标窗；改用 user32 keybd_event
+          void simulateWindowsPasteKey().then(resolve)
         } else {
           const child = spawn('xdotool', ['key', '--clearmodifiers', 'ctrl+v'])
           child.on('error', () => resolve(false))
