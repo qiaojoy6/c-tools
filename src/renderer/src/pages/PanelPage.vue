@@ -1,12 +1,22 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Settings2 } from 'lucide-vue-next'
 import { PANEL_MODULES } from '@renderer/modules/panel/tabs'
 import WindowTitleBar from '@renderer/modules/panel/components/WindowTitleBar.vue'
 import ClipboardPage from '@renderer/pages/ClipboardPage.vue'
+import ProjectsPage from '@renderer/pages/ProjectsPage.vue'
 
 /** 功能面板：通栏自定义表头 + 左侧模块轨 + 内容区 */
 const activeModule = ref(PANEL_MODULES[0]!.id)
+/** 首次进入后再挂载，之后用 v-show 保留 webview */
+const projectsMounted = ref(false)
+
+const showClipboard = computed(() => activeModule.value === 'clipboard')
+const showProjects = computed(() => activeModule.value === 'projects')
+
+watch(activeModule, (id) => {
+  if (id === 'projects') projectsMounted.value = true
+})
 
 onMounted(() => {
   document.title = '功能面板'
@@ -52,7 +62,8 @@ function openSettings(): void {
       </aside>
 
       <div class="panel-body">
-        <ClipboardPage v-if="activeModule === 'clipboard'" />
+        <ClipboardPage v-if="showClipboard" />
+        <ProjectsPage v-if="projectsMounted" v-show="showProjects" />
       </div>
     </div>
   </div>
@@ -147,7 +158,16 @@ function openSettings(): void {
 }
 
 .panel-body {
+  position: relative;
   min-width: 0;
+  min-height: 0;
   flex: 1;
+  overflow: hidden;
+}
+
+.panel-body > * {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
 }
 </style>

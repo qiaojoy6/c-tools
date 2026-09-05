@@ -59,7 +59,9 @@ export class PanelWindow {
       autoHideMenuBar: true,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
-        sandbox: false
+        sandbox: false,
+        // 项目模块用 <webview> 预览本地静态页
+        webviewTag: true
       }
     })
 

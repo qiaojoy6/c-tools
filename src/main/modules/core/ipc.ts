@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { applyLoginItem, DEFAULT_CONFIG } from '../../config'
 import type { ConfigManager } from '../../config'
-import type { AppConfig, ConfigPatch, ConfigUpdateResult } from '@/shared/types'
+import type { AppConfig, ConfigPatch, ConfigUpdateResult } from '@shared/types'
 import { normalizeAccelerator, type ShortcutManager } from './shortcutManager'
 import type { TrayManager } from './trayManager'
 import type { WindowManager } from './windows'

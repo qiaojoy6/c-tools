@@ -1,4 +1,5 @@
 import type { ClipboardConfig } from './modules/clipboard'
+import type { ProjectsConfig } from './modules/projects'
 
 /** ============ 应用全局配置类型 ============ */
 
@@ -51,6 +52,7 @@ export interface AppConfig {
   window: WindowConfig
   shortcuts: ShortcutConfig
   clipboard: ClipboardConfig
+  projects: ProjectsConfig
   privacy: PrivacyConfig
   general: GeneralConfig
 }

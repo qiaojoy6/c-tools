@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import type { AppConfig, ConfigPatch } from '@shared/types'
+import type { AppConfig, ConfigPatch, ProjectsConfig } from '@shared/types'
 import { DEFAULT_CONFIG } from './defaults'
 
 /** 应用开机自启设置 */
@@ -47,6 +47,15 @@ export class ConfigManager {
   /** 局部更新配置并持久化 */
   update(patch: ConfigPatch): AppConfig {
     this.config = deepMerge(this.config, patch)
+    this.save()
+    return this.config
+  }
+
+  /**
+   * 整段替换 projects（overrides 为动态键，deepMerge 不会写入新 folderName）
+   */
+  replaceProjects(projects: ProjectsConfig): AppConfig {
+    this.config = { ...this.config, projects: structuredClone(projects) }
     this.save()
     return this.config
   }

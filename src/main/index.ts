@@ -1,8 +1,8 @@
 /**
- * 主进程入口：组装 core / clipboard，注册 IPC，启动托盘与浮层。
+ * 主进程入口：组装 core / clipboard / projects，注册 IPC，启动托盘与浮层。
  *
  * 进程通信约定：
- * - invoke / handle：请求-响应（配置、历史、粘贴）
+ * - invoke / handle：请求-响应（配置、历史、粘贴、项目）
  * - send / on：单向通知（隐藏浮层、打开设置）
  * - webContents.send / ipcRenderer.on：主→渲染推送（浮层显示、路由切换、历史更新）
  * Preload 经 contextBridge 暴露为 window.api，渲染进程不直接碰 ipcRenderer。
@@ -25,6 +25,7 @@ import {
   normalizeAccelerator,
   setupAppMenu
 } from './modules/core'
+import { ProjectsRuntime, registerProjectsIpc } from './modules/projects'
 
 let configManager: ConfigManager
 let historyManager: HistoryManager
@@ -34,6 +35,7 @@ let windowManager: WindowManager
 let shortcutManager: ShortcutManager
 let trayManager: TrayManager
 let clipboardWatcher: ClipboardWatcher
+let projectsRuntime: ProjectsRuntime
 
 /** 单实例：已有进程时二次启动会触发 second-instance，本进程直接退出 */
 const gotSingleLock = app.requestSingleInstanceLock()
@@ -144,6 +146,13 @@ if (!gotSingleLock) {
       windows: windowManager
     })
 
+    // ---- 功能模块（projects）----
+    projectsRuntime = new ProjectsRuntime()
+    registerProjectsIpc({
+      config: configManager,
+      runtime: projectsRuntime
+    })
+
     // 配置中的开机自启与系统保持同步
     applyLoginItem(cfg.general.launchAtLogin)
 
@@ -181,6 +190,7 @@ function quitApp(): void {
   historyManager?.dispose()
   favoritesManager?.dispose()
   clipboardWatcher?.stop()
+  void projectsRuntime?.stopAll()
   windowManager?.markQuitting()
   app.quit()
 }

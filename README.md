@@ -1,10 +1,7 @@
 # c-tools
+c-tools 是一款基于 Electron + Vue 的桌面效率工具，目前以剪贴板管理为核心。
 
-An Electron application with Vue and TypeScript
-
-## Recommended IDE Setup
-
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
+它会在后台监听系统剪贴板（文本、图片），保存历史并支持收藏；可通过快捷键呼出独立浮层，或从托盘打开功能面板，搜索、筛选后粘贴回原应用。另有设置（快捷键、条数上限、过期清理、开机自启等），托盘常驻，关窗不退出
 
 ## Project Setup
 
@@ -57,8 +54,8 @@ Renderer (window.api.xxx)
 |------|------|
 | Renderer 调用 / 类型 | 页面、composables；`src/renderer/src/env.d.ts` |
 | Preload 合并入口 | `src/preload/index.ts` |
-| Preload bridge | `src/preload/modules/app.ts`、`clipboard.ts` |
-| Main IPC | `src/main/modules/core/ipc.ts`、`clipboard/ipc.ts` |
+| Preload bridge | `src/preload/modules/app.ts`、`clipboard.ts`、`projects.ts` |
+| Main IPC | `src/main/modules/core/ipc.ts`、`clipboard/ipc.ts`、`projects/ipc.ts` |
 | Main 推送发出 | `panelWindow.ts`、`settingsWindow.ts`、`main/index.ts` |
 
 ---
@@ -89,6 +86,18 @@ Renderer (window.api.xxx)
 | `pasteItems(ids)` | `invoke` | `clip:paste` | 恢复原焦点后模拟粘贴（历史或收藏） |
 | `onHistoryUpdated(cb)` | `on` ← | `history:updated` | 历史变更后同步列表 |
 | `onFavoritesUpdated(cb)` | `on` ← | `favorite:updated` | 收藏变更后同步列表 |
+
+### 项目（projects）— Renderer → Preload → Main
+
+| Renderer `window.api` | Preload | Main Channel | 说明 |
+|-----------------------|---------|--------------|------|
+| `pickWorkspace()` | `invoke` | `projects:pickWorkspace` | 系统目录对话框 → 路径或 null |
+| `setWorkspace(root)` | `invoke` | `projects:setWorkspace` | 写入工作区并扫描 → `ScannedProject[]` |
+| `scanProjects()` | `invoke` | `projects:scan` | 按当前配置扫描 |
+| `updateProjectOverride(folder, patch)` | `invoke` | `projects:updateOverride` | 更新显示名/入口 |
+| `startProject(folder)` | `invoke` | `projects:start` | 起静态服务 → `ProjectRuntimeInfo` |
+| `stopProject(folder)` | `invoke` | `projects:stop` | 停止静态服务 |
+| `listRunningProjects()` | `invoke` | `projects:listRunning` | 当前运行中的项目 |
 
 表中 `on ←` 表示推送方向为 Main → Preload → Renderer 回调；其余为 Renderer 主动发起。
 

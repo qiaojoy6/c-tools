@@ -9,7 +9,7 @@ export default defineConfig({
       alias: {
         '@shared': resolve('src/shared')
       }
-    },
+    }
   },
   preload: {},
   renderer: {
@@ -19,6 +19,16 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    plugins: [tailwindcss(), vue()]
+    plugins: [
+      tailwindcss(),
+      vue({
+        template: {
+          compilerOptions: {
+            // Electron <webview> 为原生自定义元素
+            isCustomElement: (tag) => tag === 'webview'
+          }
+        }
+      })
+    ]
   }
 })

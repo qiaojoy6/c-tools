@@ -27,6 +27,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     maxRecords: 100,
     autoCleanDays: 0
   },
+  projects: {
+    workspaceRoot: null,
+    overrides: {}
+  },
   privacy: {
     clearOnQuit: false,
     clearOnStart: false
