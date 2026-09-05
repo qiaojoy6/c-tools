@@ -1,4 +1,5 @@
-import { dialog, ipcMain } from 'electron'
+import { dialog, ipcMain, shell } from 'electron'
+import { existsSync } from 'fs'
 import type { ProjectOverride, ProjectRuntimeInfo, ScannedProject } from '@shared/types'
 import type { ConfigManager } from '../../config'
 import { scanWorkspace } from './scan'
@@ -16,6 +17,7 @@ export interface ProjectsIpcDeps {
  * |--------------------------|------|
  * | projects:pickWorkspace   | 系统目录对话框选工作区 |
  * | projects:setWorkspace    | 写入工作区路径并返回扫描结果 |
+ * | projects:openWorkspace   | 在文件管理器中打开工作区 |
  * | projects:scan            | 按当前配置扫描 |
  * | projects:updateOverride  | 更新显示名/入口 |
  * | projects:start           | 启动静态服务 |
@@ -41,6 +43,14 @@ export function registerProjectsIpc(deps: ProjectsIpcDeps): void {
       overrides: projects.overrides
     })
     return scanWorkspace(config.get().projects)
+  })
+
+  /** 用系统文件管理器打开当前工作区目录 */
+  ipcMain.handle('projects:openWorkspace', async (): Promise<boolean> => {
+    const root = config.get().projects.workspaceRoot?.trim()
+    if (!root || !existsSync(root)) return false
+    const err = await shell.openPath(root)
+    return err === ''
   })
 
   ipcMain.handle('projects:scan', (): ScannedProject[] => {

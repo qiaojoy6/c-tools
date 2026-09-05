@@ -57,6 +57,33 @@ export function useProjects() {
     }
   }
 
+  /** 在 Finder / 资源管理器中打开工作区 */
+  async function openWorkspace(): Promise<void> {
+    errorMsg.value = ''
+    if (!workspaceRoot.value) return
+    const ok = await window.api.openWorkspace()
+    if (!ok) errorMsg.value = '无法打开工作区目录'
+  }
+
+  /** 清除工作区配置（不停磁盘文件；会停掉已启动预览） */
+  async function clearWorkspace(): Promise<void> {
+    errorMsg.value = ''
+    if (!workspaceRoot.value) return
+    busy.value = true
+    try {
+      const folderNames = tabs.value.map((t) => t.folderName)
+      await Promise.all(folderNames.map((name) => window.api.stopProject(name)))
+      tabs.value = []
+      activeView.value = 'home'
+      projects.value = await window.api.setWorkspace(null)
+      workspaceRoot.value = null
+    } catch (err) {
+      errorMsg.value = err instanceof Error ? err.message : '清除工作区失败'
+    } finally {
+      busy.value = false
+    }
+  }
+
   async function saveOverride(
     folderName: string,
     displayName: string,
@@ -118,6 +145,8 @@ export function useProjects() {
     errorMsg,
     pickWorkspace,
     refreshScan,
+    openWorkspace,
+    clearWorkspace,
     saveOverride,
     start,
     closeTab,

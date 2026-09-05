@@ -12,6 +12,9 @@ export const projectsApi = {
   setWorkspace: (root: string | null): Promise<ScannedProject[]> =>
     ipcRenderer.invoke('projects:setWorkspace', root),
 
+  /** projects:openWorkspace — 在文件管理器中打开工作区 */
+  openWorkspace: (): Promise<boolean> => ipcRenderer.invoke('projects:openWorkspace'),
+
   /** projects:scan */
   scanProjects: (): Promise<ScannedProject[]> => ipcRenderer.invoke('projects:scan'),
 

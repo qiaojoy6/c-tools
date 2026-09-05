@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ScannedProject } from '@shared/types'
-import { Pencil, RefreshCw } from 'lucide-vue-next'
+import { FolderOpen, Pencil, RefreshCw, Trash2 } from 'lucide-vue-next'
 import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
 
@@ -13,6 +13,8 @@ defineProps<{
 
 const emit = defineEmits<{
   pickWorkspace: []
+  openWorkspace: []
+  clearWorkspace: []
   refresh: []
   edit: [project: ScannedProject]
   toggle: [folderName: string, on: boolean]
@@ -23,7 +25,13 @@ const emit = defineEmits<{
   <div class="home">
     <!-- 工作区行 -->
     <div class="row">
-      <button type="button" class="chip" :disabled="busy" @click="emit('pickWorkspace')">
+      <button
+        type="button"
+        class="chip chip-workspace"
+        title="选择工作区根目录"
+        :disabled="busy"
+        @click="emit('pickWorkspace')"
+      >
         工作区
       </button>
       <p class="row-mid" :title="workspaceRoot ?? undefined">
@@ -34,11 +42,33 @@ const emit = defineEmits<{
         size="icon"
         variant="ghost"
         class="h-8 w-8 shrink-0"
+        title="打开工作区"
+        :disabled="busy || !workspaceRoot"
+        @click="emit('openWorkspace')"
+      >
+        <FolderOpen class="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        class="h-8 w-8 shrink-0"
         title="重新扫描"
         :disabled="busy || !workspaceRoot"
         @click="emit('refresh')"
       >
         <RefreshCw class="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        class="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+        title="删除工作区"
+        :disabled="busy || !workspaceRoot"
+        @click="emit('clearWorkspace')"
+      >
+        <Trash2 class="h-3.5 w-3.5" />
       </Button>
     </div>
 
@@ -71,7 +101,22 @@ const emit = defineEmits<{
       </div>
     </template>
 
-    <p v-else-if="workspaceRoot" class="empty-hint">
+    <!-- 未选工作区：空白区引导 -->
+    <button
+      v-else-if="!workspaceRoot"
+      type="button"
+      class="empty-pick"
+      :disabled="busy"
+      @click="emit('pickWorkspace')"
+    >
+      <FolderOpen class="empty-pick-icon" aria-hidden="true" />
+      <span class="empty-pick-title">选择工作区根目录</span>
+      <span class="empty-pick-desc">
+        选择存放已打包静态项目的文件夹，扫描后可在此启动预览
+      </span>
+    </button>
+
+    <p v-else class="empty-hint">
       未找到静态项目。请确认目录仍存在，且满足其一：根目录有 index.html /
       dist/index.html；或一级子目录各自是已打包产物。
     </p>
@@ -81,6 +126,8 @@ const emit = defineEmits<{
 <style scoped>
 .home {
   display: flex;
+  height: 100%;
+  min-height: 0;
   flex-direction: column;
   gap: 10px;
   padding: 14px 16px 20px;
@@ -119,6 +166,27 @@ const emit = defineEmits<{
 
 .chip:hover:not(:disabled) {
   background: color-mix(in oklab, var(--muted) 55%, transparent);
+}
+
+.chip-workspace {
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.chip-workspace:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+  background: color-mix(in oklab, var(--primary) 16%, transparent);
+  color: var(--foreground);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 25%, transparent);
+  transform: translateY(-1px);
+}
+
+.chip-workspace:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .chip:disabled {
@@ -179,6 +247,63 @@ const emit = defineEmits<{
 .empty-hint {
   margin: 12px 0 0;
   font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.empty-pick {
+  display: flex;
+  min-height: 180px;
+  flex: 1;
+  cursor: pointer;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in oklab, var(--border) 90%, var(--foreground));
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--muted) 22%, transparent);
+  color: var(--muted-foreground);
+  margin-top: 4px;
+  padding: 24px 20px;
+  outline: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.empty-pick:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
+  color: var(--foreground);
+}
+
+.empty-pick:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 45%, transparent);
+}
+
+.empty-pick:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.empty-pick-icon {
+  width: 28px;
+  height: 28px;
+  opacity: 0.75;
+}
+
+.empty-pick-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.empty-pick-desc {
+  max-width: 280px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.45;
   color: var(--muted-foreground);
 }
 </style>

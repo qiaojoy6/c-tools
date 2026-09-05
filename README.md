@@ -93,6 +93,7 @@ Renderer (window.api.xxx)
 |-----------------------|---------|--------------|------|
 | `pickWorkspace()` | `invoke` | `projects:pickWorkspace` | 系统目录对话框 → 路径或 null |
 | `setWorkspace(root)` | `invoke` | `projects:setWorkspace` | 写入工作区并扫描 → `ScannedProject[]` |
+| `openWorkspace()` | `invoke` | `projects:openWorkspace` | 在文件管理器中打开工作区 |
 | `scanProjects()` | `invoke` | `projects:scan` | 按当前配置扫描 |
 | `updateProjectOverride(folder, patch)` | `invoke` | `projects:updateOverride` | 更新显示名/入口 |
 | `startProject(folder)` | `invoke` | `projects:start` | 起静态服务 → `ProjectRuntimeInfo` |

@@ -25,6 +25,8 @@ const {
   busy,
   errorMsg,
   pickWorkspace,
+  openWorkspace,
+  clearWorkspace,
   refreshScan,
   saveOverride,
   closeTab,
@@ -72,6 +74,8 @@ async function confirmEdit(): Promise<void> {
       :running-ids="runningIds"
       :busy="busy"
       @pick-workspace="pickWorkspace"
+      @open-workspace="openWorkspace"
+      @clear-workspace="clearWorkspace"
       @refresh="refreshScan"
       @edit="openEdit"
       @toggle="setRunning"
