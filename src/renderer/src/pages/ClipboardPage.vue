@@ -162,14 +162,26 @@ async function pasteCurrent(): Promise<void> {
   const selected = list.filter((r) => selectedIds.value.has(r.id)).map((r) => r.id)
   const ids = selected.length > 0 ? selected : [list[highlight.value]!.id]
   const ok = await paste(ids)
-  if (!ok) showToast('粘贴失败，请检查系统辅助权限后重试')
+  if (!ok) {
+    showToast(
+      navigator.userAgent.includes('Windows')
+        ? '粘贴失败，请先点击目标窗口后再试'
+        : '粘贴失败，请检查系统辅助权限后重试'
+    )
+  }
   selectedIds.value = new Set()
 }
 
 /** 双击：单条直接粘贴 */
 async function onCommit(record: ClipRecord): Promise<void> {
   const ok = await paste([record.id])
-  if (!ok) showToast('粘贴失败，请检查系统辅助权限后重试')
+  if (!ok) {
+    showToast(
+      navigator.userAgent.includes('Windows')
+        ? '粘贴失败，请先点击目标窗口后再试'
+        : '粘贴失败，请检查系统辅助权限后重试'
+    )
+  }
 }
 
 function onRemoveCard(record: ClipRecord): void {

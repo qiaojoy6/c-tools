@@ -11,6 +11,8 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+  - node_modules/koffi/**
+  - node_modules/@koromix/**
 win:
   executableName: c-tools
 nsis:

@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, Notification } from 'electron'
 import type { ClipRecord } from '@shared/types'
 import type { WindowManager } from '../core/windows'
 import type { FavoritesManager } from './favorites'
@@ -58,7 +58,8 @@ export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
   })
 
   /**
-   * 粘贴：历史或收藏均可；仅历史 id 会 touch 置顶
+   * 粘贴：历史或收藏均可；仅历史 id 会 touch 置顶。
+   * 失败时发系统通知（浮层已关，页面 toast 看不见），并尽量重新打开来源窗。
    */
   ipcMain.handle('clip:paste', async (_e, ids: string[]): Promise<boolean> => {
     const records = (ids ?? [])
@@ -69,8 +70,52 @@ export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
     const historyIds = records.filter((r) => history.get(r.id)).map((r) => r.id)
     if (historyIds.length) history.touch(historyIds)
 
+    const reopenPanel = windows.panel.isVisible()
+    const reopenClipboardOnly =
+      windows.clipboard.isVisible() && !windows.panel.isVisible()
+
     const restored = await windows.restorePreviousFocus()
-    if (!restored) return false
-    return paste.paste(records)
+    if (!restored) {
+      notifyPasteFailed(
+        process.platform === 'darwin'
+          ? '无法切回原应用，请检查辅助功能权限'
+          : '无法切回原窗口，请先点击目标输入框后再试'
+      )
+      reopenAfterPasteFailure(windows, reopenPanel, reopenClipboardOnly)
+      return false
+    }
+
+    const ok = await paste.paste(records)
+    if (!ok) {
+      notifyPasteFailed(
+        process.platform === 'darwin'
+          ? '模拟粘贴失败，请检查辅助功能权限'
+          : '模拟粘贴失败，请再试一次'
+      )
+      reopenAfterPasteFailure(windows, reopenPanel, reopenClipboardOnly)
+      return false
+    }
+    return true
   })
+}
+
+function reopenAfterPasteFailure(
+  windows: WindowManager,
+  reopenPanel: boolean,
+  reopenClipboardOnly: boolean
+): void {
+  if (reopenPanel) {
+    windows.showPanel({ captureFocus: false })
+    return
+  }
+  if (reopenClipboardOnly) windows.showClipboard()
+}
+
+function notifyPasteFailed(body: string): void {
+  try {
+    if (!Notification.isSupported()) return
+    new Notification({ title: '粘贴失败', body }).show()
+  } catch {
+    /* ignore */
+  }
 }

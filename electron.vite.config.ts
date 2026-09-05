@@ -9,6 +9,12 @@ export default defineConfig({
       alias: {
         '@shared': resolve('src/shared')
       }
+    },
+    // koffi 含平台 .node，不可被打包进 bundle
+    build: {
+      rollupOptions: {
+        external: ['koffi']
+      }
     }
   },
   preload: {},

@@ -4,7 +4,7 @@ import { delay } from './loadRoute'
 import { ClipboardWindow } from './clipboardWindow'
 import { PanelWindow, type PanelShowOptions } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
-import { activateFocusTarget, asExternalBundleId } from './focusTarget'
+import { activateFocusTarget, asExternalBundleId, isOurAppForeground } from './focusTarget'
 
 const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 180 : 120
 
@@ -131,14 +131,32 @@ export class WindowManager {
 
     this.hideAllOverlays()
 
-    // 没有外部目标：粘贴会落到空处
-    if (!bundleId) {
-      if (process.platform === 'darwin' || process.platform === 'win32') return false
+    // macOS：必须能 activate 到外部 app，否则 Cmd+V 会落到本进程
+    if (process.platform === 'darwin') {
+      if (!bundleId) return false
+      const ok = await activateFocusTarget(bundleId)
+      if (!ok) return false
+      await delay(RESTORE_FOCUS_DELAY_MS)
       return true
     }
 
-    const ok = await activateFocusTarget(bundleId)
-    if (!ok) return false
+    // Windows：隐藏浮层后系统常自动还原上一前台窗；有 hwnd 则再强制激活。
+    // 若隐藏后前台仍是本应用，Ctrl+V 无效 → 返回 false 供提示（勿假装成功）。
+    if (process.platform === 'win32') {
+      if (bundleId) {
+        await activateFocusTarget(bundleId)
+      }
+      await delay(RESTORE_FOCUS_DELAY_MS)
+      if (isOurAppForeground()) {
+        if (bundleId) {
+          await activateFocusTarget(bundleId)
+          await delay(100)
+        }
+        if (isOurAppForeground()) return false
+      }
+      return true
+    }
+
     await delay(RESTORE_FOCUS_DELAY_MS)
     return true
   }
