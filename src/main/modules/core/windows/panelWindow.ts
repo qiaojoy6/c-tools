@@ -1,9 +1,10 @@
-import { execFile } from 'child_process'
 import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
-import { delay, loadRoute } from './loadRoute'
-
-const RESTORE_FOCUS_DELAY_MS = 100
+import { loadRoute } from './loadRoute'
+import {
+  asExternalBundleId,
+  getFrontmostBundleId
+} from './focusTarget'
 
 /** 功能面板通栏高度，与渲染侧表头、titleBarOverlay 一致 */
 export const PANEL_TITLE_BAR_HEIGHT = 40
@@ -16,10 +17,7 @@ export const PANEL_TITLE_BAR_OVERLAY = {
 } as const
 
 export interface PanelShowOptions {
-  /**
-   * 是否在显示前记录前台应用（粘贴后还原用）。
-   * 程序坞 / 二次启动应关：同步 osascript 会卡住主进程，导致要点好几下才出来。
-   */
+  /** 显示前是否采焦（默认 true；异步短超时，不卡死主进程） */
   captureFocus?: boolean
 }
 
@@ -30,6 +28,10 @@ export interface PanelShowOptions {
 export class PanelWindow {
   private win: BrowserWindow | null = null
   private previousAppBundleId: string | null = null
+  private blurTimer: ReturnType<typeof setTimeout> | null = null
+
+  /** 采到外部前台应用时回调（供 WindowManager 记 lastExternal） */
+  onExternalAppCaptured: ((bundleId: string) => void) | null = null
 
   constructor(private isQuitting: () => boolean) {}
 
@@ -51,7 +53,6 @@ export class PanelWindow {
       minHeight: 480,
       show: false,
       title: '功能面板',
-      // 隐藏系统标题栏，保留原生最小化 / 最大化 / 关闭
       titleBarStyle: 'hidden',
       trafficLightPosition: { x: 14, y: 12 },
       ...(process.platform !== 'darwin'
@@ -70,7 +71,6 @@ export class PanelWindow {
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
-        // 项目模块用 <webview> 预览本地静态页
         webviewTag: true
       }
     })
@@ -82,6 +82,14 @@ export class PanelWindow {
         e.preventDefault()
         win.hide()
       }
+    })
+
+    // 失焦后记下切到的外部应用，供面板内剪贴板粘贴还原
+    win.on('blur', () => {
+      if (this.blurTimer) clearTimeout(this.blurTimer)
+      this.blurTimer = setTimeout(() => {
+        void this.rememberFrontmostExternal()
+      }, 120)
     })
 
     loadRoute(win, '/panel')
@@ -97,10 +105,8 @@ export class PanelWindow {
     const win = this.win ?? this.create()
     if (win.isDestroyed()) return
 
-    // 程序坞唤起不采焦：避免等 osascript 导致「要点好几下」
-    if (opts?.captureFocus === false) {
-      this.previousAppBundleId = null
-    } else {
+    // 默认采焦：异步短超时，保证面板内粘贴能回到外部应用
+    if (opts?.captureFocus !== false) {
       await this.capturePreviousFocusTargetAsync()
       if (win.isDestroyed()) return
     }
@@ -125,66 +131,27 @@ export class PanelWindow {
     else this.show()
   }
 
-  /** 隐藏并恢复呼出前的前台应用（macOS）；面板内剪贴板粘贴时使用 */
-  async restorePreviousFocus(): Promise<boolean> {
-    this.hide()
-
-    if (process.platform !== 'darwin') {
-      return true
-    }
-
-    const bundleId = this.previousAppBundleId
-    this.previousAppBundleId = null
-    if (!bundleId) return true
-
-    return new Promise((resolve) => {
-      execFile(
-        'osascript',
-        ['-e', `tell application id "${bundleId}" to activate`],
-        async (err) => {
-          if (err) {
-            resolve(false)
-            return
-          }
-          await delay(RESTORE_FOCUS_DELAY_MS)
-          resolve(true)
-        }
-      )
-    })
-  }
-
   takePreviousAppBundleId(): string | null {
     const id = this.previousAppBundleId
     this.previousAppBundleId = null
     return id
   }
 
-  /** 异步读取前台 app，不阻塞主进程事件循环 */
-  private capturePreviousFocusTargetAsync(): Promise<void> {
-    if (process.platform !== 'darwin') {
-      this.previousAppBundleId = null
-      return Promise.resolve()
-    }
+  private async rememberFrontmostExternal(): Promise<void> {
+    const raw = await getFrontmostBundleId()
+    const external = asExternalBundleId(raw)
+    if (!external) return
+    this.previousAppBundleId = external
+    this.onExternalAppCaptured?.(external)
+  }
 
-    return new Promise((resolve) => {
-      execFile(
-        'osascript',
-        [
-          '-e',
-          'tell application "System Events" to get bundle identifier of first application process whose frontmost is true'
-        ],
-        { encoding: 'utf8', timeout: 800 },
-        (err, stdout) => {
-          if (err) {
-            this.previousAppBundleId = null
-            resolve()
-            return
-          }
-          const bundleId = stdout.trim()
-          this.previousAppBundleId = bundleId || null
-          resolve()
-        }
-      )
-    })
+  private async capturePreviousFocusTargetAsync(): Promise<void> {
+    const raw = await getFrontmostBundleId()
+    const external = asExternalBundleId(raw)
+    if (external) {
+      this.previousAppBundleId = external
+      this.onExternalAppCaptured?.(external)
+    }
+    // 若采到自己或失败：保留已有 previousAppBundleId（如上次 blur 记下的）
   }
 }

@@ -5,6 +5,7 @@ import { delay } from './loadRoute'
 import { ClipboardWindow } from './clipboardWindow'
 import { PanelWindow, type PanelShowOptions } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
+import { asExternalBundleId } from './focusTarget'
 
 const RESTORE_FOCUS_DELAY_MS = 100
 
@@ -13,6 +14,8 @@ const RESTORE_FOCUS_DELAY_MS = 100
  */
 export class WindowManager {
   private quitting = false
+  /** 最近一次外部前台应用，面板内粘贴时的回落目标 */
+  private lastExternalBundleId: string | null = null
   readonly clipboard: ClipboardWindow
   readonly panel: PanelWindow
   readonly settings: SettingsWindow
@@ -22,6 +25,12 @@ export class WindowManager {
     this.clipboard = new ClipboardWindow(getConfig, isQuitting)
     this.panel = new PanelWindow(isQuitting)
     this.settings = new SettingsWindow(isQuitting)
+
+    const remember = (id: string): void => {
+      this.lastExternalBundleId = id
+    }
+    this.panel.onExternalAppCaptured = remember
+    this.clipboard.onExternalAppCaptured = remember
   }
 
   markQuitting(): void {
@@ -66,17 +75,14 @@ export class WindowManager {
     this.panel.show(opts)
   }
 
-  /** 隐藏独立剪贴板浮层（ESC；不影响功能面板） */
   hideClipboard(): void {
     this.clipboard.hide()
   }
 
-  /** IPC `panel:hide` 兼容名 → 仅关剪贴板浮层 */
   hidePanel(): void {
     this.hideClipboard()
   }
 
-  /** 同时隐藏两者（粘贴到外部应用时） */
   hideAllOverlays(): void {
     this.clipboard.hide()
     this.panel.hide()
@@ -89,7 +95,7 @@ export class WindowManager {
 
   togglePanel(): void {
     if (this.panel.isVisible()) this.panel.hide()
-    else this.panel.show({ captureFocus: false })
+    else this.panel.show()
   }
 
   showSettings(): void {
@@ -102,27 +108,36 @@ export class WindowManager {
 
   /**
    * 粘贴前恢复焦点：
-   * - 功能面板与独立剪贴板同时开着 → 只关浮层，焦点回到面板（可贴进面板输入框）
-   * - 否则关掉浮层/面板，并激活呼出前的外部应用
+   * - 面板 + 独立浮层同时开 → 只关浮层，焦点回面板（贴进本软件）
+   * - 仅面板内剪贴板 → 关面板，激活呼出前 / 最近外部应用
+   * - 仅浮层 → 关浮层，激活呼出前外部应用
    */
   async restorePreviousFocus(): Promise<boolean> {
     const pasteIntoPanel = this.panel.isVisible() && this.clipboard.isVisible()
-    const bundleId =
-      this.clipboard.takePreviousAppBundleId() ?? this.panel.takePreviousAppBundleId()
 
     if (pasteIntoPanel) {
+      this.clipboard.takePreviousAppBundleId()
+      this.panel.takePreviousAppBundleId()
       this.hideClipboard()
       this.focusPanel()
       await delay(RESTORE_FOCUS_DELAY_MS)
       return true
     }
 
+    const bundleId = asExternalBundleId(
+      this.clipboard.takePreviousAppBundleId() ??
+        this.panel.takePreviousAppBundleId() ??
+        this.lastExternalBundleId
+    )
+
     this.hideAllOverlays()
 
     if (process.platform !== 'darwin') {
       return true
     }
-    if (!bundleId) return true
+
+    // 没有外部目标：粘贴会落到空处，视为失败（面板内剪贴板「有时不可以」）
+    if (!bundleId) return false
 
     return new Promise((resolve) => {
       execFile(
@@ -140,7 +155,6 @@ export class WindowManager {
     })
   }
 
-  /** 仅把焦点还给功能面板（不触发 panel:shown，避免重置面板内状态） */
   private focusPanel(): void {
     const win = this.panel.browserWindow
     if (!win || win.isDestroyed()) return

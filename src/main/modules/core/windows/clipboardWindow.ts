@@ -1,8 +1,9 @@
-import { execFile, execFileSync } from 'child_process'
+import { execFile } from 'child_process'
 import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import type { AppConfig } from '@shared/types'
 import { delay, loadRoute } from './loadRoute'
+import { asExternalBundleId, getFrontmostBundleId } from './focusTarget'
 
 const RESTORE_FOCUS_DELAY_MS = 100
 
@@ -12,6 +13,9 @@ const RESTORE_FOCUS_DELAY_MS = 100
 export class ClipboardWindow {
   private win: BrowserWindow | null = null
   private previousAppBundleId: string | null = null
+
+  /** 采到外部前台应用时回调 */
+  onExternalAppCaptured: ((bundleId: string) => void) | null = null
 
   constructor(
     private getConfig: () => AppConfig,
@@ -27,6 +31,8 @@ export class ClipboardWindow {
   }
 
   create(): BrowserWindow {
+    if (this.win && !this.win.isDestroyed()) return this.win
+
     const cfg = this.getConfig().window
     const win = new BrowserWindow({
       width: cfg.width,
@@ -69,8 +75,16 @@ export class ClipboardWindow {
   }
 
   show(): void {
+    void this.showAsync()
+  }
+
+  private async showAsync(): Promise<void> {
     const win = this.win ?? this.create()
-    this.capturePreviousFocusTarget()
+    if (win.isDestroyed()) return
+
+    await this.capturePreviousFocusTargetAsync()
+    if (win.isDestroyed()) return
+
     this.position(win)
     if (win.isMinimized()) win.restore()
     win.show()
@@ -98,7 +112,7 @@ export class ClipboardWindow {
       return true
     }
 
-    const bundleId = this.previousAppBundleId
+    const bundleId = asExternalBundleId(this.previousAppBundleId)
     this.previousAppBundleId = null
     if (!bundleId) return true
 
@@ -133,26 +147,12 @@ export class ClipboardWindow {
     win.setPosition(x, y, false)
   }
 
-  private capturePreviousFocusTarget(): void {
-    if (process.platform !== 'darwin') {
-      this.previousAppBundleId = null
-      return
-    }
-
-    try {
-      const bundleId = execFileSync(
-        'osascript',
-        [
-          '-e',
-          'tell application "System Events" to get bundle identifier of first application process whose frontmost is true'
-        ],
-        { encoding: 'utf8' }
-      ).trim()
-
-      if (!bundleId) return
-      this.previousAppBundleId = bundleId
-    } catch {
-      this.previousAppBundleId = null
+  private async capturePreviousFocusTargetAsync(): Promise<void> {
+    const raw = await getFrontmostBundleId()
+    const external = asExternalBundleId(raw)
+    if (external) {
+      this.previousAppBundleId = external
+      this.onExternalAppCaptured?.(external)
     }
   }
 }

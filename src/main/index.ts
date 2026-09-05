@@ -43,8 +43,8 @@ const gotSingleLock = app.requestSingleInstanceLock()
 if (!gotSingleLock) {
   app.quit()
 } else {
-  // 用户再次打开应用 / 点程序坞：立刻唤起功能面板（不采焦，避免卡主进程）
-  app.on('second-instance', () => windowManager?.showPanel({ captureFocus: false }))
+  // 用户再次打开应用 / 点程序坞：唤起功能面板（异步采焦，不卡主进程）
+  app.on('second-instance', () => windowManager?.showPanel())
 
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.ctools.clipboard')
@@ -162,8 +162,8 @@ if (!gotSingleLock) {
     // 预创建剪贴板 + 功能面板（隐藏）；快捷键呼出剪贴板，托盘/程序坞呼出功能面板
     windowManager.createPanel()
 
-    // macOS 点程序坞：强制显示面板（不采焦）
-    app.on('activate', () => windowManager.showPanel({ captureFocus: false }))
+    // macOS 点程序坞：显示面板（显示前异步记下外部前台应用，供面板内粘贴）
+    app.on('activate', () => windowManager.showPanel())
   })
 
   // 托盘常驻：关闭所有窗口不退出进程
