@@ -28,6 +28,9 @@ export interface ClipboardIpcDeps {
  * 主→渲染推送：
  * history:updated / favorite:updated
  */
+/** 本进程内「已复制请手动粘贴」只提示一次，避免每次 Enter 刷屏 */
+let manualPasteHintShown = false
+
 export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
   const { history, favorites, paste, windows } = deps
 
@@ -73,34 +76,40 @@ export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
     // 先落到系统剪贴板（单条或多条的第一条），保证手动 Ctrl+V 可用
     paste.copy(records[0]!)
 
+    // 无辅助功能：启动时已提示；只关浮层，不再弹「已复制」
+    if (!paste.canAutoPaste()) {
+      windows.hideAllOverlays()
+      return true
+    }
+
     const restored = await windows.restorePreviousFocus()
     if (!restored) {
-      // 内容已在剪贴板：不抢回焦点，提示手动粘贴
-      notifyPasteHint(
-        process.platform === 'darwin'
-          ? '已复制，请到目标处按 ⌘V'
-          : '已复制，请到目标窗口按 Ctrl+V'
-      )
+      notifyManualPasteHintOnce()
       return true
     }
 
     const ok = await paste.paste(records)
     if (!ok) {
-      notifyPasteHint(
-        process.platform === 'darwin'
-          ? '已复制，请到目标处按 ⌘V'
-          : '已复制，请到目标窗口按 Ctrl+V'
-      )
+      notifyManualPasteHintOnce()
       return true
     }
     return true
   })
 }
 
-function notifyPasteHint(body: string): void {
+/** 自动粘贴失败时的兜底提示：每个进程生命周期只弹一次 */
+function notifyManualPasteHintOnce(): void {
+  if (manualPasteHintShown) return
+  manualPasteHintShown = true
   try {
     if (!Notification.isSupported()) return
-    new Notification({ title: 'c-tools', body }).show()
+    new Notification({
+      title: 'c-tools',
+      body:
+        process.platform === 'darwin'
+          ? '没有开启隐私的自动化功能，请手动到目标处按 ⌘V 粘贴'
+          : '已复制，请到目标窗口按 Ctrl+V'
+    }).show()
   } catch {
     /* ignore */
   }

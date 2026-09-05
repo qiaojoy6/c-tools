@@ -173,6 +173,9 @@ if (!gotSingleLock) {
     // 配置中的开机自启与系统保持同步
     applyLoginItem(cfg.general.launchAtLogin)
 
+    // macOS 无辅助功能：仅启动时提示一次
+    pasteService.notifyAccessibilityHintOnLaunch()
+
     // 预创建剪贴板 + 功能面板（隐藏）；快捷键呼出剪贴板，托盘/程序坞呼出功能面板
     windowManager.createPanel()
 

@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { clipboard, nativeImage, shell, systemPreferences } from 'electron'
+import { clipboard, nativeImage, Notification, systemPreferences } from 'electron'
 import type { ClipRecord } from '@shared/types'
 import { simulateWindowsPasteKey } from '../core/windows/focusTarget'
 
@@ -11,10 +11,31 @@ const BETWEEN_PASTE_DELAY_MS = 100
 
 /**
  * 粘贴服务：写入系统剪贴板 + 模拟粘贴按键
+ * 无辅助功能权限时只保证写入剪贴板，不模拟回填、不拉起系统设置
  */
 export class PasteService {
   /** 自身写入剪贴板后回调，供监听器同步基线，避免二次入库/抢占剪贴板 */
   onClipboardWritten: (() => void) | null = null
+
+  /** macOS：是否已授权辅助功能（可自动 ⌘V 回填） */
+  canAutoPaste(): boolean {
+    if (process.platform !== 'darwin') return true
+    return systemPreferences.isTrustedAccessibilityClient(false)
+  }
+
+  /** 启动时若无辅助功能权限，提示一次（粘贴过程中不再重复弹） */
+  notifyAccessibilityHintOnLaunch(): void {
+    if (this.canAutoPaste()) return
+    try {
+      if (!Notification.isSupported()) return
+      new Notification({
+        title: 'c-tools',
+        body: '未开启辅助功能：粘贴仅写入剪贴板，请到目标处手动 ⌘V'
+      }).show()
+    } catch {
+      /* ignore */
+    }
+  }
 
   /** 复制单条内容到系统剪贴板 */
   copy(record: ClipRecord): void {
@@ -29,13 +50,14 @@ export class PasteService {
   }
 
   /**
-   * 依次写入并模拟粘贴，实现多条记录顺序粘贴
+   * 依次写入并模拟粘贴，实现多条记录顺序粘贴。
+   * 无权限时返回 false（调用方已 copy；权限提示仅在启动时弹出）。
    */
   async paste(records: ClipRecord[]): Promise<boolean> {
     if (!records.length) return false
 
-    if (process.platform === 'darwin' && !systemPreferences.isTrustedAccessibilityClient(false)) {
-      this.openAccessibilitySettings()
+    // 拒绝/未授权：不回填、不弹系统设置（内容由 clip:paste 先行写入剪贴板）
+    if (!this.canAutoPaste()) {
       return false
     }
 
@@ -72,8 +94,8 @@ export class PasteService {
           })
           child.on('error', () => resolve(false))
           child.on('exit', (code) => {
+            // 权限被拒：静默失败，由上层提示手动粘贴
             if (isAccessibilityDenied(stderr)) {
-              this.openAccessibilitySettings()
               resolve(false)
               return
             }
@@ -91,15 +113,6 @@ export class PasteService {
         resolve(false)
       }
     })
-  }
-
-  private openAccessibilitySettings(): void {
-    if (process.platform === 'darwin') {
-      systemPreferences.isTrustedAccessibilityClient(true)
-      void shell.openExternal(
-        'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
-      )
-    }
   }
 }
 
