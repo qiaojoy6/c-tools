@@ -1,10 +1,11 @@
 import { ipcMain } from 'electron'
 import { applyLoginItem, DEFAULT_CONFIG } from '../../config'
 import type { ConfigManager } from '../../config'
-import type { AppConfig, ConfigPatch, ConfigUpdateResult } from '@shared/types'
+import type { AppConfig, ConfigPatch, ConfigUpdateResult, WebviewContextMenuPayload } from '@shared/types'
 import { normalizeAccelerator, type ShortcutManager } from './shortcutManager'
 import type { TrayManager } from './trayManager'
 import type { WindowManager } from './windows'
+import { popupWebviewContextMenu } from './webviewContextMenu'
 
 export interface CoreIpcDeps {
   config: ConfigManager
@@ -26,6 +27,7 @@ export interface CoreIpcDeps {
  * | shortcuts:resume    | 渲染→主 invoke | 录制结束或取消后恢复 |
  * | panel:hide          | 渲染→主 send   | 隐藏剪贴板/功能面板 |
  * | settings:open       | 渲染→主 send   | 打开设置窗口 |
+ * | webview:contextMenu | 渲染→主 invoke | webview guest 右键菜单 |
  *
  * 主→渲染（由 WindowManager 发出，preload 订阅）：
  * panel:shown / settings:shown
@@ -97,4 +99,12 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
 
   ipcMain.on('panel:hide', () => windows.hidePanel())
   ipcMain.on('settings:open', () => windows.showSettings())
+
+  // webview 右键：弹出 guest 菜单（检查 / DevTools）
+  ipcMain.handle(
+    'webview:contextMenu',
+    (event, payload: WebviewContextMenuPayload): void => {
+      popupWebviewContextMenu(event, payload)
+    }
+  )
 }

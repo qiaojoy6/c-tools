@@ -74,17 +74,19 @@
 - 扫描：一级子目录含 `index.html` / `dist/index.html`；若工作区根自身含入口也识别为项目（id `.`）
 - 可编辑显示名、入口相对路径；写入本地配置 `projects.overrides`
 - Switch 开：主进程起本地静态 HTTP（随机端口，SPA 回退）并打开对应页签全屏 `<webview>`
-- 若构建配置了 base（如 Vite `base: '/app/'`），可在编辑里填「基础路径」，预览 URL 挂在此前缀下并按此前缀解析静态资源
+- 若构建配置了 base，可在编辑里填「基础路径」，预览 URL 挂在此前缀下并按此前缀解析静态资源
+- 预览 webview 支持右键菜单：刷新 / 复制粘贴 / 检查 / 打开 guest 开发者工具（应用菜单里的 DevTools 只作用于宿主页）
 - Switch 关 / 关页签：停服务；同项目不重复开；切面板模块保留；退出停全部；重启不恢复运行态
 - 工作区路径与 overrides 持久化；打开后自动按上次工作区扫描
 
 ### 相关文件
 
 - `src/main/modules/projects/` — scan / staticServer / runtime / ipc
+- `src/main/modules/core/webviewContextMenu.ts` — webview guest 右键菜单
 - `src/preload/modules/projects.ts`
 - `src/shared/modules/projects.ts`
 - `src/renderer/src/pages/ProjectsPage.vue`
-- `src/renderer/src/modules/projects/` — composables、列表与页签组件
+- `src/renderer/src/modules/projects/` — composables、列表与页签、ProjectWebview
 - `src/renderer/src/modules/panel/tabs.ts` — 面板模块注册
 - `src/main/modules/core/windows/panelWindow.ts` — `webviewTag`
 

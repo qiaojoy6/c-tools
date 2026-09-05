@@ -13,6 +13,7 @@ import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import ProjectList from '@renderer/modules/projects/components/ProjectList.vue'
 import ProjectTabs from '@renderer/modules/projects/components/ProjectTabs.vue'
+import ProjectWebview from '@renderer/modules/projects/components/ProjectWebview.vue'
 import { useProjects } from '@renderer/modules/projects/composables/useProjects'
 
 /** 功能面板「项目」：首页列表 + 横向页签预览（对齐线框） */
@@ -90,13 +91,11 @@ async function confirmEdit(): Promise<void> {
 
     <!-- 已启动页签：全屏 webview -->
     <div v-show="activeView !== 'home'" class="webview-host">
-      <webview
+      <ProjectWebview
         v-for="tab in tabs"
         v-show="tab.folderName === activeView"
         :key="tab.folderName"
-        class="project-webview"
         :src="tab.url"
-        partition="persist:projects-preview"
       />
     </div>
 
@@ -157,13 +156,6 @@ async function confirmEdit(): Promise<void> {
   min-height: 0;
   flex: 1;
   background: #0f1115;
-}
-
-.project-webview {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  border: none;
 }
 
 .edit-fields {

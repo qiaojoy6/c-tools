@@ -1,5 +1,10 @@
 import { ipcRenderer } from 'electron'
-import type { AppConfig, ConfigPatch, ConfigUpdateResult } from '@shared/types'
+import type {
+  AppConfig,
+  ConfigPatch,
+  ConfigUpdateResult,
+  WebviewContextMenuPayload
+} from '@shared/types'
 
 /**
  * 通用 bridge（对应 main/modules/core/ipc.ts）
@@ -21,6 +26,10 @@ export const appApi = {
   hidePanel: (): void => ipcRenderer.send('panel:hide'),
   /** settings:open */
   openSettings: (): void => ipcRenderer.send('settings:open'),
+
+  /** webview:contextMenu — guest 右键菜单（检查 / 开发者工具） */
+  popupWebviewContextMenu: (payload: WebviewContextMenuPayload): Promise<void> =>
+    ipcRenderer.invoke('webview:contextMenu', payload),
 
   /** 订阅 panel:shown（浮层/面板每次显示时刷新列表、重置搜索等） */
   onPanelShown: (callback: () => void): (() => void) => {
