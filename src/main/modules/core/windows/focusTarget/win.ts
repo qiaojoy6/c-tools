@@ -1,14 +1,12 @@
 /**
- * 前台目标采集 / 激活 / Windows 模拟粘贴
- * - macOS：osascript（bundle id）
- * - Windows：主进程 koffi 调 user32（避免 PowerShell 超时导致双击粘贴失败）
+ * Windows：前台 hwnd 采集 / 激活 / 模拟 Ctrl+V
+ * 主进程 koffi 调 user32（避免 PowerShell 超时导致双击粘贴失败）
  */
-import { execFile, execFileSync } from 'child_process'
-import { app, BrowserWindow } from 'electron'
+import { execFile } from 'child_process'
+import { BrowserWindow } from 'electron'
 
-const CAPTURE_TIMEOUT_MS = 320
-
-let ownBundleId: string | null | undefined
+/** 激活目标应用后、发粘贴键前的短等待 */
+const PRE_PASTE_DELAY_MS = 80
 
 /** koffi 返回的 HWND 为 opaque pointer；用 address 转成可比较的数字 */
 type Hwnd = unknown
@@ -54,7 +52,6 @@ type WinApi = {
 let winApi: WinApi | null | undefined
 
 function loadWinApi(): WinApi | null {
-  if (process.platform !== 'win32') return null
   if (winApi !== undefined) return winApi
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -111,7 +108,7 @@ function loadWinApi(): WinApi | null {
     }
     return winApi
   } catch (err) {
-    console.error('[focusTarget] koffi/user32 加载失败:', err)
+    console.error('[focusTarget/win] koffi/user32 加载失败:', err)
     winApi = null
     return null
   }
@@ -170,7 +167,7 @@ function isOurHwnd(token: string): boolean {
 }
 
 /** 句柄是否属于本进程（含子窗；仅比顶层 BrowserWindow 更准） */
-function isOurProcessHwnd(token: string): boolean {
+export function isOurProcessHwnd(token: string): boolean {
   if (isOurHwnd(token)) return true
   const api = loadWinApi()
   const h = tokenToHwnd(token)
@@ -188,66 +185,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
 
-/** ---------- macOS ---------- */
-
-export function getOwnBundleId(): string | null {
-  if (ownBundleId !== undefined) return ownBundleId
-  if (process.platform !== 'darwin') {
-    ownBundleId = null
-    return null
-  }
-  try {
-    const out = execFileSync(
-      'osascript',
-      [
-        '-e',
-        `tell application "System Events" to get bundle identifier of first process whose unix id is ${process.pid}`
-      ],
-      { encoding: 'utf8', timeout: 500 }
-    ).trim()
-    ownBundleId = out || null
-  } catch {
-    ownBundleId = null
-  }
-  return ownBundleId
-}
-
-/**
- * 异步读取当前前台目标：
- * - macOS：bundle id
- * - Windows：`hwnd:<句柄>`（排除本应用窗口）
- */
-export function getFrontmostBundleId(_timeoutMs = CAPTURE_TIMEOUT_MS): Promise<string | null> {
-  if (process.platform === 'darwin') {
-    return new Promise((resolve) => {
-      execFile(
-        'osascript',
-        [
-          '-e',
-          'tell application "System Events" to get bundle identifier of first application process whose frontmost is true'
-        ],
-        { encoding: 'utf8', timeout: Math.max(_timeoutMs, 800) },
-        (err, stdout) => {
-          if (err) {
-            resolve(null)
-            return
-          }
-          resolve(stdout.trim() || null)
-        }
-      )
-    })
-  }
-
-  if (process.platform === 'win32') {
-    return Promise.resolve(captureWindowsForegroundHwnd())
-  }
-
-  return Promise.resolve(null)
-}
-
-/** Windows：同步采前台 hwnd（快捷键回调里尽早采，避免 show 后丢目标） */
+/** 同步采前台 hwnd（快捷键回调里尽早采，避免 show 后丢目标） */
 export function captureWindowsForegroundHwnd(): string | null {
-  if (process.platform !== 'win32') return null
   const api = loadWinApi()
   if (!api) return null
   try {
@@ -257,56 +196,22 @@ export function captureWindowsForegroundHwnd(): string | null {
     if (isOurProcessHwnd(token)) return null
     return token
   } catch (err) {
-    console.error('[focusTarget] GetForegroundWindow 失败:', err)
+    console.error('[focusTarget/win] GetForegroundWindow 失败:', err)
     return null
   }
 }
 
-export function isOwnBundleId(bundleId: string | null | undefined): boolean {
-  if (!bundleId) return false
-  if (bundleId.startsWith('hwnd:')) return isOurProcessHwnd(bundleId)
-  const own = getOwnBundleId()
-  if (own && bundleId === own) return true
-  if (
-    bundleId === 'com.ctools.app' ||
-    bundleId === 'com.github.Electron' ||
-    bundleId === 'com.electron.app'
-  )
-    return true
-  if (!app.isPackaged && bundleId.includes('Electron')) return true
-  return false
-}
-
-export function asExternalBundleId(bundleId: string | null | undefined): string | null {
-  if (!bundleId || isOwnBundleId(bundleId)) return null
-  return bundleId
-}
-
-/** 激活外部目标窗口（粘贴前） */
-export async function activateFocusTarget(target: string): Promise<boolean> {
-  if (process.platform === 'darwin') {
-    return new Promise((resolve) => {
-      execFile(
-        'osascript',
-        ['-e', `tell application id "${target}" to activate`],
-        (err) => resolve(!err)
-      )
-    })
-  }
-
-  if (process.platform === 'win32' && target.startsWith('hwnd:')) {
-    return activateWindowsHwnd(target)
-  }
-
-  return false
+/** 与跨平台 API 对齐：返回 `hwnd:<句柄>` */
+export function getFrontmostBundleId(): Promise<string | null> {
+  return Promise.resolve(captureWindowsForegroundHwnd())
 }
 
 /**
- * Windows only：在本进程仍占前台时放行目标进程抢焦点。
+ * 在本进程仍占前台时放行目标进程抢焦点。
  * 必须在 hide 浮层之前调用，否则 AllowSetForegroundWindow 无效。
  */
 export function prepareWindowsFocusHandoff(token: string): void {
-  if (process.platform !== 'win32' || !token.startsWith('hwnd:')) return
+  if (!token.startsWith('hwnd:')) return
   const api = loadWinApi()
   const h = tokenToHwnd(token)
   if (!api || !h) return
@@ -318,13 +223,12 @@ export function prepareWindowsFocusHandoff(token: string): void {
     if (pid) api.AllowSetForegroundWindow(pid)
     api.AllowSetForegroundWindow(0xffffffff) // ASFW_ANY
   } catch (err) {
-    console.error('[focusTarget] prepareWindowsFocusHandoff 失败:', err)
+    console.error('[focusTarget/win] prepareWindowsFocusHandoff 失败:', err)
   }
 }
 
-/** Windows：当前前台是否属于本进程（含子窗） */
+/** 当前前台是否属于本进程（含子窗） */
 export function isWindowsForegroundOurs(): boolean {
-  if (process.platform !== 'win32') return false
   const api = loadWinApi()
   if (!api) return false
   try {
@@ -335,9 +239,9 @@ export function isWindowsForegroundOurs(): boolean {
   }
 }
 
-/** Windows：当前前台是否已是目标 hwnd（或其同进程顶层窗） */
+/** 当前前台是否已是目标 hwnd（或其同进程顶层窗） */
 export function isWindowsForegroundTarget(token: string): boolean {
-  if (process.platform !== 'win32' || !token.startsWith('hwnd:')) return false
+  if (!token.startsWith('hwnd:')) return false
   const api = loadWinApi()
   if (!api) return false
   try {
@@ -383,7 +287,9 @@ function withForegroundLockDisabled(api: WinApi, fn: () => void): void {
   }
 }
 
-function activateWindowsHwnd(token: string): boolean {
+/** 激活外部目标窗口（粘贴前） */
+export function activateFocusTarget(token: string): boolean {
+  if (!token.startsWith('hwnd:')) return false
   const api = loadWinApi()
   const h = tokenToHwnd(token)
   if (!api || !h) return false
@@ -447,27 +353,26 @@ function activateWindowsHwnd(token: string): boolean {
 
     return isWindowsForegroundTarget(token)
   } catch (err) {
-    console.error('[focusTarget] SetForegroundWindow 失败:', err)
+    console.error('[focusTarget/win] SetForegroundWindow 失败:', err)
     return false
   }
 }
 
 /**
- * Windows 粘贴：一律走 Ctrl+V（SendInput / keybd_event）。
+ * 一律走 Ctrl+V（SendInput / keybd_event）。
  * 不用 WM_PASTE 抢先返回——VS Code / Chrome 等多数应用不吃 WM_PASTE，会误判成功却没贴上。
  */
-export async function simulateWindowsPasteKey(): Promise<boolean> {
-  if (process.platform !== 'win32') return false
+export async function simulatePasteKey(): Promise<boolean> {
   const api = loadWinApi()
 
   try {
-    await sleep(50)
+    await sleep(PRE_PASTE_DELAY_MS)
     // 前台仍在本进程时再等一小会（hide 还焦有延迟），仍不行才放弃
     if (isWindowsForegroundOurs()) {
       await sleep(120)
     }
     if (isWindowsForegroundOurs()) {
-      console.warn('[focusTarget] 粘贴时前台仍是本进程，跳过模拟键')
+      console.warn('[focusTarget/win] 粘贴时前台仍是本进程，跳过模拟键')
       return false
     }
 
@@ -485,10 +390,10 @@ export async function simulateWindowsPasteKey(): Promise<boolean> {
       api.keybd_event(0x11, 0, 2, 0) // Ctrl up
       return true
     }
-    return await simulateWindowsPasteKeyPowershell()
+    return await simulatePasteKeyPowershell()
   } catch (err) {
-    console.error('[focusTarget] 模拟 Ctrl+V 失败:', err)
-    return simulateWindowsPasteKeyPowershell()
+    console.error('[focusTarget/win] 模拟 Ctrl+V 失败:', err)
+    return simulatePasteKeyPowershell()
   }
 }
 
@@ -501,7 +406,7 @@ function releaseModifiers(api: WinApi): void {
 }
 
 /** koffi 不可用时的兜底：WScript.Shell SendKeys */
-function simulateWindowsPasteKeyPowershell(): Promise<boolean> {
+function simulatePasteKeyPowershell(): Promise<boolean> {
   return new Promise((resolve) => {
     execFile(
       'powershell.exe',
@@ -552,7 +457,7 @@ function sendInputCtrlV(api: WinApi): boolean {
     const sent = api.SendInput(entries.length, buf, stride)
     return sent === entries.length
   } catch (err) {
-    console.warn('[focusTarget] SendInput 不可用，将用 keybd_event:', err)
+    console.warn('[focusTarget/win] SendInput 不可用，将用 keybd_event:', err)
     return false
   }
 }

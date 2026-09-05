@@ -26,6 +26,7 @@
 ### 相关文件
 
 - `src/main/modules/core/windows/` — ClipboardWindow / PanelWindow / SettingsWindow / WindowManager
+- `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac` osascript；`win` koffi+user32）
 - `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu
 - `src/main/config/` — 默认配置与读写
 - `src/renderer/src/pages/PanelPage.vue` — 功能面板壳（表头 + 左侧模块 Tab）
@@ -59,7 +60,7 @@
 
 ### 相关文件
 
-- `src/main/modules/clipboard/` — watcher / history / favorites / paste / ipc
+- `src/main/modules/clipboard/` — watcher / history / favorites / paste（编排；按键模拟走 focusTarget/mac·win） / ipc
 - `src/renderer/src/pages/ClipboardPage.vue` — 剪贴板内容（独立路由与面板内嵌共用）
 - `src/renderer/src/modules/clipboard/` — 卡片、useHistory
 - `src/preload/modules/clipboard.ts`

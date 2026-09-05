@@ -1,23 +1,20 @@
-import { spawn } from 'child_process'
 import { clipboard, nativeImage, Notification, systemPreferences } from 'electron'
 import type { ClipRecord } from '@shared/types'
-import { simulateWindowsPasteKey } from '../core/windows/focusTarget'
+import { simulatePasteKey } from '../core/windows/focusTarget'
 
-/** 激活目标应用后、发粘贴键前的短等待（等焦点落地） */
-const MAC_PRE_PASTE_DELAY_MS = 10
-const WIN_PRE_PASTE_DELAY_MS = 80
 /** 多条连续粘贴时，条目之间的间隔（最后一条不等待） */
 const BETWEEN_PASTE_DELAY_MS = 100
 
 /**
  * 粘贴服务：写入系统剪贴板 + 模拟粘贴按键
  * 无辅助功能权限时只保证写入剪贴板，不模拟回填、不拉起系统设置
+ * 按键模拟见 focusTarget/mac · focusTarget/win
  */
 export class PasteService {
   /** 自身写入剪贴板后回调，供监听器同步基线，避免二次入库/抢占剪贴板 */
   onClipboardWritten: (() => void) | null = null
 
-  /** macOS：是否已授权辅助功能（可自动 ⌘V 回填） */
+  /** macOS：是否已授权辅助功能（可自动 ⌘V 回填）；其它平台视为可用 */
   canAutoPaste(): boolean {
     if (process.platform !== 'darwin') return true
     return systemPreferences.isTrustedAccessibilityClient(false)
@@ -64,12 +61,7 @@ export class PasteService {
     for (let i = 0; i < records.length; i++) {
       const record = records[i]!
       this.copy(record)
-      if (process.platform === 'darwin') {
-        await delay(MAC_PRE_PASTE_DELAY_MS)
-      } else if (process.platform === 'win32') {
-        await delay(WIN_PRE_PASTE_DELAY_MS)
-      }
-      const ok = await this.simulatePasteKey()
+      const ok = await simulatePasteKey()
       if (!ok) return false
       // 仅多条之间等待，最后一条立即返回，避免粘贴完成后卡住
       if (i < records.length - 1) {
@@ -78,53 +70,6 @@ export class PasteService {
     }
     return true
   }
-
-  /** 模拟 Cmd/Ctrl+V */
-  private simulatePasteKey(): Promise<boolean> {
-    return new Promise((resolve) => {
-      try {
-        if (process.platform === 'darwin') {
-          const child = spawn('osascript', [
-            '-e',
-            'tell application "System Events" to keystroke "v" using command down'
-          ])
-          let stderr = ''
-          child.stderr.on('data', (chunk) => {
-            stderr += String(chunk)
-          })
-          child.on('error', () => resolve(false))
-          child.on('exit', (code) => {
-            // 权限被拒：静默失败，由上层提示手动粘贴
-            if (isAccessibilityDenied(stderr)) {
-              resolve(false)
-              return
-            }
-            resolve(code === 0)
-          })
-        } else if (process.platform === 'win32') {
-          // SendKeys 在独立 powershell 进程里经常贴不到目标窗；改用 user32 keybd_event
-          void simulateWindowsPasteKey().then(resolve)
-        } else {
-          const child = spawn('xdotool', ['key', '--clearmodifiers', 'ctrl+v'])
-          child.on('error', () => resolve(false))
-          child.on('exit', (code) => resolve(code === 0))
-        }
-      } catch {
-        resolve(false)
-      }
-    })
-  }
-}
-
-function isAccessibilityDenied(stderr: string): boolean {
-  const s = stderr.toLowerCase()
-  return (
-    s.includes('not allowed') ||
-    s.includes('1002') ||
-    s.includes('1743') ||
-    s.includes('辅助功能') ||
-    s.includes('accessibility')
-  )
 }
 
 function delay(ms: number): Promise<void> {
