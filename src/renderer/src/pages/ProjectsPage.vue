@@ -36,11 +36,13 @@ const {
 const editing = ref<ScannedProject | null>(null)
 const editName = ref('')
 const editEntry = ref('')
+const editBase = ref('')
 
 watch(editing, (p) => {
   if (!p) return
   editName.value = p.displayName
   editEntry.value = p.entryPath
+  editBase.value = p.basePath || ''
 })
 
 function openEdit(project: ScannedProject): void {
@@ -49,7 +51,12 @@ function openEdit(project: ScannedProject): void {
 
 async function confirmEdit(): Promise<void> {
   if (!editing.value) return
-  await saveOverride(editing.value.folderName, editName.value, editEntry.value)
+  await saveOverride(
+    editing.value.folderName,
+    editName.value,
+    editEntry.value,
+    editBase.value
+  )
   editing.value = null
 }
 </script>
@@ -107,6 +114,10 @@ async function confirmEdit(): Promise<void> {
           <label class="field">
             <span>入口路径</span>
             <Input v-model="editEntry" placeholder="如 index.html 或 dist/index.html" />
+          </label>
+          <label class="field">
+            <span>基础路径</span>
+            <Input v-model="editBase" placeholder="可选，如配置文件中的 base 路径 /app/" />
           </label>
         </div>
         <DialogFooter>

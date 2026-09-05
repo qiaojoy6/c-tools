@@ -87,12 +87,14 @@ export function useProjects() {
   async function saveOverride(
     folderName: string,
     displayName: string,
-    entryPath: string
+    entryPath: string,
+    basePath: string
   ): Promise<void> {
     errorMsg.value = ''
     projects.value = await window.api.updateProjectOverride(folderName, {
       displayName,
-      entryPath
+      entryPath,
+      basePath
     })
   }
 

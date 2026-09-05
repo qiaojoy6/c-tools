@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'http'
 import { readFile } from 'fs/promises'
-import { extname, join, relative, resolve, sep } from 'path'
+import { dirname, extname, join, relative, resolve, sep } from 'path'
+import { normalizeBasePath } from './basePath'
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -28,6 +29,13 @@ export interface StaticServerHandle {
   close: () => Promise<void>
 }
 
+export interface StaticServerOptions {
+  /** 相对项目目录的入口 HTML */
+  entryPath: string
+  /** 已规范化的 URL 前缀（无尾斜杠），空表示站点根 */
+  basePath?: string
+}
+
 /** 路径是否落在 root 内（防目录穿越） */
 function isInsideRoot(root: string, candidate: string): boolean {
   const rel = relative(root, candidate)
@@ -36,21 +44,43 @@ function isInsideRoot(root: string, candidate: string): boolean {
 
 /**
  * 为静态目录起本地 HTTP 服务（随机端口）；缺文件时回退到入口 HTML（SPA）
+ * 静态根取入口所在目录，便于 dist/index.html + /assets 的常规产物结构
  */
 export function startStaticServer(
   rootDir: string,
-  entryPath: string
+  options: StaticServerOptions
 ): Promise<StaticServerHandle> {
-  const root = resolve(rootDir)
-  const entryAbs = resolve(root, entryPath)
+  const projectRoot = resolve(rootDir)
+  const entryAbs = resolve(projectRoot, options.entryPath)
+  // 资源相对入口目录查找（Vite/webpack 产物）
+  const staticRoot = dirname(entryAbs)
+  const base = normalizeBasePath(options.basePath)
 
   const server = createServer(async (req, res) => {
     try {
       const rawUrl = req.url ?? '/'
       const pathname = decodeURIComponent(new URL(rawUrl, 'http://127.0.0.1').pathname)
 
-      // 根路径直接回入口 HTML（支持入口在 dist/ 等子目录）
-      if (pathname === '/' || pathname === '') {
+      // 配置了 base 时：只服务此前缀；裸 `/` 重定向到 base
+      let pathUnderRoot = pathname
+      if (base) {
+        if (pathname === '/' || pathname === '') {
+          res.writeHead(302, { Location: `${base}/` })
+          res.end()
+          return
+        }
+        if (pathname === base || pathname === `${base}/`) {
+          pathUnderRoot = '/'
+        } else if (pathname.startsWith(`${base}/`)) {
+          pathUnderRoot = pathname.slice(base.length) || '/'
+        } else {
+          res.writeHead(404).end('Not Found')
+          return
+        }
+      }
+
+      // 根路径（或 base 根）直接回入口 HTML
+      if (pathUnderRoot === '/' || pathUnderRoot === '') {
         const data = await readFile(entryAbs)
         res.writeHead(200, {
           'Content-Type': 'text/html; charset=utf-8',
@@ -60,9 +90,9 @@ export function startStaticServer(
         return
       }
 
-      let filePath = resolve(root, `.${pathname}`)
+      let filePath = resolve(staticRoot, `.${pathUnderRoot}`)
 
-      if (!isInsideRoot(root, filePath)) {
+      if (!isInsideRoot(staticRoot, filePath)) {
         res.writeHead(403).end('Forbidden')
         return
       }
@@ -75,7 +105,7 @@ export function startStaticServer(
         // 尝试目录 index
         try {
           const asIndex = join(filePath, 'index.html')
-          if (isInsideRoot(root, asIndex)) {
+          if (isInsideRoot(staticRoot, asIndex)) {
             data = await readFile(asIndex)
             filePath = asIndex
           }
@@ -86,7 +116,7 @@ export function startStaticServer(
 
       // SPA fallback：非静态扩展名或缺文件 → 入口 HTML
       if (!data) {
-        const ext = extname(pathname)
+        const ext = extname(pathUnderRoot)
         const looksLikeAsset = Boolean(ext) && ext !== '.html'
         if (!looksLikeAsset) {
           data = await readFile(entryAbs)
@@ -116,7 +146,8 @@ export function startStaticServer(
         return
       }
       const port = addr.port
-      const url = `http://127.0.0.1:${port}/`
+      // 带 base 时打开带前缀的地址，与构建产物一致
+      const url = `http://127.0.0.1:${port}${base}/`
       resolvePromise({
         server,
         port,

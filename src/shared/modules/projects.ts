@@ -6,6 +6,11 @@ export interface ProjectOverride {
   displayName?: string
   /** 相对项目目录的入口 HTML；缺省自动探测 index.html / dist/index.html */
   entryPath?: string
+  /**
+   * 构建产物的 URL 基础路径（如 `/app/`）；缺省为 `/`
+   * 预览 URL 会挂在此前缀下，静态资源按此前缀剥离后查找
+   */
+  basePath?: string
 }
 
 /** 项目模块持久化配置 */
@@ -26,13 +31,15 @@ export interface ScannedProject {
   displayName: string
   /** 相对项目目录的入口 HTML */
   entryPath: string
+  /** 规范化后的 URL 前缀，无自定义时为 `''`（即站点根 `/`） */
+  basePath: string
 }
 
 /** 启动成功后的运行信息 */
 export interface ProjectRuntimeInfo {
   folderName: string
   displayName: string
-  /** 本地预览 URL，如 http://127.0.0.1:54321/ */
+  /** 本地预览 URL，如 http://127.0.0.1:54321/ 或带 base 的 …/app/ */
   url: string
   port: number
 }

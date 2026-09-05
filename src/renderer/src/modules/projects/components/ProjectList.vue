@@ -78,17 +78,24 @@ const emit = defineEmits<{
         <button
           type="button"
           class="chip chip-name"
-          title="编辑显示名与入口"
+          title="编辑显示名、入口与基础路径"
           :disabled="busy"
           @click="emit('edit', p)"
         >
           <span class="chip-text">{{ p.displayName }}</span>
           <Pencil class="chip-edit h-3 w-3" />
         </button>
-        <p class="row-mid" :title="`${p.absPath} · ${p.entryPath}`">
+        <p
+          class="row-mid"
+          :title="`${p.absPath} · ${p.entryPath}${p.basePath ? ` · base ${p.basePath}/` : ''}`"
+        >
           {{ p.folderName === '.' ? '工作区根目录' : p.folderName }}
           <span class="sep">·</span>
           {{ p.entryPath }}
+          <template v-if="p.basePath">
+            <span class="sep">·</span>
+            {{ p.basePath }}/
+          </template>
         </p>
         <div class="start-cell">
           <span class="start-label">启动</span>

@@ -19,7 +19,7 @@ export interface ProjectsIpcDeps {
  * | projects:setWorkspace    | 写入工作区路径并返回扫描结果 |
  * | projects:openWorkspace   | 在文件管理器中打开工作区 |
  * | projects:scan            | 按当前配置扫描 |
- * | projects:updateOverride  | 更新显示名/入口 |
+ * | projects:updateOverride  | 更新显示名/入口/基础路径 |
  * | projects:start           | 启动静态服务 |
  * | projects:stop            | 停止静态服务 |
  * | projects:listRunning     | 当前运行中的项目 |
@@ -74,8 +74,13 @@ export function registerProjectsIpc(deps: ProjectsIpcDeps): void {
         if (entry) next.entryPath = entry
         else delete next.entryPath
       }
+      if (patch.basePath !== undefined) {
+        const base = patch.basePath.trim().replace(/\\/g, '/')
+        if (base && base !== '/') next.basePath = base
+        else delete next.basePath
+      }
 
-      if (!next.displayName && !next.entryPath) {
+      if (!next.displayName && !next.entryPath && !next.basePath) {
         delete projects.overrides[folderName]
       } else {
         projects.overrides[folderName] = next

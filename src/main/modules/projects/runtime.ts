@@ -48,7 +48,10 @@ export class ProjectsRuntime {
   }
 
   private async startProject(project: ScannedProject): Promise<ProjectRuntimeInfo> {
-    const handle = await startStaticServer(project.absPath, project.entryPath)
+    const handle = await startStaticServer(project.absPath, {
+      entryPath: project.entryPath,
+      basePath: project.basePath
+    })
     this.running.set(project.folderName, {
       handle,
       displayName: project.displayName
