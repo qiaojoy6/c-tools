@@ -4,6 +4,11 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Check, ChevronDown, ChevronUp, Star, Trash2 } from 'lucide-vue-next'
 import { formatBytes, formatTime } from '@renderer/modules/clipboard/lib/time'
 
+/** 折叠预览进 DOM 的上限；超长文本整段排版会卡死 Layout */
+const CLAMP_CHARS = 480
+/** 展开后仍截断，避免把百万字塞进可滚动区域 */
+const EXPAND_CHARS = 8000
+
 const props = defineProps<{
   record: ClipRecord
   active: boolean
@@ -28,8 +33,23 @@ const textEl = ref<HTMLElement | null>(null)
 const expanded = ref(false)
 const canToggle = ref(false)
 
+const textLen = computed(() => props.record.text?.length ?? 0)
+
+/** 列表只渲染截断预览，完整内容仍在 record 上供粘贴 */
+const displayText = computed(() => {
+  const text = props.record.text ?? ''
+  const max = expanded.value ? EXPAND_CHARS : CLAMP_CHARS
+  if (text.length <= max) return text
+  return `${text.slice(0, max)}\n…`
+})
+
 function measureOverflow(): void {
   if (expanded.value) return
+  // 已超过折叠截断上限：一定能展开，无需读 layout
+  if (textLen.value > CLAMP_CHARS) {
+    canToggle.value = true
+    return
+  }
   const el = textEl.value
   if (!el) {
     canToggle.value = false
@@ -43,6 +63,7 @@ function toggleExpand(e: MouseEvent): void {
   e.stopPropagation()
   expanded.value = !expanded.value
   if (!expanded.value) nextTick(measureOverflow)
+  else canToggle.value = true
 }
 
 function onClick(e: MouseEvent): void {
@@ -58,9 +79,7 @@ watch(
 )
 
 onMounted(() => {
-  nextTick(() => {
-    measureOverflow()
-  })
+  nextTick(measureOverflow)
 })
 </script>
 
@@ -80,12 +99,12 @@ onMounted(() => {
     <template v-if="record.type === 'text'">
       <div class="card-body" :class="{ 'card-body--offset': selected }">
         <p ref="textEl" class="card-text" :class="expanded ? 'is-expanded' : 'is-clamped'">
-          {{ record.text }}
+          {{ displayText }}
         </p>
         <div class="card-meta">
           <span>{{ formatTime(record.createdAt) }}</span>
           <span class="dot">·</span>
-          <span>{{ record.text?.length ?? 0 }} 字</span>
+          <span>{{ textLen }} 字</span>
           <button v-if="canToggle" type="button" class="expand-btn" @click="toggleExpand">
             <template v-if="expanded">
               收起
@@ -134,7 +153,6 @@ onMounted(() => {
         <Star class="action-icon" :fill="favorited ? 'currentColor' : 'none'" aria-hidden="true" />
       </button>
       <button
-        v-if="!favorited"
         type="button"
         class="action-btn is-ghost is-danger"
         title="删除"
@@ -156,9 +174,8 @@ onMounted(() => {
   gap: 14px;
   border-radius: 12px;
   padding: 12px 14px;
-  transition:
-    background 0.2s ease,
-    box-shadow 0.2s ease;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
 }
 
 .card:hover {
@@ -215,6 +232,7 @@ onMounted(() => {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
 }
 
@@ -248,7 +266,6 @@ onMounted(() => {
   align-items: center;
   gap: 2px;
   color: var(--primary);
-  transition: opacity 0.15s ease;
 }
 
 .expand-btn:hover {

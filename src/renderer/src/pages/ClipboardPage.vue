@@ -12,7 +12,7 @@ import {
 } from '@renderer/components/ui/dialog'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
-import ClipCard from '@renderer/modules/clipboard/components/ClipCard.vue'
+import ClipVirtualList from '@renderer/modules/clipboard/components/ClipVirtualList.vue'
 import { useHistory } from '@renderer/modules/clipboard/composables/useHistory'
 import { ClipboardList, Image as ImageIcon, Search, Star, Trash2, Type } from 'lucide-vue-next'
 
@@ -28,6 +28,7 @@ const { records, favorites, refresh, remove, clear, addFavorite, removeFavorite,
 // ---------- 状态 ----------
 const search = ref('')
 const searchWrap = ref<HTMLElement | null>(null)
+const listRef = ref<{ scrollToIndex: (index: number) => void } | null>(null)
 const filter = ref<FilterType>('all')
 const highlight = ref(0)
 const selectedIds = ref<Set<string>>(new Set())
@@ -49,10 +50,16 @@ let offShown: (() => void) | null = null
 
 const viewingFavorites = computed(() => filter.value === 'favorite')
 
-/** 按内容匹配是否已收藏（历史与收藏 id 不同，用内容关联点亮） */
+/** 按内容指纹匹配收藏（避免把整段超长 text/base64 当 Set key） */
 function contentKey(r: ClipRecord): string {
-  if (r.type === 'text') return `text:${r.text ?? ''}`
-  return `image:${r.image?.base64 ?? ''}`
+  if (r.type === 'text') {
+    const t = r.text ?? ''
+    if (t.length <= 256) return `text:${t}`
+    return `text:${t.length}:${t.slice(0, 64)}:${t.slice(-64)}`
+  }
+  const b = r.image?.base64 ?? ''
+  if (b.length <= 128) return `image:${b}`
+  return `image:${b.length}:${b.slice(0, 32)}:${b.slice(-32)}`
 }
 
 const favoriteKeys = computed(() => new Set(favorites.value.map(contentKey)))
@@ -77,6 +84,7 @@ const filtered = computed<ClipRecord[]>(() => {
 watch([search, filter], () => {
   highlight.value = 0
   anchorIndex = -1
+  nextTick(() => listRef.value?.scrollToIndex(0))
 })
 
 watch(
@@ -95,9 +103,7 @@ function showToast(message: string): void {
 
 function scrollActive(): void {
   nextTick(() => {
-    document
-      .querySelector('[data-clip-card][data-active="true"]')
-      ?.scrollIntoView({ block: 'nearest' })
+    listRef.value?.scrollToIndex(highlight.value)
   })
 }
 
@@ -383,23 +389,19 @@ onUnmounted(() => {
     </header>
 
     <main class="list">
-      <template v-if="filtered.length > 0">
-        <ClipCard
-          v-for="(record, index) in filtered"
-          :key="record.id"
-          class="clip-enter"
-          :record="record"
-          :active="index === highlight"
-          :selected="selectedIds.has(record.id)"
-          :favorited="isFavorited(record)"
-          :style="{ animationDelay: `${Math.min(index, 8) * 28}ms` }"
-          @activate="onActivate"
-          @commit="onCommit"
-          @remove="onRemoveCard"
-          @toggle-favorite="onToggleFavorite"
-          @preview="onPreview"
-        />
-      </template>
+      <ClipVirtualList
+        v-if="filtered.length > 0"
+        ref="listRef"
+        :records="filtered"
+        :highlight="highlight"
+        :selected-ids="selectedIds"
+        :is-favorited="isFavorited"
+        @activate="onActivate"
+        @commit="onCommit"
+        @remove="onRemoveCard"
+        @toggle-favorite="onToggleFavorite"
+        @preview="onPreview"
+      />
       <div v-else class="empty">
         <div class="empty-icon-wrap">
           <ClipboardList class="empty-icon" aria-hidden="true" />
@@ -596,14 +598,11 @@ onUnmounted(() => {
 }
 
 .list {
+  display: flex;
   min-height: 0;
   flex: 1;
-  overflow-y: auto;
-  padding: 0 12px 8px;
-}
-
-.list > * + * {
-  margin-top: 6px;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .empty {
@@ -775,21 +774,6 @@ onUnmounted(() => {
   -webkit-app-region: no-drag;
 }
 
-.clip-enter {
-  animation: clip-in 0.28s ease both;
-}
-
-@keyframes clip-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .toast-enter-active,
 .toast-leave-active {
   transition:
@@ -801,11 +785,5 @@ onUnmounted(() => {
 .toast-leave-to {
   opacity: 0;
   transform: translateY(-8px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .clip-enter {
-    animation: none;
-  }
 }
 </style>
