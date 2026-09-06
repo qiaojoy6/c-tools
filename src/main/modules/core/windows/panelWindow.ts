@@ -24,8 +24,6 @@ export const PANEL_TITLE_BAR_OVERLAY_DARK = {
   height: PANEL_TITLE_BAR_HEIGHT
 } as const
 
-export const PANEL_TITLE_BAR_OVERLAY = PANEL_TITLE_BAR_OVERLAY_DARK
-
 export interface PanelShowOptions {
   /** 显示前是否采焦（默认 true；异步短超时，不卡死主进程） */
   captureFocus?: boolean
@@ -33,7 +31,7 @@ export interface PanelShowOptions {
 
 /**
  * 功能面板窗口：titleBarStyle hidden + 原生窗控，顶部自定义通栏
- * 托盘 / 程序坞呼出；ESC / 失焦不关闭
+ * 托盘左键 / 程序坞：已打开则置顶、不关闭；托盘右键可切换显隐；ESC / 失焦不关闭
  */
 export class PanelWindow {
   private win: BrowserWindow | null = null
@@ -160,11 +158,6 @@ export class PanelWindow {
       return
     }
     this.win.hide()
-  }
-
-  toggle(): void {
-    if (this.isVisible()) this.hide()
-    else this.show()
   }
 
   takePreviousAppBundleId(): string | null {

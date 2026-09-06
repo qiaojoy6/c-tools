@@ -1,14 +1,12 @@
-import { execFile } from 'child_process'
-import { app, BrowserWindow, screen } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import type { AppConfig } from '@shared/types'
-import { delay, loadRoute } from './loadRoute'
+import { loadRoute } from './loadRoute'
 import { asExternalBundleId, getFrontmostBundleId } from './focusTarget'
 
-const RESTORE_FOCUS_DELAY_MS = 100
-
 /**
- * 独立剪贴板浮层：无边框、置顶、失焦隐藏；由全局快捷键呼出
+ * 独立剪贴板浮层：无边框、置顶、失焦隐藏；由全局快捷键呼出。
+ * macOS 使用 type: 'panel'，show/focus 不激活整个应用，避免把功能面板一并抬到前台。
  */
 export class ClipboardWindow {
   private win: BrowserWindow | null = null
@@ -49,6 +47,8 @@ export class ClipboardWindow {
       maximizable: false,
       hasShadow: true,
       autoHideMenuBar: true,
+      // macOS：panel 窗 show/focus 不激活应用，其它窗口层级保持不动
+      ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
       backgroundColor: cfg.transparent ? '#00000000' : undefined,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -56,6 +56,7 @@ export class ClipboardWindow {
       }
     })
 
+    this.applyFloatingLevel(win)
     this.position(win)
 
     win.on('blur', () => {
@@ -65,7 +66,7 @@ export class ClipboardWindow {
     win.on('close', (e) => {
       if (!this.isQuitting()) {
         e.preventDefault()
-        win.hide()
+        this.hide()
       }
     })
 
@@ -87,20 +88,18 @@ export class ClipboardWindow {
 
     this.position(win)
     if (win.isMinimized()) win.restore()
-    // Windows：show 前恢复置顶（hide 时为让出焦点曾关掉）
-    if (process.platform === 'win32') {
-      win.setAlwaysOnTop(this.getConfig().window.alwaysOnTop)
-    }
+    this.applyFloatingLevel(win)
+
+    // 不调用 app.focus，避免抬起功能面板（macOS 另靠 type:panel）
     win.show()
     win.focus()
-    if (process.platform === 'darwin') {
-      app.focus({ steal: true })
-    }
     win.webContents.send('panel:shown')
   }
 
   hide(): void {
     if (!this.win?.isVisible()) return
+    // 先 blur，避免隐藏后仍被当成应用「上次焦点窗」，导致 Cmd+Tab 切回无界面
+    if (this.win.isFocused()) this.win.blur()
     // Windows：先取消置顶，再 setFocusable(false) 强迫系统把焦点还给上一窗口
     if (process.platform === 'win32') {
       this.win.setAlwaysOnTop(false)
@@ -110,39 +109,6 @@ export class ClipboardWindow {
       return
     }
     this.win.hide()
-  }
-
-  toggle(): void {
-    if (this.isVisible()) this.hide()
-    else this.show()
-  }
-
-  /** 隐藏并恢复呼出前的前台应用（macOS） */
-  async restorePreviousFocus(): Promise<boolean> {
-    this.hide()
-
-    if (process.platform !== 'darwin') {
-      return true
-    }
-
-    const bundleId = asExternalBundleId(this.previousAppBundleId)
-    this.previousAppBundleId = null
-    if (!bundleId) return true
-
-    return new Promise((resolve) => {
-      execFile(
-        'osascript',
-        ['-e', `tell application id "${bundleId}" to activate`],
-        async (err) => {
-          if (err) {
-            resolve(false)
-            return
-          }
-          await delay(RESTORE_FOCUS_DELAY_MS)
-          resolve(true)
-        }
-      )
-    })
   }
 
   takePreviousAppBundleId(): string | null {
@@ -156,6 +122,21 @@ export class ClipboardWindow {
     if (!bundleId || asExternalBundleId(bundleId) == null) return
     this.previousAppBundleId = bundleId
     this.onExternalAppCaptured?.(bundleId)
+  }
+
+  /** 高置顶层级，浮在其它应用之上且不依赖激活本应用 */
+  private applyFloatingLevel(win: BrowserWindow): void {
+    const onTop = this.getConfig().window.alwaysOnTop
+    if (!onTop) {
+      win.setAlwaysOnTop(false)
+      return
+    }
+    if (process.platform === 'darwin') {
+      // screen-saver 级置顶即可；不用 visibleOnAllWorkspaces（会扰乱 Spaces / Cmd+Tab）
+      win.setAlwaysOnTop(true, 'screen-saver')
+      return
+    }
+    win.setAlwaysOnTop(true)
   }
 
   /** 居中贴在鼠标所在显示器顶部（多屏时不再固定主屏） */

@@ -51,7 +51,7 @@ if (!gotSingleLock) {
   // 尽早挂诊断：意外退出 / 子进程崩溃写 logs/diag.log
   installCrashGuard()
 
-  // 用户再次打开应用 / 点程序坞：唤起功能面板（异步采焦，不卡主进程）
+  // 二次启动：唤起功能面板
   app.on('second-instance', () => windowManager?.showPanel())
 
   app.whenReady().then(() => {
@@ -104,7 +104,8 @@ if (!gotSingleLock) {
     trayManager = new TrayManager(
       () => ({ launchAtLogin: configManager.get().general.launchAtLogin }),
       {
-        // 托盘左键：功能面板（不采焦，立刻显示）
+        // 托盘左键：始终显示/置顶；右键菜单可切换显隐
+        showPanel: () => windowManager.showPanel(),
         togglePanel: () => windowManager.togglePanel(),
         openSettings,
         // 只改配置；系统登录项 / 托盘勾选 / 设置窗由 onChanged 统一同步
@@ -198,14 +199,14 @@ if (!gotSingleLock) {
     // macOS 无辅助功能：仅启动时提示一次
     pasteService.notifyAccessibilityHintOnLaunch()
 
-    // 预创建剪贴板 + 功能面板（隐藏）；快捷键呼出剪贴板，托盘/程序坞呼出功能面板
+    // 预创建剪贴板 + 功能面板（隐藏）；快捷键 → 剪贴板浮层；托盘左键 / 程序坞 → 功能面板
     windowManager.createPanel()
 
     // 打包后自动检查更新（有新版本则下载并通知）
     startAppUpdater()
 
-    // macOS 点程序坞：显示面板（显示前异步记下外部前台应用，供面板内粘贴）
-    app.on('activate', () => windowManager.showPanel())
+    // macOS 程序坞 / Cmd+Tab 切回：立刻置顶功能面板（captureFocus:false，避免异步采焦耽误升起）
+    app.on('activate', () => windowManager.showPanel({ captureFocus: false }))
   })
 
   // 托盘常驻：关闭所有窗口不退出进程

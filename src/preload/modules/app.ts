@@ -23,7 +23,7 @@ export const appApi = {
   /** shortcuts:resume — 录制结束/取消/关设置窗时调用 */
   resumeShortcuts: (): Promise<boolean> => ipcRenderer.invoke('shortcuts:resume'),
 
-  /** panel:hide */
+  /** panel:hide — 只关独立剪贴板浮层 */
   hidePanel: (): void => ipcRenderer.send('panel:hide'),
   /** settings:open */
   openSettings: (): void => ipcRenderer.send('settings:open'),

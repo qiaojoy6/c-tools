@@ -6,6 +6,9 @@ export interface TrayState {
 }
 
 export interface TrayActions {
+  /** 左键：显示或置顶功能面板（不关闭） */
+  showPanel: () => void
+  /** 右键菜单：显示 / 隐藏切换 */
   togglePanel: () => void
   openSettings: () => void
   toggleLogin: () => void
@@ -35,12 +38,12 @@ export class TrayManager {
     this.tray.setToolTip('c-tools')
 
     if (process.platform === 'darwin') {
-      // macOS：左键呼出面板，右键菜单
-      this.tray.on('click', () => this.actions.togglePanel())
+      // macOS：左键显示/置顶面板，右键菜单
+      this.tray.on('click', () => this.actions.showPanel())
       this.tray.on('right-click', () => this.tray?.popUpContextMenu(this.buildMenu()))
     } else {
       this.tray.setContextMenu(this.buildMenu())
-      this.tray.on('click', () => this.actions.togglePanel())
+      this.tray.on('click', () => this.actions.showPanel())
     }
   }
 

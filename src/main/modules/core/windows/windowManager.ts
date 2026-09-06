@@ -73,6 +73,10 @@ export class WindowManager {
     this.panel.create()
   }
 
+  /**
+   * 快捷键呼出独立剪贴板。
+   * 不改功能面板显隐/层级（macOS 靠 type:panel + 不调用 app.focus）。
+   */
   showClipboard(): void {
     this.clipboard.show()
   }
@@ -85,6 +89,7 @@ export class WindowManager {
     this.clipboard.hide()
   }
 
+  /** IPC `panel:hide`：只关独立剪贴板浮层（历史命名；功能面板不关） */
   hidePanel(): void {
     this.hideClipboard()
   }
@@ -95,8 +100,8 @@ export class WindowManager {
   }
 
   toggleClipboard(): void {
-    if (this.clipboard.isVisible()) this.clipboard.hide()
-    else this.clipboard.show()
+    if (this.clipboard.isVisible()) this.hideClipboard()
+    else this.showClipboard()
   }
 
   /**
@@ -111,9 +116,10 @@ export class WindowManager {
     this.clipboard.seedPreviousAppBundleId(token)
   }
 
+  /** 显示 / 隐藏功能面板（托盘右键菜单） */
   togglePanel(): void {
     if (this.panel.isVisible()) this.panel.hide()
-    else this.panel.show()
+    else this.showPanel()
   }
 
   showSettings(): void {
@@ -126,36 +132,52 @@ export class WindowManager {
 
   /**
    * 粘贴前恢复焦点：
-   * - 面板 + 独立浮层同时开 → 只关浮层，焦点回面板（贴进本软件）
-   * - 仅面板内剪贴板 → 关面板，激活呼出前 / 最近外部应用
-   * - 仅浮层 → 关浮层，激活呼出前外部应用
+   * - 独立浮层：回填呼出前的外部应用；不改动功能面板显隐与层级
+   * - 浮层在本应用内呼出（未采到外部）：回焦面板
+   * - 仅面板内剪贴板：关面板，激活呼出前 / 最近外部应用
    */
   async restorePreviousFocus(): Promise<boolean> {
-    const pasteIntoPanel = this.panel.isVisible() && this.clipboard.isVisible()
+    const floatingOpen = this.clipboard.isVisible()
 
-    if (pasteIntoPanel) {
-      this.clipboard.takePreviousAppBundleId()
-      this.panel.takePreviousAppBundleId()
-      this.hideClipboard()
-      this.focusPanel()
+    if (floatingOpen) {
+      const external = asExternalBundleId(this.clipboard.takePreviousAppBundleId())
+
+      if (process.platform === 'win32' && external) {
+        prepareWindowsFocusHandoff(external)
+      }
+
+      this.clipboard.hide()
+
+      if (external) {
+        return this.activateExternal(external)
+      }
+
+      // 未采到外部（在本应用内呼出）：贴回面板
+      if (this.panel.isVisible()) {
+        this.panel.takePreviousAppBundleId()
+        this.focusPanel()
+        await delay(RESTORE_FOCUS_DELAY_MS)
+        return true
+      }
+
       await delay(RESTORE_FOCUS_DELAY_MS)
       return true
     }
 
     const bundleId = asExternalBundleId(
-      this.clipboard.takePreviousAppBundleId() ??
-        this.panel.takePreviousAppBundleId() ??
-        this.lastExternalBundleId
+      this.panel.takePreviousAppBundleId() ?? this.lastExternalBundleId
     )
 
-    // Windows：hide 前放行目标抢前台（AllowSetForegroundWindow 要求调用方仍是前台）
     if (process.platform === 'win32' && bundleId) {
       prepareWindowsFocusHandoff(bundleId)
     }
 
     this.hideAllOverlays()
+    return this.activateExternal(bundleId)
+  }
 
-    // macOS：必须能 activate 到外部 app，否则 Cmd+V 会落到本进程
+  /** 激活外部目标并等待焦点稳定；无目标时按平台尽量还焦 */
+  private async activateExternal(bundleId: string | null): Promise<boolean> {
     if (process.platform === 'darwin') {
       if (!bundleId) return false
       const ok = await activateFocusTarget(bundleId)
@@ -164,8 +186,6 @@ export class WindowManager {
       return true
     }
 
-    // Windows：hide 后尽量激活原窗口；只要前台已不在本进程就继续模拟 Ctrl+V
-    // （不要求精确命中原 hwnd——hide 后系统常已还焦，过严校验会跳过填充）
     if (process.platform === 'win32') {
       if (bundleId) {
         await delay(50)
