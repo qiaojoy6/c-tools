@@ -3,6 +3,7 @@ import type { ScannedProject } from '@shared/types'
 import { FolderOpen, Pencil, RefreshCw, Trash2 } from 'lucide-vue-next'
 import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
+import ProjectIcon from './ProjectIcon.vue'
 
 defineProps<{
   workspaceRoot: string | null
@@ -82,6 +83,7 @@ const emit = defineEmits<{
           :disabled="busy"
           @click="emit('edit', p)"
         >
+          <ProjectIcon :icon-url="p.iconUrl" :name="p.displayName" :size="14" />
           <span class="chip-text">{{ p.displayName }}</span>
           <Pencil class="chip-edit h-3 w-3" />
         </button>

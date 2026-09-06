@@ -33,6 +33,8 @@ export interface ScannedProject {
   entryPath: string
   /** 规范化后的 URL 前缀，无自定义时为 `''`（即站点根 `/`） */
   basePath: string
+  /** 项目图标 data URL；未找到则为 null */
+  iconUrl: string | null
 }
 
 /** 启动成功后的运行信息 */
@@ -42,4 +44,6 @@ export interface ProjectRuntimeInfo {
   /** 本地预览 URL，如 http://127.0.0.1:54321/ 或带 base 的 …/app/ */
   url: string
   port: number
+  /** 与扫描结果一致的项目图标 data URL */
+  iconUrl: string | null
 }

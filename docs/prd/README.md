@@ -82,9 +82,9 @@
 
 ### 功能
 
-- 功能面板「项目」模块：顶栏固定「首页」+ 已启动项目横向圆角页签
-- 首页：工作区行（点「工作区」选根目录；可打开 / 重新扫描 / 删除工作区配置）+ 项目行（名称芯片可编辑、路径、启动 Switch）
-- 扫描：一级子目录含 `index.html` / `dist/index.html`；若工作区根自身含入口也识别为项目（id `.`）
+- 功能面板「项目」模块：顶栏固定「首页」+ 已启动项目浏览器式横向页签（含项目图标）
+- 首页：工作区行（点「工作区」选根目录；可打开 / 重新扫描 / 删除工作区配置）+ 项目行（图标 + 名称芯片可编辑、路径、启动 Switch）
+- 扫描：一级子目录含 `index.html` / `dist/index.html`；若工作区根自身含入口也识别为项目（id `.`）；解析 favicon / HTML `rel=icon` 为图标
 - 可编辑显示名、入口相对路径；写入本地配置 `projects.overrides`
 - Switch 开：主进程起本地静态 HTTP（随机端口，SPA 回退）并打开对应页签全屏 `<webview>`
 - 若构建配置了 base，可在编辑里填「基础路径」，预览 URL 挂在此前缀下并按此前缀解析静态资源
@@ -99,7 +99,8 @@
 - `src/preload/modules/projects.ts`
 - `src/shared/modules/projects.ts`
 - `src/renderer/src/pages/ProjectsPage.vue`
-- `src/renderer/src/modules/projects/` — composables、列表与页签、ProjectWebview
+- `src/renderer/src/modules/projects/` — composables、列表与页签、ProjectWebview、ProjectIcon
+- `src/main/modules/projects/icon.ts` — 扫描时解析项目图标
 - `src/renderer/src/modules/panel/tabs.ts` — 面板模块注册
 - `src/main/modules/core/windows/panelWindow.ts` — `webviewTag`
 

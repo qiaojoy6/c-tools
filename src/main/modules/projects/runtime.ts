@@ -5,6 +5,7 @@ import { startStaticServer, type StaticServerHandle } from './staticServer'
 interface RunningEntry {
   handle: StaticServerHandle
   displayName: string
+  iconUrl: string | null
 }
 
 /**
@@ -18,7 +19,8 @@ export class ProjectsRuntime {
       folderName,
       displayName: entry.displayName,
       url: entry.handle.url,
-      port: entry.handle.port
+      port: entry.handle.port,
+      iconUrl: entry.iconUrl
     }))
   }
 
@@ -29,7 +31,8 @@ export class ProjectsRuntime {
       folderName,
       displayName: entry.displayName,
       url: entry.handle.url,
-      port: entry.handle.port
+      port: entry.handle.port,
+      iconUrl: entry.iconUrl
     }
   }
 
@@ -54,13 +57,15 @@ export class ProjectsRuntime {
     })
     this.running.set(project.folderName, {
       handle,
-      displayName: project.displayName
+      displayName: project.displayName,
+      iconUrl: project.iconUrl
     })
     return {
       folderName: project.folderName,
       displayName: project.displayName,
       url: handle.url,
-      port: handle.port
+      port: handle.port,
+      iconUrl: project.iconUrl
     }
   }
 

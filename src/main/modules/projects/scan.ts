@@ -2,6 +2,7 @@ import { basename, join } from 'path'
 import { existsSync, readdirSync, statSync } from 'fs'
 import type { ProjectOverride, ProjectsConfig, ScannedProject } from '@shared/types'
 import { normalizeBasePath } from './basePath'
+import { resolveProjectIconDataUrl } from './icon'
 
 /** 工作区根目录本身作为项目时的稳定 id */
 export const ROOT_PROJECT_ID = '.'
@@ -34,7 +35,8 @@ function toScanned(
     absPath,
     displayName: override?.displayName?.trim() || fallbackName || folderName,
     entryPath,
-    basePath: normalizeBasePath(override?.basePath)
+    basePath: normalizeBasePath(override?.basePath),
+    iconUrl: resolveProjectIconDataUrl(absPath, entryPath)
   }
 }
 
