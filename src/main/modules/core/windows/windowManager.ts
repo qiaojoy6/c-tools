@@ -29,7 +29,7 @@ export class WindowManager {
   constructor(getConfig: () => AppConfig) {
     const isQuitting = (): boolean => this.quitting
     this.clipboard = new ClipboardWindow(getConfig, isQuitting)
-    this.panel = new PanelWindow(isQuitting)
+    this.panel = new PanelWindow(isQuitting, () => getConfig().general.theme)
     this.settings = new SettingsWindow(isQuitting)
 
     const remember = (id: string): void => {

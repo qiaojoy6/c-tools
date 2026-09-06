@@ -7,7 +7,7 @@
  * - webContents.send / ipcRenderer.on：主→渲染推送（浮层显示、路由切换、历史更新）
  * Preload 经 contextBridge 暴露为 window.api，渲染进程不直接碰 ipcRenderer。
  */
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, nativeTheme } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { ConfigManager, applyLoginItem, DEFAULT_CONFIG } from './config'
 import {
@@ -21,6 +21,7 @@ import {
   ShortcutManager,
   TrayManager,
   WindowManager,
+  applyNativeThemeSource,
   installCrashGuard,
   registerCoreIpc,
   registerLogIpc,
@@ -116,16 +117,27 @@ if (!gotSingleLock) {
     )
     trayManager.create()
 
-    // 配置变更：开机自启 ↔ 系统、托盘勾选、所有设置窗实时刷新
+    // 配置变更：开机自启 ↔ 系统、托盘勾选、主题窗控、所有设置窗实时刷新
     configManager.onChanged = (next, prev) => {
       if (next.general.launchAtLogin !== prev.general.launchAtLogin) {
         applyLoginItem(next.general.launchAtLogin)
+      }
+      if (next.general.theme !== prev.general.theme) {
+        applyNativeThemeSource(next.general.theme)
+        windowManager.panel.applyChromeTheme()
       }
       trayManager.rebuild()
       for (const win of BrowserWindow.getAllWindows()) {
         if (!win.isDestroyed()) win.webContents.send('config:updated', next)
       }
     }
+
+    // 跟随系统时，OS 深浅色变化同步 Win/Linux 窗控底色
+    nativeTheme.on('updated', () => {
+      if (configManager.get().general.theme === 'system') {
+        windowManager.panel.applyChromeTheme()
+      }
+    })
 
     // ---- 功能模块（clipboard）----
     pasteService = new PasteService()
@@ -179,8 +191,9 @@ if (!gotSingleLock) {
       runtime: projectsRuntime
     })
 
-    // 配置中的开机自启与系统保持同步
+    // 配置中的开机自启与系统保持同步；主题源尽早对齐
     applyLoginItem(cfg.general.launchAtLogin)
+    applyNativeThemeSource(cfg.general.theme)
 
     // macOS 无辅助功能：仅启动时提示一次
     pasteService.notifyAccessibilityHintOnLaunch()

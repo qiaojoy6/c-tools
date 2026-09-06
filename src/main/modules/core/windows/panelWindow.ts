@@ -1,5 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
+import type { AppConfig } from '@shared/types'
+import { resolveIsDark } from '../theme'
 import { loadRoute } from './loadRoute'
 import {
   asExternalBundleId,
@@ -9,12 +11,20 @@ import {
 /** 功能面板通栏高度，与渲染侧表头、titleBarOverlay 一致 */
 export const PANEL_TITLE_BAR_HEIGHT = 40
 
-/** Windows / Linux 原生窗控覆盖层（与暗色面板表头接近） */
-export const PANEL_TITLE_BAR_OVERLAY = {
-  color: '#1c1f26',
-  symbolColor: '#c8c8c8',
+/** Windows / Linux 原生窗控覆盖层：浅 / 深随主题 */
+export const PANEL_TITLE_BAR_OVERLAY_LIGHT = {
+  color: '#eef0f3',
+  symbolColor: '#52525b',
   height: PANEL_TITLE_BAR_HEIGHT
 } as const
+
+export const PANEL_TITLE_BAR_OVERLAY_DARK = {
+  color: '#2a2e38',
+  symbolColor: '#c4c4cc',
+  height: PANEL_TITLE_BAR_HEIGHT
+} as const
+
+export const PANEL_TITLE_BAR_OVERLAY = PANEL_TITLE_BAR_OVERLAY_DARK
 
 export interface PanelShowOptions {
   /** 显示前是否采焦（默认 true；异步短超时，不卡死主进程） */
@@ -33,7 +43,10 @@ export class PanelWindow {
   /** 采到外部前台应用时回调（供 WindowManager 记 lastExternal） */
   onExternalAppCaptured: ((bundleId: string) => void) | null = null
 
-  constructor(private isQuitting: () => boolean) {}
+  constructor(
+    private isQuitting: () => boolean,
+    private getTheme: () => AppConfig['general']['theme']
+  ) {}
 
   get browserWindow(): BrowserWindow | null {
     return this.win
@@ -43,8 +56,23 @@ export class PanelWindow {
     return this.win?.isVisible() ?? false
   }
 
+  /** Win/Linux：按主题刷新原生窗控底色 */
+  applyChromeTheme(): void {
+    if (process.platform === 'darwin') return
+    const win = this.win
+    if (!win || win.isDestroyed()) return
+    const overlay = resolveIsDark(this.getTheme())
+      ? PANEL_TITLE_BAR_OVERLAY_DARK
+      : PANEL_TITLE_BAR_OVERLAY_LIGHT
+    win.setTitleBarOverlay({ ...overlay })
+  }
+
   create(): BrowserWindow {
     if (this.win && !this.win.isDestroyed()) return this.win
+
+    const overlay = resolveIsDark(this.getTheme())
+      ? PANEL_TITLE_BAR_OVERLAY_DARK
+      : PANEL_TITLE_BAR_OVERLAY_LIGHT
 
     const win = new BrowserWindow({
       width: 880,
@@ -57,7 +85,7 @@ export class PanelWindow {
       trafficLightPosition: { x: 14, y: 12 },
       ...(process.platform !== 'darwin'
         ? {
-            titleBarOverlay: { ...PANEL_TITLE_BAR_OVERLAY }
+            titleBarOverlay: { ...overlay }
           }
         : {}),
       transparent: false,

@@ -86,7 +86,7 @@ const emit = defineEmits<{
 
 .tab-pill:hover {
   color: var(--foreground);
-  background: color-mix(in oklab, var(--muted) 50%, transparent);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
 .tab-pill[data-active='true'] {

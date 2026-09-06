@@ -581,7 +581,7 @@ onUnmounted(() => {
 }
 
 .filter-chip:hover {
-  background: var(--muted);
+  background: color-mix(in oklab, var(--foreground) 10%, var(--muted));
   color: var(--foreground);
 }
 
@@ -714,7 +714,7 @@ onUnmounted(() => {
 }
 
 .clear-btn:hover {
-  background: color-mix(in oklab, var(--destructive) 10%, transparent);
+  background: color-mix(in oklab, var(--destructive) 14%, transparent);
   color: var(--destructive);
 }
 

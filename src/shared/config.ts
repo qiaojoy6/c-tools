@@ -45,6 +45,8 @@ export interface PrivacyConfig {
 export interface GeneralConfig {
   /** 开机自启 */
   launchAtLogin: boolean
+  /** 界面主题：浅色 / 深色 / 跟随系统 */
+  theme: 'system' | 'light' | 'dark'
 }
 
 /** 应用配置：全局段 + 各功能模块段 */

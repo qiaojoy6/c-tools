@@ -179,7 +179,7 @@ onMounted(() => {
 }
 
 .card:hover {
-  background: rgb(255 255 255 / 4%);
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
 
 .card[data-active='true'] {
@@ -318,7 +318,7 @@ onMounted(() => {
 }
 
 .action-btn.is-favorited:hover {
-  background: color-mix(in oklab, #fbbf24 10%, transparent);
+  background: color-mix(in oklab, #fbbf24 16%, transparent);
 }
 
 .action-btn.is-ghost {
@@ -332,12 +332,12 @@ onMounted(() => {
 }
 
 .action-btn.is-ghost:hover {
-  background: rgb(255 255 255 / 5%);
+  background: color-mix(in oklab, var(--foreground) 10%, transparent);
   color: #fbbf24;
 }
 
 .action-btn.is-danger:hover {
-  background: color-mix(in oklab, var(--destructive) 10%, transparent);
+  background: color-mix(in oklab, var(--destructive) 14%, transparent);
   color: var(--destructive);
 }
 </style>

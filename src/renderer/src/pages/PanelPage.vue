@@ -136,14 +136,14 @@ function openSettings(): void {
 }
 
 .rail-btn:hover {
-  background: rgb(255 255 255 / 5%);
+  background: color-mix(in oklab, var(--foreground) 10%, transparent);
   color: var(--foreground);
 }
 
 .rail-btn[aria-current='page'] {
-  background: color-mix(in oklab, var(--primary) 15%, transparent);
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
   color: var(--primary);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 40%, transparent);
 }
 
 .rail-btn:focus-visible {

@@ -3,54 +3,57 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ---------- 设计令牌：Teal + 深空玻璃（默认暗色，面向年轻生产力工具） ---------- */
+/*
+ * 设计令牌：柔和石板（无橙、无纯黑/纯白）
+ * 浅色：雾灰底 + 微暖纸白卡片；深色：抬升炭灰，正文用柔白
+ */
 :root {
-  --radius: 0.875rem;
-  --background: oklch(0.985 0.005 190);
-  --foreground: oklch(0.2 0.02 190);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 190);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 190);
-  --primary: oklch(0.55 0.12 185);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.96 0.01 190);
-  --secondary-foreground: oklch(0.25 0.02 190);
-  --muted: oklch(0.955 0.01 190);
-  --muted-foreground: oklch(0.48 0.02 190);
-  --accent: oklch(0.955 0.015 185);
-  --accent-foreground: oklch(0.25 0.03 185);
-  --destructive: oklch(0.55 0.2 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.9 0.01 190);
-  --input: oklch(0.9 0.01 190);
-  --ring: oklch(0.55 0.12 185);
-  --surface-elevated: oklch(1 0 0 / 70%);
-  --rail: oklch(0.97 0.01 190);
+  --radius: 0.75rem;
+  --background: oklch(0.965 0.006 255);
+  --foreground: oklch(0.32 0.016 265);
+  --card: oklch(0.985 0.004 255);
+  --card-foreground: oklch(0.32 0.016 265);
+  --popover: oklch(0.985 0.004 255);
+  --popover-foreground: oklch(0.32 0.016 265);
+  --primary: oklch(0.42 0.03 265);
+  --primary-foreground: oklch(0.97 0.004 255);
+  --secondary: oklch(0.94 0.008 255);
+  --secondary-foreground: oklch(0.34 0.016 265);
+  --muted: oklch(0.935 0.008 255);
+  --muted-foreground: oklch(0.5 0.014 265);
+  --accent: oklch(0.9 0.012 255);
+  --accent-foreground: oklch(0.34 0.018 265);
+  --destructive: oklch(0.55 0.18 25);
+  --destructive-foreground: oklch(0.97 0.004 255);
+  --border: oklch(0.88 0.01 255);
+  --input: oklch(0.88 0.01 255);
+  --ring: oklch(0.48 0.03 265);
+  --surface-elevated: oklch(0.98 0.004 255 / 82%);
+  --rail: oklch(0.952 0.007 255);
 }
 
 .dark {
-  --background: oklch(0.16 0.012 220);
-  --foreground: oklch(0.96 0.005 220);
-  --card: oklch(0.2 0.014 220);
-  --card-foreground: oklch(0.96 0.005 220);
-  --popover: oklch(0.2 0.014 220);
-  --popover-foreground: oklch(0.96 0.005 220);
-  --primary: oklch(0.74 0.13 180);
-  --primary-foreground: oklch(0.16 0.02 180);
-  --secondary: oklch(0.24 0.014 220);
-  --secondary-foreground: oklch(0.92 0.005 220);
-  --muted: oklch(0.24 0.014 220);
-  --muted-foreground: oklch(0.68 0.015 220);
-  --accent: oklch(0.26 0.02 190);
-  --accent-foreground: oklch(0.96 0.005 220);
-  --destructive: oklch(0.68 0.17 22);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.74 0.13 180);
-  --surface-elevated: oklch(0.22 0.016 220 / 72%);
-  --rail: oklch(0.14 0.012 220);
+  --background: oklch(0.24 0.014 265);
+  --foreground: oklch(0.9 0.008 255);
+  --card: oklch(0.29 0.014 265);
+  --card-foreground: oklch(0.9 0.008 255);
+  --popover: oklch(0.29 0.014 265);
+  --popover-foreground: oklch(0.9 0.008 255);
+  --primary: oklch(0.78 0.02 255);
+  --primary-foreground: oklch(0.26 0.014 265);
+  --secondary: oklch(0.32 0.014 265);
+  --secondary-foreground: oklch(0.88 0.008 255);
+  --muted: oklch(0.32 0.014 265);
+  --muted-foreground: oklch(0.7 0.012 255);
+  --accent: oklch(0.38 0.016 265);
+  --accent-foreground: oklch(0.9 0.008 255);
+  --destructive: oklch(0.66 0.15 22);
+  --destructive-foreground: oklch(0.95 0.006 255);
+  --border: oklch(0.9 0.008 255 / 12%);
+  --input: oklch(0.9 0.008 255 / 14%);
+  --ring: oklch(0.72 0.02 255);
+  --surface-elevated: oklch(0.31 0.014 265 / 82%);
+  --rail: oklch(0.22 0.012 265);
 }
 
 @theme inline {
@@ -103,13 +106,18 @@
     @apply bg-transparent text-foreground font-sans antialiased;
     user-select: none;
     cursor: default;
+    color-scheme: light;
+  }
+
+  html.dark,
+  html.dark body {
+    color-scheme: dark;
   }
 
   #app {
     height: 100vh;
   }
 
-  /* 可点击区域统一手型 */
   button,
   [role='button'],
   a {
@@ -143,7 +151,6 @@
   background: color-mix(in oklab, var(--foreground) 26%, transparent);
 }
 
-/* 动效：尊重系统「减少动态效果」 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

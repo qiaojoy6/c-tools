@@ -13,7 +13,7 @@ export const SETTINGS_MODULES: SettingsModuleTab[] = [
   {
     id: 'general',
     label: '通用',
-    description: '开机自启等通用选项',
+    description: '主题、开机自启与关于更新',
     icon: Settings2
   },
   {

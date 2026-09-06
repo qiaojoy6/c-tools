@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { AppConfig, ConfigPatch, UpdateStatus } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
+import { Monitor, Moon, Sun } from 'lucide-vue-next'
 
 defineProps<{
   config: AppConfig
@@ -14,6 +15,12 @@ const emit = defineEmits<{
 
 const update = ref<UpdateStatus | null>(null)
 let offUpdate: (() => void) | null = null
+
+const themeOptions = [
+  { value: 'light' as const, label: '浅色', icon: Sun },
+  { value: 'dark' as const, label: '深色', icon: Moon },
+  { value: 'system' as const, label: '跟随系统', icon: Monitor }
+]
 
 const busy = computed(() => {
   const s = update.value?.state
@@ -47,6 +54,28 @@ async function onInstall(): Promise<void> {
 
 <template>
   <div class="space-y-5">
+    <section class="space-y-3">
+      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">外观</h3>
+      <div>
+        <p class="text-sm">主题</p>
+        <div class="theme-seg mt-3" role="radiogroup" aria-label="主题">
+          <button
+            v-for="opt in themeOptions"
+            :key="opt.value"
+            type="button"
+            class="theme-seg-btn"
+            role="radio"
+            :aria-checked="config.general.theme === opt.value"
+            :data-active="config.general.theme === opt.value"
+            @click="emit('apply', { general: { theme: opt.value } })"
+          >
+            <component :is="opt.icon" class="theme-seg-icon" aria-hidden="true" />
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+    </section>
+
     <section class="space-y-3">
       <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">启动</h3>
       <div class="flex items-center justify-between gap-4">
@@ -94,3 +123,53 @@ async function onInstall(): Promise<void> {
     </section>
   </div>
 </template>
+
+<style scoped>
+.theme-seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--muted) 70%, transparent);
+  padding: 4px;
+}
+
+.theme-seg-btn {
+  display: inline-flex;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.theme-seg-btn:hover {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
+.theme-seg-btn[data-active='true'] {
+  background: color-mix(in oklab, var(--primary) 22%, var(--card));
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent);
+}
+
+.theme-seg-btn[data-active='true']:hover {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--primary) 28%, var(--card));
+}
+
+.theme-seg-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+</style>

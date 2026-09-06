@@ -36,6 +36,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     clearOnStart: false
   },
   general: {
-    launchAtLogin: false
+    launchAtLogin: false,
+    theme: 'system'
   }
 }

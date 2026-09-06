@@ -112,6 +112,7 @@
 - 最大保存条数
 - 过期自动清理周期
 - 开机自启
+- 外观主题：浅色 / 深色 / 跟随系统（柔和石板雾灰 / 抬升炭灰；写入 `general.theme`）
 - 退出时清空记录
 - 启动时清空记录
 - 关于与更新：显示当前版本、检查更新、下载完成后重启安装
@@ -121,7 +122,50 @@
 - `src/renderer/src/pages/SettingsPage.vue`
 - `src/renderer/src/modules/settings/tabs.ts` — 模块 Tab 注册
 - `src/renderer/src/modules/settings/components/` — GeneralSettings / ClipboardSettings / HotkeyInput
+- `src/renderer/src/composables/useTheme.ts` — 渲染进程应用 `.dark`
+- `src/renderer/src/assets/main.css` — 浅/深设计令牌
+- `src/main/modules/core/theme.ts` — 主进程 nativeTheme 同步
 - `src/main/modules/core/windows/settingsWindow.ts`
 - `src/main/modules/core/appUpdater.ts` / `updaterIpc.ts`
-- `src/shared/config.ts` — `DEFAULT_TOGGLE_PANEL_SHORTCUT`
+- `src/shared/config.ts` — `DEFAULT_TOGGLE_PANEL_SHORTCUT`、`general.theme`
 - `src/shared/modules/updater.ts`
+---
+
+## 本地持久化文件
+
+应用主动写入的本地文件（均在主进程）。路径基于 Electron 标准目录：`userData`、`logs`、`crashDumps`（具体绝对路径因平台/安装方式而异）。
+
+### 应用数据（`userData`）
+
+| 文件 | 功能 |
+|------|------|
+| `settings.json` | 应用配置：窗口、快捷键、剪贴板上限/清理、项目工作区与 overrides、隐私、开机自启、界面主题（浅/深/跟随系统）等 |
+| `clipboard-history.json` | 剪贴板历史记录（文本 / 图片 base64） |
+| `clipboard-favorites.json` | 剪贴板收藏（与历史独立；删历史不影响收藏） |
+
+写入方式：原子写（先 `.tmp` 再 rename）。项目相关配置也落在 `settings.json` 的 `projects` 字段，无单独项目文件。
+
+### 诊断与崩溃（`logs` / `crashDumps`）
+
+| 文件 | 功能 |
+|------|------|
+| `diag.log` | 诊断日志（未捕获异常、渲染/子进程崩溃、启停、更新过程）；超限轮转为 `diag.log.old` |
+| `diag-session.json` | 会话心跳；下次启动据此判断上次是否非正常退出 |
+| `crashDumps/` | Electron crashReporter 本地 minidump（不上传） |
+
+### 其它由运行时写入（非业务 JSON）
+
+| 路径 | 功能 |
+|------|------|
+| `userData` 下更新缓存目录 | `electron-updater` 下载的待安装包（仅打包后自动更新） |
+| `userData/Partitions/projects-preview/` | 项目预览 `<webview>` 的 Chromium 分区数据（cookie / localStorage 等） |
+
+### 相关文件
+
+- `src/main/config/index.ts` — `settings.json`
+- `src/main/modules/core/storage.ts` — 通用 JSON 原子写入
+- `src/main/modules/clipboard/history.ts` — `clipboard-history.json`
+- `src/main/modules/clipboard/favorites.ts` — `clipboard-favorites.json`
+- `src/main/modules/core/crashGuard.ts` — `diag.log` / `diag-session.json` / crashReporter
+- `src/main/modules/core/appUpdater.ts` — 更新下载（经 electron-updater）
+- `src/renderer/src/modules/projects/components/ProjectWebview.vue` — `persist:projects-preview`
