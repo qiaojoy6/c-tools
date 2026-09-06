@@ -39,6 +39,19 @@ $ npm run build:mac
 $ npm run build:linux
 ```
 
+### 发版与自动更新
+
+1. 改 `package.json` 的 `version`（如 `1.0.0` → `1.0.1`）
+2. 打包：`npm run build:mac` / `build:win`（产物在 `dist/`，含 `latest-mac.yml` / `latest.yml`）
+3. 在 Gitee 建长期 Release，**tag 固定为 `updater`**，把下列文件上传到该 Release（覆盖旧文件）：
+   - mac：`latest-mac.yml` + `*.zip`（自动更新用）+ 可选 `.dmg`（给人装）
+   - win：`latest.yml` + `*-setup.exe`
+4. 用户端：打包版启动约 5 秒后自动检查；设置 → 通用 →「检查更新」；下载完可「重启安装」
+
+更新源地址见 `electron-builder.yml` 的 `publish.url`（须能直接 HTTP 下载到上述 yml/安装包）。
+
+**注意**：macOS 自动更新需要代码签名；未签名时检查/安装可能失败（设置页会显示错误信息）。
+
 ## 主进程 ↔ 渲染进程通讯
 
 渲染进程不直接使用 `ipcRenderer`，统一走：
@@ -79,6 +92,10 @@ Renderer (window.api.xxx)
 | `resumeShortcuts()` | `invoke` | `shortcuts:resume` | 录制结束 / 取消 / 关设置窗后恢复 |
 | `hidePanel()` | `send` | `panel:hide` | 隐藏独立剪贴板浮层（不影响功能面板） |
 | `openSettings()` | `send` | `settings:open` | 打开设置窗口 |
+| `getUpdateStatus()` | `invoke` | `updater:status` | 当前更新状态 |
+| `checkForUpdates()` | `invoke` | `updater:check` | 检查更新 |
+| `installUpdate()` | `invoke` | `updater:install` | 重启安装已下载更新 |
+| `onUpdateStatus(cb)` | `on` ← | `updater:status` | 更新状态推送 |
 | `onPanelShown(cb)` | `on` ← | `panel:shown` | 面板每次显示时推送（返回取消函数） |
 | `onSettingsShown(cb)` | `on` ← | `settings:shown` | 设置窗再次打开时推送（返回取消函数） |
 

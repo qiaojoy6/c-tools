@@ -4,4 +4,5 @@ export * from './modules/clipboard'
 export * from './modules/projects'
 export * from './modules/webview'
 export * from './modules/log'
+export * from './modules/updater'
 

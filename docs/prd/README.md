@@ -24,12 +24,13 @@
 - Windows 焦点：快捷键瞬间同步采 hwnd；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）
 - 渲染进程日志 `window.logApi` / `import { logApi }`：debug/info/warn/error；先安全序列化再经 `api.logWrite` 打到主进程终端；DevTools 仍打印原始对象
 - 主进程意外退出兜底：`logs/diag.log`（未捕获异常、渲染/子进程崩溃、启停）；会话心跳检测上次非正常退出；本地 crashReporter minidump（不上传）
+- 自动更新：打包后启动自动检查；发现新版本静默下载并通知；设置页可手动检查 / 重启安装（macOS 需签名）
 
 ### 相关文件
 
 - `src/main/modules/core/windows/` — ClipboardWindow / PanelWindow / SettingsWindow / WindowManager
 - `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac` osascript；`win` koffi+user32）
-- `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu / logIpc / crashGuard
+- `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu / logIpc / crashGuard / appUpdater / updaterIpc
 - `src/main/config/` — 默认配置与读写
 - `src/renderer/src/pages/PanelPage.vue` — 功能面板壳（表头 + 左侧模块 Tab）
 - `src/renderer/src/modules/panel/components/WindowTitleBar.vue` — 通栏自定义表头（无自绘窗控）
@@ -38,6 +39,7 @@
 - `src/renderer/src/router/index.ts` — `/clipboard` / `/panel` / `/settings`
 - `src/renderer/src/utils/logApi.ts` — 渲染日志安装与封装
 - `src/shared/logFormat.ts` — 日志安全序列化
+- `src/shared/modules/updater.ts` — 更新状态类型
 - `src/preload/modules/app.ts`
 - `src/preload/modules/log.ts`
 - `src/shared/config.ts`
@@ -112,6 +114,7 @@
 - 开机自启
 - 退出时清空记录
 - 启动时清空记录
+- 关于与更新：显示当前版本、检查更新、下载完成后重启安装
 
 ### 相关文件
 
@@ -119,4 +122,6 @@
 - `src/renderer/src/modules/settings/tabs.ts` — 模块 Tab 注册
 - `src/renderer/src/modules/settings/components/` — GeneralSettings / ClipboardSettings / HotkeyInput
 - `src/main/modules/core/windows/settingsWindow.ts`
+- `src/main/modules/core/appUpdater.ts` / `updaterIpc.ts`
 - `src/shared/config.ts` — `DEFAULT_TOGGLE_PANEL_SHORTCUT`
+- `src/shared/modules/updater.ts`

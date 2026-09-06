@@ -3,6 +3,7 @@ import type {
   AppConfig,
   ConfigPatch,
   ConfigUpdateResult,
+  UpdateStatus,
   WebviewContextMenuPayload
 } from '@shared/types'
 
@@ -30,6 +31,20 @@ export const appApi = {
   /** webview:contextMenu — guest 右键菜单（检查 / 开发者工具） */
   popupWebviewContextMenu: (payload: WebviewContextMenuPayload): Promise<void> =>
     ipcRenderer.invoke('webview:contextMenu', payload),
+
+  /** updater:status */
+  getUpdateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:status'),
+  /** updater:check */
+  checkForUpdates: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:check'),
+  /** updater:install — 重启安装已下载更新 */
+  installUpdate: (): Promise<boolean> => ipcRenderer.invoke('updater:install'),
+  /** 订阅 updater:status 推送 */
+  onUpdateStatus: (callback: (status: UpdateStatus) => void): (() => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, status: UpdateStatus): void =>
+      callback(status)
+    ipcRenderer.on('updater:status', listener)
+    return () => ipcRenderer.removeListener('updater:status', listener)
+  },
 
   /** 订阅 panel:shown（浮层/面板每次显示时刷新列表、重置搜索等） */
   onPanelShown: (callback: () => void): (() => void) => {

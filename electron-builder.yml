@@ -24,6 +24,10 @@ nsis:
   createDesktopShortcut: always
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  # dmg 给人装；zip 给 electron-updater 自动更新
+  target:
+    - dmg
+    - zip
   extendInfo:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
@@ -40,8 +44,10 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
+# 更新源：该 URL 下需能直接访问 latest.yml / latest-mac.yml 及安装包
+# 推荐在 Gitee 建长期 Release（tag=updater），每次发版覆盖上传产物
 publish:
   provider: generic
-  url: https://gitee.com/qiaoyue66/c-tools
+  url: https://gitee.com/qiaoyue66/c-tools/releases/download/updater
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

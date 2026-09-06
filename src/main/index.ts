@@ -24,6 +24,8 @@ import {
   installCrashGuard,
   registerCoreIpc,
   registerLogIpc,
+  registerUpdaterIpc,
+  startAppUpdater,
   normalizeAccelerator,
   setupAppMenu
 } from './modules/core'
@@ -152,6 +154,7 @@ if (!gotSingleLock) {
 
     // ---- IPC：core 与 clipboard 分开注册，channel 见各 ipc.ts ----
     registerLogIpc()
+    registerUpdaterIpc()
     registerCoreIpc({
       config: configManager,
       shortcuts: shortcutManager,
@@ -184,6 +187,9 @@ if (!gotSingleLock) {
 
     // 预创建剪贴板 + 功能面板（隐藏）；快捷键呼出剪贴板，托盘/程序坞呼出功能面板
     windowManager.createPanel()
+
+    // 打包后自动检查更新（有新版本则下载并通知）
+    startAppUpdater()
 
     // macOS 点程序坞：显示面板（显示前异步记下外部前台应用，供面板内粘贴）
     app.on('activate', () => windowManager.showPanel())
