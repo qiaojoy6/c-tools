@@ -1,11 +1,12 @@
 import { clipboard } from 'electron'
+import type { ClipImage } from '@shared/types'
+import type { ClipboardImageStore } from './imageStore'
 
 export interface ClipboardCapture {
   type: 'text' | 'image'
   text?: string
-  base64?: string
-  width?: number
-  height?: number
+  /** 已写入磁盘的图片元数据 */
+  image?: ClipImage
 }
 
 /**
@@ -18,7 +19,8 @@ export class ClipboardWatcher {
 
   constructor(
     private getPollMs: () => number,
-    private onCapture: (capture: ClipboardCapture) => void
+    private onCapture: (capture: ClipboardCapture) => void,
+    private images: ClipboardImageStore
   ) {}
 
   start(): void {
@@ -60,13 +62,10 @@ export class ClipboardWatcher {
       const sig = `${size.width}x${size.height}:${img.toBitmap().byteLength}`
       if (sig !== this.lastImageSig) {
         this.lastImageSig = sig
-        // 仅在确认变更时才做 PNG 编码入库
-        this.onCapture({
-          type: 'image',
-          base64: img.toPNG().toString('base64'),
-          width: size.width,
-          height: size.height
-        })
+        // 仅在确认变更时编码并落盘
+        const image = this.images.saveFromNativeImage(img)
+        if (!image) return
+        this.onCapture({ type: 'image', image })
       }
     } catch (err) {
       // 系统剪贴板异常时不崩溃，等待下一轮

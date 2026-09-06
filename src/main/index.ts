@@ -11,12 +11,18 @@ import { app, BrowserWindow, nativeTheme } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { ConfigManager, applyLoginItem, DEFAULT_CONFIG } from './config'
 import {
+  ClipboardImageStore,
   ClipboardWatcher,
   FavoritesManager,
   HistoryManager,
   PasteService,
+  installClipboardImageProtocol,
+  registerClipboardImageScheme,
   registerClipboardIpc
 } from './modules/clipboard'
+
+// 自定义协议须在 ready 前注册
+registerClipboardImageScheme()
 import {
   ShortcutManager,
   TrayManager,
@@ -33,6 +39,7 @@ import {
 import { ProjectsRuntime, registerProjectsIpc } from './modules/projects'
 
 let configManager: ConfigManager
+let clipboardImages: ClipboardImageStore
 let historyManager: HistoryManager
 let favoritesManager: FavoritesManager
 let pasteService: PasteService
@@ -141,25 +148,45 @@ if (!gotSingleLock) {
     })
 
     // ---- 功能模块（clipboard）----
-    pasteService = new PasteService()
+    clipboardImages = new ClipboardImageStore()
+    installClipboardImageProtocol(clipboardImages)
+
+    /** 历史/收藏共享图片文件：两边都不引用时才删盘 */
+    const reconcileClipboardImages = (): void => {
+      const refs = [
+        ...historyManager.referencedFileIds(),
+        ...favoritesManager.referencedFileIds()
+      ]
+      clipboardImages.purgeOrphans(refs)
+    }
+
+    pasteService = new PasteService(clipboardImages)
 
     // 历史变更时推送到所有渲染窗口（history:updated）
     historyManager = new HistoryManager(
       () => configManager.get(),
       (records) => {
         broadcastHistory(records)
-      }
+      },
+      reconcileClipboardImages
     )
-    historyManager.init()
 
-    favoritesManager = new FavoritesManager((records) => {
-      broadcastFavorites(records)
-    })
+    favoritesManager = new FavoritesManager(
+      (records) => {
+        broadcastFavorites(records)
+      },
+      reconcileClipboardImages
+    )
+
+    // 先收藏再历史，再统一 purge 无引用图片
     favoritesManager.init()
+    historyManager.init()
+    reconcileClipboardImages()
 
     clipboardWatcher = new ClipboardWatcher(
       () => configManager.get().clipboard.pollIntervalMs,
-      (capture) => historyManager.add(capture)
+      (capture) => historyManager.add(capture),
+      clipboardImages
     )
     clipboardWatcher.start()
     // 粘贴写入系统剪贴板后同步监听基线，避免把自身写入再入库一遍

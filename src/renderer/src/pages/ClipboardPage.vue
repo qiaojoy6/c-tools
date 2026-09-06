@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ClipRecord } from '@shared/types'
+import { clipImageSrc } from '@shared/types'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
@@ -50,16 +51,14 @@ let offShown: (() => void) | null = null
 
 const viewingFavorites = computed(() => filter.value === 'favorite')
 
-/** 按内容指纹匹配收藏（避免把整段超长 text/base64 当 Set key） */
+/** 按内容指纹匹配收藏（文本截断；图片用 hash） */
 function contentKey(r: ClipRecord): string {
   if (r.type === 'text') {
     const t = r.text ?? ''
     if (t.length <= 256) return `text:${t}`
     return `text:${t.length}:${t.slice(0, 64)}:${t.slice(-64)}`
   }
-  const b = r.image?.base64 ?? ''
-  if (b.length <= 128) return `image:${b}`
-  return `image:${b.length}:${b.slice(0, 32)}:${b.slice(-32)}`
+  return `image:${r.image?.hash ?? ''}`
 }
 
 const favoriteKeys = computed(() => new Set(favorites.value.map(contentKey)))
@@ -462,7 +461,7 @@ onUnmounted(() => {
 
     <div v-if="preview?.image" class="preview-scrim">
       <img
-        :src="`data:image/png;base64,${preview.image.base64}`"
+        :src="clipImageSrc(preview.image.fileId)"
         class="preview-img"
         alt="预览"
       />

@@ -54,6 +54,7 @@
 
 - 后台监听系统剪贴板（纯文本、图片）
 - 历史记录：去重、置顶、本地持久化、条数上限、过期清理
+- 图片以二进制文件存于 `clipboard-images/`（JSON 仅元数据）；删除/清空/裁剪/过期后与收藏合并引用，无引用则同步删文件
 - 收藏：独立持久化，与历史解耦；历史删除/清空不影响收藏；取消收藏即删除
 - 双入口：快捷键 → 独立浮层仅显示剪贴板（ESC 关闭）；托盘左键 / 程序坞 → 功能面板（已打开则置顶不关闭；右键菜单可切换显隐；原生 titleBarStyle 窗控 + 通栏自定义表头，ESC 不关窗）
 - 面板内剪贴板模块：双击 / Enter 粘贴后仍关闭窗口
@@ -70,7 +71,7 @@
 
 ### 相关文件
 
-- `src/main/modules/clipboard/` — watcher / history / favorites / paste（编排；按键模拟走 focusTarget/mac·win） / ipc
+- `src/main/modules/clipboard/` — watcher / history / favorites / paste / imageStore（编排；按键模拟走 focusTarget/mac·win） / ipc
 - `src/renderer/src/pages/ClipboardPage.vue` — 剪贴板内容（独立路由与面板内嵌共用）
 - `src/renderer/src/modules/clipboard/` — 卡片、虚拟列表、useHistory
 - `src/preload/modules/clipboard.ts`
@@ -143,8 +144,9 @@
 | 文件 | 功能 |
 |------|------|
 | `settings.json` | 应用配置：窗口、快捷键、剪贴板上限/清理、项目工作区与 overrides、隐私、开机自启、界面主题（浅/深/跟随系统）等 |
-| `clipboard-history.json` | 剪贴板历史记录（文本 / 图片 base64） |
+| `clipboard-history.json` | 剪贴板历史记录（文本 / 图片元数据） |
 | `clipboard-favorites.json` | 剪贴板收藏（与历史独立；删历史不影响收藏） |
+| `clipboard-images/` | 剪贴板图片二进制（按内容 hash 命名；无引用时删除） |
 
 写入方式：原子写（先 `.tmp` 再 rename）。项目相关配置也落在 `settings.json` 的 `projects` 字段，无单独项目文件。
 
@@ -169,6 +171,7 @@
 - `src/main/modules/core/storage.ts` — 通用 JSON 原子写入
 - `src/main/modules/clipboard/history.ts` — `clipboard-history.json`
 - `src/main/modules/clipboard/favorites.ts` — `clipboard-favorites.json`
+- `src/main/modules/clipboard/imageStore.ts` — `clipboard-images/` + `clipimg://` 协议
 - `src/main/modules/core/crashGuard.ts` — `diag.log` / `diag-session.json` / crashReporter
 - `src/main/modules/core/appUpdater.ts` — 更新下载（经 electron-updater）
 - `src/renderer/src/modules/projects/components/ProjectWebview.vue` — `persist:projects-preview`

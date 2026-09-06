@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ClipRecord } from '@shared/types'
+import { clipImageSrc } from '@shared/types'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Check, ChevronDown, ChevronUp, Star, Trash2 } from 'lucide-vue-next'
 import { formatBytes, formatTime } from '@renderer/modules/clipboard/lib/time'
@@ -25,8 +26,8 @@ const emit = defineEmits<{
   (e: 'preview', record: ClipRecord | null): void
 }>()
 
-const imageDataUrl = computed(() =>
-  props.record.image ? `data:image/png;base64,${props.record.image.base64}` : ''
+const imageSrc = computed(() =>
+  props.record.image ? clipImageSrc(props.record.image.fileId) : ''
 )
 
 const textEl = ref<HTMLElement | null>(null)
@@ -121,7 +122,7 @@ onMounted(() => {
 
     <template v-else>
       <img
-        :src="imageDataUrl"
+        :src="imageSrc"
         class="thumb"
         draggable="false"
         alt=""
@@ -135,7 +136,7 @@ onMounted(() => {
           <span class="dot">·</span>
           <span>{{ record.image?.width }} × {{ record.image?.height }}</span>
           <span class="dot">·</span>
-          <span>{{ formatBytes(record.image?.base64.length ?? 0) }}</span>
+          <span>{{ formatBytes(record.image?.byteLength ?? 0) }}</span>
         </div>
       </div>
     </template>

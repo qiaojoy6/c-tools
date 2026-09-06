@@ -1,6 +1,7 @@
-import { clipboard, nativeImage, Notification, systemPreferences } from 'electron'
+import { clipboard, Notification, systemPreferences } from 'electron'
 import type { ClipRecord } from '@shared/types'
 import { simulatePasteKey } from '../core/windows/focusTarget'
+import type { ClipboardImageStore } from './imageStore'
 
 /** 多条连续粘贴时，条目之间的间隔（最后一条不等待） */
 const BETWEEN_PASTE_DELAY_MS = 100
@@ -13,6 +14,8 @@ const BETWEEN_PASTE_DELAY_MS = 100
 export class PasteService {
   /** 自身写入剪贴板后回调，供监听器同步基线，避免二次入库/抢占剪贴板 */
   onClipboardWritten: (() => void) | null = null
+
+  constructor(private images: ClipboardImageStore) {}
 
   /** macOS：是否已授权辅助功能（可自动 ⌘V 回填）；其它平台视为可用 */
   canAutoPaste(): boolean {
@@ -40,7 +43,8 @@ export class PasteService {
       // write() 比 writeText 在 Windows 上更完整地注册 CF_UNICODETEXT
       clipboard.write({ text: record.text ?? '' })
     } else if (record.image) {
-      const img = nativeImage.createFromBuffer(Buffer.from(record.image.base64, 'base64'))
+      const img = this.images.toNativeImage(record.image.fileId)
+      if (!img) return
       clipboard.write({ image: img })
     }
     this.onClipboardWritten?.()

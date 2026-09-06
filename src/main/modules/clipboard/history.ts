@@ -3,18 +3,11 @@ import { app } from 'electron'
 import { join } from 'path'
 import type { AppConfig, ClipRecord } from '@shared/types'
 import { JsonStore } from '../core/storage'
+import type { ClipboardCapture } from './watcher'
 
 interface HistoryFile {
   version: 1
   records: ClipRecord[]
-}
-
-interface Capture {
-  type: 'text' | 'image'
-  text?: string
-  base64?: string
-  width?: number
-  height?: number
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -29,7 +22,9 @@ export class HistoryManager {
 
   constructor(
     private getConfig: () => AppConfig,
-    private onUpdate: (records: ClipRecord[]) => void
+    private onUpdate: (records: ClipRecord[]) => void,
+    /** 删除记录后清理无引用图片（需合并收藏引用） */
+    private reconcileImages: () => void
   ) {
     this.store = new JsonStore<HistoryFile>(join(app.getPath('userData'), 'clipboard-history.json'))
   }
@@ -54,11 +49,16 @@ export class HistoryManager {
     return this.records.find((r) => r.id === id)
   }
 
+  /** 收集本库引用的图片 fileId */
+  referencedFileIds(): string[] {
+    return this.records.filter((r) => r.image?.fileId).map((r) => r.image!.fileId)
+  }
+
   /** 新增记录：连续重复仅保留最新一条（去重并置顶） */
-  add(capture: Capture): void {
+  add(capture: ClipboardCapture): void {
     if (capture.type === 'text') {
       if (!capture.text || !capture.text.trim()) return
-    } else if (!capture.base64) return
+    } else if (!capture.image) return
 
     const exists = this.records.findIndex((r) => this.isSame(r, capture))
     if (exists >= 0) this.records.splice(exists, 1)
@@ -67,20 +67,14 @@ export class HistoryManager {
       id: randomUUID(),
       type: capture.type,
       text: capture.type === 'text' ? (capture.text ?? null) : null,
-      image:
-        capture.type === 'image'
-          ? {
-              base64: capture.base64 ?? '',
-              width: capture.width ?? 0,
-              height: capture.height ?? 0
-            }
-          : null,
+      image: capture.type === 'image' ? capture.image! : null,
       createdAt: Date.now()
     }
 
     this.records.unshift(record)
     this.trim()
     this.scheduleSave()
+    this.reconcileImages()
     this.onUpdate(this.records)
   }
 
@@ -106,6 +100,7 @@ export class HistoryManager {
     if (idx >= 0) {
       this.records.splice(idx, 1)
       this.scheduleSave()
+      this.reconcileImages()
       this.onUpdate(this.records)
     }
   }
@@ -113,6 +108,7 @@ export class HistoryManager {
   clear(): void {
     this.records = []
     this.flushSave()
+    this.reconcileImages()
     this.onUpdate(this.records)
   }
 
@@ -129,7 +125,10 @@ export class HistoryManager {
 
   private trim(): void {
     const max = Math.min(200, Math.max(1, this.getConfig().clipboard.maxRecords))
-    if (this.records.length > max) this.records.length = max
+    if (this.records.length <= max) return
+    this.records.length = max
+    this.scheduleSave()
+    this.reconcileImages()
   }
 
   private cleanExpired(): void {
@@ -140,14 +139,15 @@ export class HistoryManager {
     this.records = this.records.filter((r) => r.createdAt >= threshold)
     if (this.records.length !== before) {
       this.flushSave()
+      this.reconcileImages()
       this.onUpdate(this.records)
     }
   }
 
-  private isSame(record: ClipRecord, capture: Capture): boolean {
+  private isSame(record: ClipRecord, capture: ClipboardCapture): boolean {
     if (record.type !== capture.type) return false
     if (capture.type === 'text') return record.text === capture.text
-    return record.image?.base64 === capture.base64
+    return Boolean(record.image && capture.image && record.image.hash === capture.image.hash)
   }
 
   private scheduleSave(): void {
