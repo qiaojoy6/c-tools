@@ -4,6 +4,7 @@ import type { ProjectOverride, ProjectRuntimeInfo, ScannedProject } from '@share
 import type { ConfigManager } from '../../config'
 import { scanWorkspace } from './scan'
 import type { ProjectsRuntime } from './runtime'
+import { normalizeBasePath } from './basePath'
 
 export interface ProjectsIpcDeps {
   config: ConfigManager
@@ -75,8 +76,8 @@ export function registerProjectsIpc(deps: ProjectsIpcDeps): void {
         else delete next.entryPath
       }
       if (patch.basePath !== undefined) {
-        const base = patch.basePath.trim().replace(/\\/g, '/')
-        if (base && base !== '/') next.basePath = base
+        const base = normalizeBasePath(patch.basePath)
+        if (base) next.basePath = base
         else delete next.basePath
       }
 

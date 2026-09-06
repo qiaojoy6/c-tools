@@ -25,16 +25,24 @@ export function applyLoginItem(enabled: boolean): void {
 
 const SETTINGS_FILE = 'settings.json'
 
-/** 深合并普通对象（override 优先） */
+/** 深合并普通对象（override 优先；含 base 中尚不存在的新键，如 projects.overrides[folder]） */
 function deepMerge<T>(base: T, override: unknown): T {
   if (override === null || override === undefined) return base
   if (typeof base !== 'object' || base === null || Array.isArray(base)) return override as T
-  if (typeof override !== 'object' || Array.isArray(override)) return override as T
+  if (typeof override !== 'object' || override === null || Array.isArray(override)) {
+    return override as T
+  }
   const result: Record<string, unknown> = { ...(base as Record<string, unknown>) }
   for (const [key, value] of Object.entries(override)) {
-    if (key in result) {
-      result[key] = deepMerge(result[key], value)
-    }
+    const prev = result[key]
+    const bothObjects =
+      typeof prev === 'object' &&
+      prev !== null &&
+      !Array.isArray(prev) &&
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value)
+    result[key] = bothObjects ? deepMerge(prev, value) : value
   }
   return result as T
 }
