@@ -21,6 +21,7 @@ import {
   ShortcutManager,
   TrayManager,
   WindowManager,
+  installCrashGuard,
   registerCoreIpc,
   registerLogIpc,
   normalizeAccelerator,
@@ -44,6 +45,9 @@ const gotSingleLock = app.requestSingleInstanceLock()
 if (!gotSingleLock) {
   app.quit()
 } else {
+  // 尽早挂诊断：意外退出 / 子进程崩溃写 logs/diag.log
+  installCrashGuard()
+
   // 用户再次打开应用 / 点程序坞：唤起功能面板（异步采焦，不卡主进程）
   app.on('second-instance', () => windowManager?.showPanel())
 
@@ -188,7 +192,8 @@ if (!gotSingleLock) {
   // 托盘常驻：关闭所有窗口不退出进程
   app.on('window-all-closed', () => {})
 
-  app.on('before-quit', () => quitApp())
+  // 只做清理，不再次 app.quit（否则 before-quit ↔ quitApp 死循环刷日志）
+  app.on('before-quit', () => prepareQuit())
 
   app.on('will-quit', () => shortcutManager?.unregisterAll())
 }
@@ -196,18 +201,23 @@ if (!gotSingleLock) {
 /** 主→渲染：广播剪贴历史 */
 function broadcastHistory(records: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send('history:updated', records)
+    if (!win.isDestroyed()) win.webContents.send('history:updated', records)
   }
 }
 
 /** 主→渲染：广播收藏列表 */
 function broadcastFavorites(records: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send('favorite:updated', records)
+    if (!win.isDestroyed()) win.webContents.send('favorite:updated', records)
   }
 }
 
-function quitApp(): void {
+let quitting = false
+
+/** 退出前清理（幂等）；由 before-quit 或托盘「退出」触发 */
+function prepareQuit(): void {
+  if (quitting) return
+  quitting = true
   const cfg = configManager?.get()
   if (cfg?.privacy.clearOnQuit) historyManager?.clear()
   historyManager?.dispose()
@@ -215,5 +225,10 @@ function quitApp(): void {
   clipboardWatcher?.stop()
   void projectsRuntime?.stopAll()
   windowManager?.markQuitting()
+}
+
+/** 托盘等主动退出：清理后结束进程 */
+function quitApp(): void {
+  prepareQuit()
   app.quit()
 }
