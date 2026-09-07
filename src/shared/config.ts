@@ -25,11 +25,11 @@ export interface WindowConfig {
   hideOnBlur: boolean
 }
 
-/** 全局快捷键配置（可配置化） */
+/** 全局快捷键配置（可配置化；空字符串 = 关闭该快捷键） */
 export interface ShortcutConfig {
-  /** 呼出/隐藏剪贴板浮层，Electron Accelerator 格式 */
+  /** 呼出/隐藏剪贴板浮层，Electron Accelerator 格式；空则不用快捷键呼出 */
   togglePanel: string
-  /** 进入截屏 */
+  /** 进入截屏；空则不用快捷键截屏（仍可用托盘等入口） */
   screenshot: string
 }
 

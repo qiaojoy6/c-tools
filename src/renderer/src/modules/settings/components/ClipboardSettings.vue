@@ -37,11 +37,11 @@ const cleanOptions: SelectOption[] = [
 <template>
   <div class="space-y-5">
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">快捷键</h3>
+      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">全局快捷键</h3>
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <p class="text-sm">呼出剪贴板</p>
-          <p class="mt-0.5 text-xs text-muted-foreground">全局快捷键，呼出 / 隐藏独立剪贴板窗口</p>
+          <p class="mt-0.5 text-xs text-muted-foreground">呼出 / 隐藏独立剪贴板窗口；可清空关闭</p>
         </div>
         <div class="flex shrink-0 flex-col items-end gap-1.5">
           <HotkeyInput

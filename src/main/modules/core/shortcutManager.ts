@@ -26,7 +26,8 @@ export type ShortcutHandlers = {
 }
 
 /**
- * 全局快捷键：同时管理剪贴板呼出与截屏
+ * 全局快捷键：同时管理剪贴板呼出与截屏。
+ * 配置为空字符串时不注册该键（功能关闭）。
  */
 export class ShortcutManager {
   private registered: Partial<Record<keyof ShortcutConfig, string>> = {}
@@ -49,6 +50,8 @@ export class ShortcutManager {
 
     for (const [key, handler] of entries) {
       const normalized = normalizeAccelerator(shortcuts[key])
+      // 空字符串 = 主动关闭该快捷键，跳过注册且不算失败
+      if (!normalized) continue
       if (!isUsableAccelerator(normalized)) {
         console.warn(`[shortcut] 非法快捷键 ${key}: ${JSON.stringify(shortcuts[key])}`)
         failed.push(key)

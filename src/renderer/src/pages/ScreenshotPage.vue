@@ -422,8 +422,7 @@ function onPointerUp(e: PointerEvent): void {
     }
   } else if (drag.type === 'annot-marquee' && annotMarquee.value) {
     const box = annotMarquee.value
-    selectedIdx.value =
-      box.w >= 3 && box.h >= 3 ? strokesInMarquee(strokes.value, box) : []
+    selectedIdx.value = box.w >= 3 && box.h >= 3 ? strokesInMarquee(strokes.value, box) : []
     annotMarquee.value = null
   }
 
@@ -633,7 +632,13 @@ function cancelShot(): void {
           <button type="button" aria-label="下载" title="下载" @click.stop="save">
             <Download class="ico" aria-hidden="true" />
           </button>
-          <button type="button" class="cancel" aria-label="取消" title="取消" @click.stop="cancelShot">
+          <button
+            type="button"
+            class="cancel"
+            aria-label="取消"
+            title="取消"
+            @click.stop="cancelShot"
+          >
             <X class="ico" aria-hidden="true" />
           </button>
           <button type="button" class="ok" aria-label="完成" title="完成" @click.stop="finish">
@@ -671,7 +676,11 @@ function cancelShot(): void {
           <span class="sub-preview" aria-hidden="true">
             <span
               class="sub-preview-dot"
-              :style="{ width: `${mosaicSize}px`, height: `${mosaicSize}px`, background: 'var(--muted-foreground)' }"
+              :style="{
+                width: `${mosaicSize}px`,
+                height: `${mosaicSize}px`,
+                background: 'var(--muted-foreground)'
+              }"
             />
           </span>
           <input

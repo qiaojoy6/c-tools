@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Button } from '@renderer/components/ui/button'
-import { Keyboard } from 'lucide-vue-next'
+import { Keyboard, X } from 'lucide-vue-next'
 import { cn } from '@renderer/lib/utils'
 
 const props = defineProps<{
@@ -54,6 +54,7 @@ const WIN_LABELS: Record<string, string> = {
 }
 
 const display = computed(() => pretty(props.modelValue))
+const canClear = computed(() => Boolean(props.modelValue) && !recording.value)
 
 function pretty(accelerator: string): string {
   if (!accelerator) return ''
@@ -130,12 +131,29 @@ async function commitRecording(accelerator: string): Promise<void> {
   emit('update:modelValue', accelerator)
 }
 
+/** 清空快捷键 = 关闭该全局快捷功能；录制中清空也不 resume 旧键 */
+function clearShortcut(): void {
+  if (recording.value) recording.value = false
+  emit('update:modelValue', '')
+}
+
 function onKeydown(e: KeyboardEvent): void {
   if (!recording.value) return
   e.preventDefault()
   e.stopPropagation()
   if (e.key === 'Escape') {
     void cancelRecording()
+    return
+  }
+  // 录制中单独按 Backspace / Delete → 清空
+  if (
+    (e.key === 'Backspace' || e.key === 'Delete') &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey &&
+    !e.shiftKey
+  ) {
+    clearShortcut()
     return
   }
   const accelerator = keyToAccelerator(e)
@@ -151,13 +169,27 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Button
-    variant="outline"
-    :class="cn('min-w-40 justify-start gap-2 font-normal', props.buttonClass)"
-    @click="startRecording"
-  >
-    <Keyboard class="size-4 text-primary" />
-    <span v-if="recording" class="animate-pulse text-primary">按下组合键…（Esc 取消）</span>
-    <span v-else>{{ display || '点击录制' }}</span>
-  </Button>
+  <div class="flex items-center gap-1">
+    <Button
+      variant="outline"
+      :class="cn('min-w-40 justify-start gap-2 font-normal', props.buttonClass)"
+      @click="startRecording"
+    >
+      <Keyboard class="size-4 text-primary" />
+      <span v-if="recording" class="animate-pulse text-primary">按下组合键…（Esc 取消）</span>
+      <span v-else>{{ display || '未设置' }}</span>
+    </Button>
+    <Button
+      v-if="canClear"
+      type="button"
+      variant="ghost"
+      size="icon"
+      class="size-9 shrink-0 text-muted-foreground"
+      aria-label="清空快捷键"
+      title="清空（关闭该快捷键）"
+      @click="clearShortcut"
+    >
+      <X class="size-4" />
+    </Button>
+  </div>
 </template>

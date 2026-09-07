@@ -28,13 +28,13 @@ function restoreDefaultShortcut(): void {
 <template>
   <div class="space-y-5">
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">快捷键</h3>
+      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+        全局快捷键
+      </h3>
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <p class="text-sm">截屏</p>
-          <p class="mt-0.5 text-xs text-muted-foreground">
-            全局快捷键，进入框选 / 点选窗口截屏
-          </p>
+          <p class="mt-0.5 text-xs text-muted-foreground">进入框选 / 点选窗口截屏；可清空关闭</p>
         </div>
         <div class="flex shrink-0 flex-col items-end gap-1.5">
           <HotkeyInput
@@ -61,9 +61,7 @@ function restoreDefaultShortcut(): void {
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <p class="text-sm">截屏时隐藏本应用窗口</p>
-          <p class="mt-0.5 text-xs text-muted-foreground">
-            避免截到剪贴板浮层、功能面板或设置窗
-          </p>
+          <p class="mt-0.5 text-xs text-muted-foreground">避免截到剪贴板浮层、功能面板或设置窗</p>
         </div>
         <Switch
           :model-value="config.screenshot.hideAppWindows"
