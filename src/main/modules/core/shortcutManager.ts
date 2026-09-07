@@ -1,4 +1,5 @@
 import { globalShortcut } from 'electron'
+import type { ShortcutConfig } from '@shared/types'
 
 /**
  * 规范化加速键：历史错误可能把空格存成字面量 " "（如 "Alt+ "）
@@ -16,49 +17,71 @@ export function normalizeAccelerator(raw: string): string {
 }
 
 function isUsableAccelerator(accelerator: string): boolean {
-  // Electron 要求纯 ASCII，且不能含空白
   return Boolean(accelerator) && /^[\x21-\x7E]+$/.test(accelerator)
 }
 
+export type ShortcutHandlers = {
+  togglePanel: () => void
+  screenshot: () => void
+}
+
 /**
- * 全局快捷键管理：注册表完全由 ShortcutConfig 驱动，可动态重注册
+ * 全局快捷键：同时管理剪贴板呼出与截屏
  */
 export class ShortcutManager {
-  private current = ''
+  private registered: Partial<Record<keyof ShortcutConfig, string>> = {}
 
-  constructor(private onTogglePanel: () => void) {}
+  constructor(private handlers: ShortcutHandlers) {}
 
-  /** 注册（或按新配置重注册）全局快捷键；非法字符串返回 false，不抛错 */
-  register(accelerator: string): boolean {
-    globalShortcut.unregisterAll()
-    this.current = ''
+  /**
+   * 按配置注册全部快捷键。
+   * @returns 失败的键名列表
+   */
+  registerAll(shortcuts: ShortcutConfig): Array<keyof ShortcutConfig> {
+    this.unregisterAll()
+    const failed: Array<keyof ShortcutConfig> = []
+    const used = new Set<string>()
 
-    const normalized = normalizeAccelerator(accelerator)
-    if (!isUsableAccelerator(normalized)) {
-      console.warn(`[shortcut] 非法快捷键，已忽略: ${JSON.stringify(accelerator)}`)
-      return false
-    }
+    const entries: Array<[keyof ShortcutConfig, () => void]> = [
+      ['togglePanel', this.handlers.togglePanel],
+      ['screenshot', this.handlers.screenshot]
+    ]
 
-    try {
-      const ok = globalShortcut.register(normalized, this.onTogglePanel)
-      if (ok) {
-        this.current = normalized
-      } else {
-        console.warn(`[shortcut] 注册失败（可能被占用）: ${normalized}`)
+    for (const [key, handler] of entries) {
+      const normalized = normalizeAccelerator(shortcuts[key])
+      if (!isUsableAccelerator(normalized)) {
+        console.warn(`[shortcut] 非法快捷键 ${key}: ${JSON.stringify(shortcuts[key])}`)
+        failed.push(key)
+        continue
       }
-      return ok
-    } catch (err) {
-      console.warn(`[shortcut] 注册异常: ${normalized}`, err)
-      return false
+      if (used.has(normalized)) {
+        console.warn(`[shortcut] 与其它快捷键冲突: ${key}=${normalized}`)
+        failed.push(key)
+        continue
+      }
+      try {
+        const ok = globalShortcut.register(normalized, handler)
+        if (ok) {
+          this.registered[key] = normalized
+          used.add(normalized)
+        } else {
+          console.warn(`[shortcut] 注册失败（可能被占用）: ${key}=${normalized}`)
+          failed.push(key)
+        }
+      } catch (err) {
+        console.warn(`[shortcut] 注册异常: ${key}=${normalized}`, err)
+        failed.push(key)
+      }
     }
+    return failed
   }
 
-  get registered(): string {
-    return this.current
+  getRegistered(key: keyof ShortcutConfig): string {
+    return this.registered[key] ?? ''
   }
 
   unregisterAll(): void {
     globalShortcut.unregisterAll()
-    this.current = ''
+    this.registered = {}
   }
 }

@@ -85,23 +85,6 @@ export class ClipboardImageStore {
   }
 }
 
-/** 必须在 app ready 之前调用 */
-export function registerClipboardImageScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: CLIP_IMG_SCHEME,
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        bypassCSP: true,
-        stream: true,
-        corsEnabled: true
-      }
-    }
-  ])
-}
-
 /** app ready 后挂上协议处理 */
 export function installClipboardImageProtocol(store: ClipboardImageStore): void {
   protocol.handle(CLIP_IMG_SCHEME, (request) => {

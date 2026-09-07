@@ -1,5 +1,6 @@
 import type { ClipboardConfig } from './modules/clipboard'
 import type { ProjectsConfig } from './modules/projects'
+import type { ScreenshotConfig } from './modules/screenshot'
 
 /** ============ 应用全局配置类型 ============ */
 
@@ -26,8 +27,10 @@ export interface WindowConfig {
 
 /** 全局快捷键配置（可配置化） */
 export interface ShortcutConfig {
-  /** 呼出/隐藏面板，Electron Accelerator 格式 */
+  /** 呼出/隐藏剪贴板浮层，Electron Accelerator 格式 */
   togglePanel: string
+  /** 进入截屏 */
+  screenshot: string
 }
 
 /** 默认呼出快捷键（与 DEFAULT_CONFIG 保持一致） */
@@ -54,6 +57,7 @@ export interface AppConfig {
   window: WindowConfig
   shortcuts: ShortcutConfig
   clipboard: ClipboardConfig
+  screenshot: ScreenshotConfig
   projects: ProjectsConfig
   privacy: PrivacyConfig
   general: GeneralConfig

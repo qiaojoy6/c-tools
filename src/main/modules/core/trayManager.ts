@@ -12,6 +12,8 @@ export interface TrayActions {
   togglePanel: () => void
   openSettings: () => void
   toggleLogin: () => void
+  /** 开始截屏 */
+  startScreenshot: () => void
   quit: () => void
 }
 
@@ -65,6 +67,10 @@ export class TrayManager {
       {
         label: '显示 / 隐藏面板',
         click: () => this.actions.togglePanel()
+      },
+      {
+        label: '截屏',
+        click: () => this.actions.startScreenshot()
       },
       { type: 'separator' },
       {

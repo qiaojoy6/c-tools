@@ -13,7 +13,7 @@
 - 面板左侧图标轨道切换模块（可扩展；当前：剪贴板、项目）；底部打开设置
 - 独立设置窗口
 - 应用菜单保留 Edit（系统复制/粘贴依赖）与 View；无 File / Window；View 可开关「点击空白区域隐藏窗口」（作用于独立剪贴板浮层）
-- 托盘常驻（关窗口不退出）
+- 托盘常驻（关窗口不退出）；右键菜单含「截屏」入口
 - 配置本地持久化
 - 开机自启（设置与托盘共用配置；变更后同步系统登录项，并推送 `config:updated` 刷新设置窗）
 - 单实例（二次启动唤起功能面板；程序坞 / Cmd+Tab 切回立刻置顶且不异步采焦）
@@ -107,12 +107,52 @@
 
 ---
 
+## screenshot
+
+### 功能
+
+- QQ 式截屏（首版 macOS + Windows）：全局快捷键或托盘右键「截屏」进入
+- 进入时按设置决定是否先隐藏本应用窗口（剪贴板浮层 / 功能面板 / 设置窗），默认隐藏；取消或完成后按原显隐恢复
+- 所有显示器同时进入截屏：每屏置顶遮罩，画面为进入瞬间的整屏冻结图
+- macOS 截屏时临时隐藏菜单栏与程序坞以铺满整屏，退出（Esc/完成/取消）时恢复；Windows 直接全屏 bounds
+- 悬停高亮光标下可见顶层应用窗；单击锁定该窗口外接矩形（含标题栏）并弹出工具条；按下拖过阈值则区域框选，松手后出工具条
+- 点选目标仅为当前屏幕上可见的顶层应用窗（不枚举每个 App 的全部子窗口）
+- 选区阶段显示宽×高角标；不做放大镜
+- 工具条阶段可选区缩放 / 平移；一旦存在标注则锁死选区（须撤销至无标注或取消重截方可再改选区）；移动/缩放选区后清空撤销与恢复栈
+- 工具条默认贴选区下方；贴底不够则改贴上方；上下都不够则收入选区内；空白处可拖拽挪位
+- 工具：选择（点选/框选已有标注并拖移/单选八向缩放）、笔、矩形、箭头、马赛克（框选区域打码，粒度 2–10px）；任意工具下移到标注描边附近（约 8px）可直接拖移，矩形仅边框可拖、内部可继续画
+- 撤消 / 前进（快照栈，含标注移动）；有限色板 + 粗细 range（笔/矩形/箭头）；马赛克单独粒度 range
+- 完成：工具条「完成」/ 双击选区 / Enter → 写入系统剪贴板并直接入库剪贴板历史（同步监听基线防重复）；不弹完成通知
+- 另存为：先结束截屏会话再弹系统对话框（PNG、时间戳文件名）；仅保存成功时系统通知
+- 取消：Esc / 右键；截屏过程中忽略其它全局快捷键；再按截屏快捷键 = 取消当前截屏
+- macOS 无屏幕录制权限：拦截并引导打开系统设置，不进入截屏
+- 窗口列表尽力用平台 API；失败则降级为仅框选（可弱提示），不因缺辅助功能整页拦截
+- 设置「截屏」分区：可改快捷键（默认 macOS `Cmd+Shift+A`、Windows `Alt+A`，可恢复默认）、是否截屏时隐藏本应用
+- 自定义协议 `clipimg` / `shotimg` 在 ready 前一次性特权注册；导出用主进程下发冻结帧 base64，避免 canvas 污染
+
+### 相关文件
+
+- `src/main/modules/screenshot/` — 抓屏、多屏遮罩编排、完成/另存、IPC、协议
+- `src/main/modules/screenshot/windowHit/` — 光标下窗口 bounds（mac / win）
+- `src/main/modules/core/schemes.ts` — `clipimg` / `shotimg` 特权方案注册
+- `src/renderer/src/modules/screenshot/` — 遮罩选区、工具条、标注画布、标注几何（命中/平移）
+- `src/renderer/src/modules/screenshot/composables/` — 会话 / 标注 / 绘制 / 工具条 composable
+- `src/renderer/src/pages/ScreenshotPage.vue` — 截屏遮罩页（编排 + 指针交互）
+- `src/renderer/src/modules/settings/components/ScreenshotSettings.vue` — 截屏设置区块
+- `src/preload/modules/screenshot.ts`
+- `src/shared/modules/screenshot.ts`
+- 完成时耦接：`src/main/modules/clipboard/`（写板 / history / imageStore / syncBaseline）
+- 入口耦接：`src/main/modules/core/trayManager.ts`、快捷键注册、`settings.json` 中 `shortcuts` + `screenshot`
+
+---
+
 ## settings
 
 ### 功能
 
-- 独立设置窗口，左侧按模块 Tab 切换（通用 / 剪贴板，可扩展）
-- 自定义呼出快捷键（可恢复默认）
+- 独立设置窗口，左侧按模块 Tab 切换（通用 / 剪贴板 / 截屏，可扩展）
+- 自定义呼出剪贴板快捷键（可恢复默认）
+- 截屏：快捷键（可恢复默认）、截屏时是否隐藏本应用窗口
 - 最大保存条数
 - 过期自动清理周期
 - 开机自启
@@ -125,14 +165,16 @@
 
 - `src/renderer/src/pages/SettingsPage.vue`
 - `src/renderer/src/modules/settings/tabs.ts` — 模块 Tab 注册
-- `src/renderer/src/modules/settings/components/` — GeneralSettings / ClipboardSettings / HotkeyInput
+- `src/renderer/src/modules/settings/components/` — GeneralSettings / ClipboardSettings / ScreenshotSettings / HotkeyInput
 - `src/renderer/src/composables/useTheme.ts` — 渲染进程应用 `.dark`
 - `src/renderer/src/assets/main.css` — 浅/深设计令牌
 - `src/main/modules/core/theme.ts` — 主进程 nativeTheme 同步
 - `src/main/modules/core/windows/settingsWindow.ts`
 - `src/main/modules/core/appUpdater.ts` / `updaterIpc.ts`
-- `src/shared/config.ts` — `DEFAULT_TOGGLE_PANEL_SHORTCUT`、`general.theme`
+- `src/shared/config.ts` — `DEFAULT_TOGGLE_PANEL_SHORTCUT`、截屏默认快捷键、`general.theme`
 - `src/shared/modules/updater.ts`
+- `src/shared/modules/screenshot.ts` — 截屏配置类型
+
 ---
 
 ## 本地持久化文件
@@ -143,7 +185,7 @@
 
 | 文件 | 功能 |
 |------|------|
-| `settings.json` | 应用配置：窗口、快捷键、剪贴板上限/清理、项目工作区与 overrides、隐私、开机自启、界面主题（浅/深/跟随系统）等 |
+| `settings.json` | 应用配置：窗口、快捷键（含截屏）、截屏选项、剪贴板上限/清理、项目工作区与 overrides、隐私、开机自启、界面主题（浅/深/跟随系统）等 |
 | `clipboard-history.json` | 剪贴板历史记录（文本 / 图片元数据） |
 | `clipboard-favorites.json` | 剪贴板收藏（与历史独立；删历史不影响收藏） |
 | `clipboard-images/` | 剪贴板图片二进制（按内容 hash 命名；无引用时删除） |

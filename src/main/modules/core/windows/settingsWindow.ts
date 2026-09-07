@@ -24,6 +24,10 @@ export class SettingsWindow {
     return this.win
   }
 
+  isVisible(): boolean {
+    return this.win?.isVisible() ?? false
+  }
+
   create(): BrowserWindow {
     const win = new BrowserWindow({
       width: SETTINGS_WINDOW.width,

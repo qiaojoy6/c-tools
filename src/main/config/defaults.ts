@@ -1,5 +1,6 @@
 import type { AppConfig } from '@shared/types'
 import { DEFAULT_TOGGLE_PANEL_SHORTCUT } from '@shared/config'
+import { defaultScreenshotShortcut } from '@shared/modules/screenshot'
 
 /**
  * 默认配置（Source of Truth）
@@ -20,12 +21,16 @@ export const DEFAULT_CONFIG: AppConfig = {
     hideOnBlur: true
   },
   shortcuts: {
-    togglePanel: DEFAULT_TOGGLE_PANEL_SHORTCUT
+    togglePanel: DEFAULT_TOGGLE_PANEL_SHORTCUT,
+    screenshot: defaultScreenshotShortcut()
   },
   clipboard: {
     pollIntervalMs: 500,
     maxRecords: 100,
     autoCleanDays: 0
+  },
+  screenshot: {
+    hideAppWindows: true
   },
   projects: {
     workspaceRoot: null,

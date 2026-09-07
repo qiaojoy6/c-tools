@@ -5,7 +5,6 @@ export { FavoritesManager } from './favorites'
 export { PasteService } from './paste'
 export {
   ClipboardImageStore,
-  registerClipboardImageScheme,
   installClipboardImageProtocol
 } from './imageStore'
 export { registerClipboardIpc } from './ipc'

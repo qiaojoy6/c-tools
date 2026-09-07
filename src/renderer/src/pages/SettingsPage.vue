@@ -4,6 +4,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { SETTINGS_MODULES } from '@renderer/modules/settings/tabs'
 import GeneralSettings from '@renderer/modules/settings/components/GeneralSettings.vue'
 import ClipboardSettings from '@renderer/modules/settings/components/ClipboardSettings.vue'
+import ScreenshotSettings from '@renderer/modules/settings/components/ScreenshotSettings.vue'
 
 const config = ref<AppConfig | null>(null)
 const activeModule = ref(SETTINGS_MODULES[0]!.id)
@@ -85,6 +86,11 @@ onUnmounted(() => {
         <GeneralSettings v-if="activeModule === 'general'" :config="config" @apply="apply" />
         <ClipboardSettings
           v-else-if="activeModule === 'clipboard'"
+          :config="config"
+          @apply="apply"
+        />
+        <ScreenshotSettings
+          v-else-if="activeModule === 'screenshot'"
           :config="config"
           @apply="apply"
         />

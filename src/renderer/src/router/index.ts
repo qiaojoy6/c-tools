@@ -22,6 +22,11 @@ const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: () => import('@renderer/pages/SettingsPage.vue')
+    },
+    {
+      path: '/screenshot',
+      name: 'screenshot',
+      component: () => import('@renderer/pages/ScreenshotPage.vue')
     }
   ]
 })

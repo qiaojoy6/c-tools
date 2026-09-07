@@ -1,23 +1,28 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useTheme } from './composables/useTheme'
-import { logApi } from './utils/logApi'
 
 const route = useRoute()
 
 useTheme()
 
-onMounted(() => {
-  logApi.info('App.vue')
+/** 独立剪贴板用毛玻璃浮层壳；截屏遮罩无壳；功能面板 / 设置为普通窗 */
+const shellMode = computed(() => {
+  if (route.name === 'clipboard') return 'overlay'
+  if (route.name === 'screenshot') return 'shot'
+  return 'app'
 })
-
-/** 独立剪贴板用毛玻璃浮层壳；功能面板 / 设置为普通窗 */
-const isOverlayShell = computed(() => route.name === 'clipboard')
 </script>
 
 <template>
-  <div :class="isOverlayShell ? 'app-shell app-shell--overlay' : 'app-shell'">
+  <div
+    :class="{
+      'app-shell': shellMode === 'app',
+      'app-shell app-shell--overlay': shellMode === 'overlay',
+      'app-shell app-shell--shot': shellMode === 'shot'
+    }"
+  >
     <router-view />
   </div>
 </template>
@@ -39,5 +44,12 @@ const isOverlayShell = computed(() => route.name === 'clipboard')
   background-image:
     radial-gradient(ellipse 70% 45% at 12% -8%, oklch(0.78 0.012 265 / 0.1), transparent),
     radial-gradient(ellipse 55% 40% at 100% 0%, oklch(0.9 0.006 260 / 0.14), transparent);
+}
+
+.app-shell--shot {
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  color: inherit;
 }
 </style>
