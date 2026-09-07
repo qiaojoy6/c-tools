@@ -155,7 +155,7 @@ async function confirmEdit(): Promise<void> {
   position: relative;
   min-height: 0;
   flex: 1;
-  background: #0f1115;
+  background: var(--background);
 }
 
 .edit-fields {
