@@ -1,7 +1,8 @@
 /**
  * 主进程入口：组装 core / clipboard / projects / screenshot，注册 IPC，启动托盘与浮层。
  */
-import { app, BrowserWindow, nativeTheme } from 'electron'
+import { app, BrowserWindow, nativeTheme, session } from 'electron'
+import { is } from '@electron-toolkit/utils'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { ConfigManager, applyLoginItem, DEFAULT_CONFIG } from './config'
 import {
@@ -33,6 +34,7 @@ import {
   installScreenshotImageProtocol,
   registerScreenshotIpc
 } from './modules/screenshot'
+import { resolve } from 'path'
 
 // 自定义协议须在 ready 前一次性注册（不可分两次调用）
 registerAllCustomSchemes()
@@ -64,6 +66,12 @@ if (!gotSingleLock) {
     // macOS：托盘 + 程序坞并存（activate / Cmd+Tab 依赖 Dock 图标）
     if (process.platform === 'darwin') {
       app.dock?.show()
+    }
+
+    // 开发环境加载远程URL，生产环境加载本地HTML文件
+    if (is.dev) {
+      // 新增的：安装本地vue-devtools扩展
+      session.defaultSession.extensions.loadExtension(resolve(__dirname, '../../devtools/vue'))
     }
 
     app.on('browser-window-created', (_, window) => {
@@ -166,10 +174,7 @@ if (!gotSingleLock) {
     installScreenshotImageProtocol()
 
     const reconcileClipboardImages = (): void => {
-      const refs = [
-        ...historyManager.referencedFileIds(),
-        ...favoritesManager.referencedFileIds()
-      ]
+      const refs = [...historyManager.referencedFileIds(), ...favoritesManager.referencedFileIds()]
       clipboardImages.purgeOrphans(refs)
     }
 
