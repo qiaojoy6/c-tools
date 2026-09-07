@@ -30,7 +30,6 @@ import { registerAllCustomSchemes } from './modules/core/schemes'
 import { ProjectsRuntime, registerProjectsIpc } from './modules/projects'
 import {
   ScreenshotSession,
-  hideAppBrowserWindows,
   installScreenshotImageProtocol,
   registerScreenshotIpc
 } from './modules/screenshot'
@@ -205,12 +204,7 @@ if (!gotSingleLock) {
       images: clipboardImages,
       history: historyManager,
       syncBaseline: () => clipboardWatcher.syncBaseline(),
-      hideAppWindows: () =>
-        hideAppBrowserWindows({
-          clipboard: windowManager.clipboard,
-          panel: windowManager.panel,
-          settings: windowManager.settings
-        }),
+      hideAppWindows: () => windowManager.captureAndHideAppWindows(),
       captureExternalFocus: () => windowManager.captureScreenshotExternalFocus(),
       settleAfterScreenshot: (opts) => windowManager.settleAfterScreenshot(opts),
       restoreExternalFocus: (bundleId) => windowManager.restoreExternalFocus(bundleId)

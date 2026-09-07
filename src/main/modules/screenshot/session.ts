@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { dialog, screen } from 'electron'
 import type { AppConfig, ShotDisplayFrame } from '@shared/types'
 import { delay } from '../core/windows/loadRoute'
+import type { AppWindowVisibility } from '../core/windows/windowManager'
 import { captureAllDisplays, clearFrameBuffers, resetScreenshotTemp } from './capture'
 import { completeScreenshot, saveScreenshotPng, type CompleteDeps } from './complete'
 import { ScreenshotOverlayHost } from './overlayHost'
@@ -10,18 +11,19 @@ import { listAppWindows } from './windowHit'
 
 export interface ScreenshotSessionDeps extends CompleteDeps {
   getConfig: () => AppConfig
-  hideAppWindows: () => { clipboard: boolean; panel: boolean; settings: boolean }
-  /** 截屏前采外部前台（含面板失焦回落） */
+  /** 记下显隐并隐藏本应用窗 */
+  hideAppWindows: () => AppWindowVisibility
+  /** 截屏前采外部前台（含面板被盖住回落） */
   captureExternalFocus: () => Promise<string | null>
-  /** 关遮罩 + 还焦；被外部盖住时不还原自家窗 */
+  /** 关遮罩 + 还焦（被外部盖住时不还原自家窗） */
   settleAfterScreenshot: (opts: {
     hideOverlays: () => Promise<void>
-    visibility: { clipboard: boolean; panel: boolean; settings: boolean } | null
+    visibility: AppWindowVisibility | null
     external: string | null
     restoreFocus: boolean
   }) => Promise<void>
   /** 另存为对话框结束后再还焦 */
-  restoreExternalFocus: (bundleId: string | null) => Promise<void>
+  restoreExternalFocus: (bundleId: string | null) => Promise<boolean | void>
 }
 
 /**
@@ -31,8 +33,7 @@ export class ScreenshotSession {
   private active = false
   private sessionId = ''
   private frames: ShotDisplayFrame[] = []
-  private savedVisibility: { clipboard: boolean; panel: boolean; settings: boolean } | null =
-    null
+  private savedVisibility: AppWindowVisibility | null = null
   /** 截屏开始前的外部前台，结束后还焦 */
   private savedExternal: string | null = null
   /** 收尾期间抑制 macOS activate → showPanel */
@@ -206,20 +207,4 @@ export class ScreenshotSession {
       }, 400)
     }
   }
-}
-
-export function hideAppBrowserWindows(windows: {
-  clipboard: { isVisible(): boolean; hide(): void }
-  panel: { isVisible(): boolean; hide(): void }
-  settings: { isVisible(): boolean; hide(): void }
-}): { clipboard: boolean; panel: boolean; settings: boolean } {
-  const state = {
-    clipboard: windows.clipboard.isVisible(),
-    panel: windows.panel.isVisible(),
-    settings: windows.settings.isVisible()
-  }
-  if (state.clipboard) windows.clipboard.hide()
-  if (state.panel) windows.panel.hide()
-  if (state.settings) windows.settings.hide()
-  return state
 }

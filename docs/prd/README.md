@@ -29,7 +29,7 @@
 
 ### 相关文件
 
-- `src/main/modules/core/windows/` — ClipboardWindow / PanelWindow / SettingsWindow / WindowManager
+- `src/main/modules/core/windows/` — ClipboardWindow / PanelWindow / SettingsWindow / WindowManager / focusHandoff（粘贴与截屏共用还焦）
 - `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac` osascript；`win` koffi+user32）
 - `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu / logIpc / crashGuard / appUpdater / updaterIpc
 - `src/main/config/` — 默认配置与读写
@@ -123,6 +123,7 @@
 - 工具：选择（点选/框选已有标注并拖移/单选八向缩放）、笔、矩形、箭头、马赛克（框选区域打码，粒度 2–10px）；任意工具下移到标注描边附近（约 8px）可直接拖移，矩形仅边框可拖、内部可继续画
 - 撤消 / 前进（快照栈，含标注移动）；有限色板 + 粗细 range（笔/矩形/箭头）；马赛克单独粒度 range
 - 完成：工具条「完成」/ 双击选区 / Enter → 写入系统剪贴板并直接入库剪贴板历史（同步监听基线防重复）；不弹完成通知
+- 截屏结束还焦：与粘贴共用 `focusHandoff`（prepare → hide → activate）；若截屏前已被其它应用盖住，结束后不把功能面板抬到前台
 - 另存为：先结束截屏会话再弹系统对话框（PNG、时间戳文件名）；仅保存成功时系统通知
 - 取消：Esc / 右键；截屏过程中忽略其它全局快捷键；再按截屏快捷键 = 取消当前截屏
 - macOS 无屏幕录制权限：拦截并引导打开系统设置，不进入截屏

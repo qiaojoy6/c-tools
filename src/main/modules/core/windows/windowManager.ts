@@ -5,23 +5,31 @@ import { ClipboardWindow } from './clipboardWindow'
 import { PanelWindow, type PanelShowOptions } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
 import {
-  activateFocusTarget,
+  activateExternalApp,
+  captureFrontmostRaw,
+  prepareYieldFocus,
+  yieldFocusToExternal
+} from './focusHandoff'
+import {
   asExternalBundleId,
-  captureWindowsForegroundHwnd,
-  getFrontmostBundleId,
-  isWindowsForegroundOurs,
-  isWindowsForegroundTarget,
-  prepareWindowsFocusHandoff
+  captureWindowsForegroundHwnd
 } from './focusTarget'
 
 const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 220 : 120
 
+export type AppWindowVisibility = {
+  clipboard: boolean
+  panel: boolean
+  settings: boolean
+}
+
 /**
  * 窗口枢纽：独立剪贴板浮层 + 功能面板 + 设置窗
+ * 还焦原语见 focusHandoff（粘贴 / 截屏共用）
  */
 export class WindowManager {
   private quitting = false
-  /** 最近一次外部前台应用，面板内粘贴时的回落目标 */
+  /** 最近一次外部前台应用，面板内粘贴 / 截屏被盖住时的回落目标 */
   private lastExternalBundleId: string | null = null
   readonly clipboard: ClipboardWindow
   readonly panel: PanelWindow
@@ -100,6 +108,24 @@ export class WindowManager {
     this.panel.hide()
   }
 
+  /** 藏起剪贴板 / 面板 / 设置（截屏遮罩下或还焦前） */
+  hideAppBrowserWindows(): void {
+    if (this.clipboard.isVisible()) this.clipboard.hide()
+    if (this.panel.isVisible()) this.panel.hide()
+    if (this.settings.isVisible()) this.settings.hide()
+  }
+
+  /** 记下显隐后藏起剪贴板 / 面板 / 设置（截屏 hideAppWindows） */
+  captureAndHideAppWindows(): AppWindowVisibility {
+    const state: AppWindowVisibility = {
+      clipboard: this.clipboard.isVisible(),
+      panel: this.panel.isVisible(),
+      settings: this.settings.isVisible()
+    }
+    this.hideAppBrowserWindows()
+    return state
+  }
+
   toggleClipboard(): void {
     if (this.clipboard.isVisible()) this.hideClipboard()
     else this.showClipboard()
@@ -127,23 +153,22 @@ export class WindowManager {
     this.settings.show()
   }
 
+  hideSettings(): void {
+    this.settings.hide()
+  }
+
   /**
    * 截屏开始前采外部前台。
    * - 当前前台是外部应用 → 用之
-   * - 当前前台是本应用 → null（本应用在前台，截完应正常还原并派发 panel:shown）
-   * - 采集失败且面板可见未聚焦 → 回落 lastExternal（被盖住的典型情况）
+   * - 当前前台是本应用 → null（截完应正常还原）
+   * - 采集失败且面板可见未聚焦 → 回落 lastExternal（被盖住）
    */
   async captureScreenshotExternalFocus(): Promise<string | null> {
-    if (process.platform === 'win32') {
-      const hwnd = asExternalBundleId(captureWindowsForegroundHwnd())
-      if (hwnd) return hwnd
-    } else {
-      const raw = await getFrontmostBundleId()
-      const external = asExternalBundleId(raw)
-      if (external) return external
-      // raw 有值说明前台是本应用，不能用陈旧 lastExternal 误判成「被盖住」
-      if (raw) return null
-    }
+    const raw = await captureFrontmostRaw()
+    const external = asExternalBundleId(raw)
+    if (external) return external
+    // raw 有值说明前台是本应用，不能用陈旧 lastExternal 误判成「被盖住」
+    if (raw) return null
 
     const panelWin = this.panel.browserWindow
     const panelCovered =
@@ -153,61 +178,45 @@ export class WindowManager {
   }
 
   /**
-   * 截屏收尾（对齐剪贴板：不改动被盖住的功能面板层级）：
-   * - 截屏前已是外部应用在前台：关遮罩后还焦，自家窗保持隐藏（不 show，避免面板弹出来）
-   * - 截屏前本应用就在前台：关遮罩后正常 show（会发 panel:shown，前端刷新才生效）
+   * 截屏收尾（与粘贴还焦同一套 prepare → hide → activate）：
+   * - 被外部盖住：关遮罩后还焦，自家窗保持隐藏（不 show）
+   * - 本应用前台：关遮罩后按原显隐正常 show
    */
   async settleAfterScreenshot(opts: {
     hideOverlays: () => Promise<void>
-    visibility: { clipboard: boolean; panel: boolean; settings: boolean } | null
+    visibility: AppWindowVisibility | null
     external: string | null
     restoreFocus: boolean
   }): Promise<void> {
-    const external = opts.external
+    const { external, restoreFocus, visibility } = opts
     const coveredByExternal = Boolean(external)
 
     if (coveredByExternal) {
-      // 遮罩下若面板仍可见，先藏住；结束后也不再 show
-      if (this.clipboard.isVisible()) this.clipboard.hide()
-      if (this.panel.isVisible()) this.panel.hide()
-      if (this.settings.isVisible()) this.settings.hide()
-      if (opts.restoreFocus && process.platform === 'win32') {
-        prepareWindowsFocusHandoff(external!)
-      }
+      this.hideAppBrowserWindows()
+      if (restoreFocus) prepareYieldFocus(external)
     }
 
     await opts.hideOverlays()
 
-    if (opts.restoreFocus && external) {
-      await this.activateExternal(external)
+    if (restoreFocus && external) {
+      await activateExternalApp(external)
     }
 
-    // 被其它软件盖着时不要还原窗口，否则会「弹出来」
     if (coveredByExternal) return
 
-    const restore = opts.visibility
-    if (!restore) return
-    // 本应用前台：走正常 show，保证 panel:shown / settings 刷新
-    if (restore.panel) this.showPanel({ captureFocus: false })
-    if (restore.clipboard) this.showClipboard()
-    if (restore.settings) this.showSettings()
+    if (!visibility) return
+    if (visibility.panel) this.showPanel({ captureFocus: false })
+    if (visibility.clipboard) this.showClipboard()
+    if (visibility.settings) this.showSettings()
   }
 
-  /** 截屏结束后把前台还给截屏前的外部应用 */
-  async restoreExternalFocus(bundleId: string | null): Promise<void> {
-    if (!bundleId) return
-    if (process.platform === 'win32') {
-      prepareWindowsFocusHandoff(bundleId)
-    }
-    await this.activateExternal(bundleId)
-  }
-
-  hideSettings(): void {
-    this.settings.hide()
+  /** 另存为等：无中间 hide 的一站式还焦 */
+  restoreExternalFocus(bundleId: string | null): Promise<boolean> {
+    return yieldFocusToExternal(bundleId)
   }
 
   /**
-   * 粘贴前恢复焦点：
+   * 粘贴前恢复焦点（与截屏 settle 共用 focusHandoff）：
    * - 独立浮层：回填呼出前的外部应用；不改动功能面板显隐与层级
    * - 浮层在本应用内呼出（未采到外部）：回焦面板
    * - 仅面板内剪贴板：关面板，激活呼出前 / 最近外部应用
@@ -218,14 +227,12 @@ export class WindowManager {
     if (floatingOpen) {
       const external = asExternalBundleId(this.clipboard.takePreviousAppBundleId())
 
-      if (process.platform === 'win32' && external) {
-        prepareWindowsFocusHandoff(external)
-      }
-
+      // prepare → hide → activate（与截屏被盖住时一致）
+      prepareYieldFocus(external)
       this.clipboard.hide()
 
       if (external) {
-        return this.activateExternal(external)
+        return activateExternalApp(external)
       }
 
       // 未采到外部（在本应用内呼出）：贴回面板
@@ -244,41 +251,9 @@ export class WindowManager {
       this.panel.takePreviousAppBundleId() ?? this.lastExternalBundleId
     )
 
-    if (process.platform === 'win32' && bundleId) {
-      prepareWindowsFocusHandoff(bundleId)
-    }
-
+    prepareYieldFocus(bundleId)
     this.hideAllOverlays()
-    return this.activateExternal(bundleId)
-  }
-
-  /** 激活外部目标并等待焦点稳定；无目标时按平台尽量还焦 */
-  private async activateExternal(bundleId: string | null): Promise<boolean> {
-    if (process.platform === 'darwin') {
-      if (!bundleId) return false
-      const ok = await activateFocusTarget(bundleId)
-      if (!ok) return false
-      await delay(RESTORE_FOCUS_DELAY_MS)
-      return true
-    }
-
-    if (process.platform === 'win32') {
-      if (bundleId) {
-        await delay(50)
-        await activateFocusTarget(bundleId)
-        await delay(RESTORE_FOCUS_DELAY_MS)
-        if (isWindowsForegroundOurs() || !isWindowsForegroundTarget(bundleId)) {
-          await activateFocusTarget(bundleId)
-          await delay(120)
-        }
-      } else {
-        await delay(RESTORE_FOCUS_DELAY_MS + 80)
-      }
-      return !isWindowsForegroundOurs()
-    }
-
-    await delay(RESTORE_FOCUS_DELAY_MS)
-    return true
+    return activateExternalApp(bundleId)
   }
 
   private focusPanel(): void {
