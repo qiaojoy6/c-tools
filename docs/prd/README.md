@@ -124,7 +124,7 @@
 - 撤消 / 前进（快照栈，含标注移动）；有限色板 + 粗细 range（笔/矩形/箭头）；马赛克单独粒度 range
 - 完成：工具条「完成」/ 双击选区 / Enter → 写入系统剪贴板并直接入库剪贴板历史（同步监听基线防重复）；不弹完成通知
 - 截屏结束还焦：与粘贴共用 `focusHandoff`（prepare → hide → activate）；若截屏前已被其它应用盖住，结束后不把功能面板抬到前台
-- 另存为：先结束截屏会话再弹系统对话框（PNG、时间戳文件名）；仅保存成功时系统通知
+- 下载：截屏遮罩上直接弹系统对话框（PNG、时间戳文件名）；保存成功后结束会话，取消则继续标注；仅保存成功时系统通知
 - 取消：Esc / 右键；截屏过程中忽略其它全局快捷键；再按截屏快捷键 = 取消当前截屏
 - macOS 无屏幕录制权限：拦截并引导打开系统设置，不进入截屏
 - 窗口列表尽力用平台 API；失败则降级为仅框选（可弱提示），不因缺辅助功能整页拦截
@@ -133,7 +133,7 @@
 
 ### 相关文件
 
-- `src/main/modules/screenshot/` — 抓屏、多屏遮罩编排、完成/另存、IPC、协议
+- `src/main/modules/screenshot/` — 抓屏、多屏遮罩编排、完成/下载、IPC、协议
 - `src/main/modules/screenshot/windowHit/` — 窗口枚举与本屏裁剪（mac / win）
 - `src/main/modules/core/schemes.ts` — `clipimg` / `shotimg` 特权方案注册
 - `src/renderer/src/modules/screenshot/` — 遮罩选区、工具条、标注画布、标注几何（命中/平移）

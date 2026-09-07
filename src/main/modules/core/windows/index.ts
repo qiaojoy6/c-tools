@@ -8,6 +8,5 @@ export {
   activateExternalApp,
   captureFrontmostExternal,
   captureFrontmostRaw,
-  prepareYieldFocus,
-  yieldFocusToExternal
+  prepareYieldFocus
 } from './focusHandoff'

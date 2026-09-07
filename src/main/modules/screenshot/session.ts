@@ -22,8 +22,6 @@ export interface ScreenshotSessionDeps extends CompleteDeps {
     external: string | null
     restoreFocus: boolean
   }) => Promise<void>
-  /** 另存为对话框结束后再还焦 */
-  restoreExternalFocus: (bundleId: string | null) => Promise<boolean | void>
 }
 
 /**
@@ -153,39 +151,31 @@ export class ScreenshotSession {
     if (!this.active) return false
     try {
       const png = Buffer.from(pngBase64, 'base64')
-      // 先退出截屏再弹对话框，否则 mac 上确定/回车不可用；对话框期间先不还焦
-      await this.finishCleanupAsync({ restoreFocus: false })
-      const external = this.savedExternal
-      this.savedExternal = null
-      await delay(80)
-      try {
-        return await saveScreenshotPng(png)
-      } finally {
-        await this.deps.restoreExternalFocus(external)
-      }
+      // 留在截屏遮罩上弹对话框；保存成功后再收尾，取消则继续标注
+      const ok = await saveScreenshotPng(png, this.overlays.getDialogParent())
+      if (ok) await this.finishCleanupAsync()
+      return ok
     } catch (err) {
       console.error('[screenshot] save failed:', err)
       return false
     }
   }
 
-  private async finishCleanupAsync(opts?: { restoreFocus?: boolean }): Promise<void> {
+  private async finishCleanupAsync(): Promise<void> {
     if (this.cleaning) return
     this.cleaning = true
-    const restoreFocus = opts?.restoreFocus !== false
     this.suppressActivate = true
     try {
       const visibility = this.savedVisibility
       this.savedVisibility = null
-      // 另存为时先不还焦，但仍用 external 在关遮罩前藏窗，避免闪一下
       const external = this.savedExternal
-      if (restoreFocus) this.savedExternal = null
+      this.savedExternal = null
 
       await this.deps.settleAfterScreenshot({
         hideOverlays: () => this.overlays.hideAll(),
         visibility,
         external,
-        restoreFocus
+        restoreFocus: true
       })
 
       this.frames = []

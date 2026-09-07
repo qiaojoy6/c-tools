@@ -206,8 +206,7 @@ if (!gotSingleLock) {
       syncBaseline: () => clipboardWatcher.syncBaseline(),
       hideAppWindows: () => windowManager.captureAndHideAppWindows(),
       captureExternalFocus: () => windowManager.captureScreenshotExternalFocus(),
-      settleAfterScreenshot: (opts) => windowManager.settleAfterScreenshot(opts),
-      restoreExternalFocus: (bundleId) => windowManager.restoreExternalFocus(bundleId)
+      settleAfterScreenshot: (opts) => windowManager.settleAfterScreenshot(opts)
     })
 
     registerLogIpc()

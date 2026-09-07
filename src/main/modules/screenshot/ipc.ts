@@ -9,7 +9,7 @@ import type { ScreenshotSession } from './session'
  * |----------------------|------|
  * | screenshot:cancel    | 取消会话 |
  * | screenshot:complete  | base64 PNG → 剪贴板+历史并结束 |
- * | screenshot:save      | base64 PNG → 先结束会话再另存为 |
+ * | screenshot:save      | base64 PNG → 遮罩上弹下载对话框；成功后再结束会话 |
  * | screenshot:frame-png | 某屏冻结帧 base64（渲染导出用） |
  */
 export function registerScreenshotIpc(session: ScreenshotSession): void {

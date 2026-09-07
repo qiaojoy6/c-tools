@@ -6,8 +6,8 @@ import {
   BoxSelect,
   Check,
   Highlighter,
+  Download,
   Redo2,
-  Save,
   Square,
   Undo2,
   Pencil,
@@ -602,14 +602,14 @@ function cancelShot(): void {
           >
             <Redo2 class="ico" aria-hidden="true" />
           </button>
-          <button type="button" aria-label="另存为" title="另存为" @click.stop="save">
-            <Save class="ico" aria-hidden="true" />
-          </button>
-          <button type="button" class="ok" aria-label="完成" title="完成" @click.stop="finish">
-            <Check class="ico" aria-hidden="true" />
+          <button type="button" aria-label="下载" title="下载" @click.stop="save">
+            <Download class="ico" aria-hidden="true" />
           </button>
           <button type="button" class="cancel" aria-label="取消" title="取消" @click.stop="cancelShot">
             <X class="ico" aria-hidden="true" />
+          </button>
+          <button type="button" class="ok" aria-label="完成" title="完成" @click.stop="finish">
+            <Check class="ico" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -914,13 +914,13 @@ function cancelShot(): void {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent);
 }
 .shot-toolbar button.ok {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+  background: transparent;
+  color: #22c55e;
+  box-shadow: none;
 }
 .shot-toolbar button.ok:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--primary) 88%, var(--foreground));
-  color: var(--primary-foreground);
+  color: #16a34a;
+  background: color-mix(in oklab, #22c55e 14%, transparent);
 }
 .shot-toolbar button.cancel:hover:not(:disabled) {
   color: var(--destructive);

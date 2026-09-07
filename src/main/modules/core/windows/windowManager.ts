@@ -7,8 +7,7 @@ import { SettingsWindow } from './settingsWindow'
 import {
   activateExternalApp,
   captureFrontmostRaw,
-  prepareYieldFocus,
-  yieldFocusToExternal
+  prepareYieldFocus
 } from './focusHandoff'
 import {
   asExternalBundleId,
@@ -208,11 +207,6 @@ export class WindowManager {
     if (visibility.panel) this.showPanel({ captureFocus: false })
     if (visibility.clipboard) this.showClipboard()
     if (visibility.settings) this.showSettings()
-  }
-
-  /** 另存为等：无中间 hide 的一站式还焦 */
-  restoreExternalFocus(bundleId: string | null): Promise<boolean> {
-    return yieldFocusToExternal(bundleId)
   }
 
   /**

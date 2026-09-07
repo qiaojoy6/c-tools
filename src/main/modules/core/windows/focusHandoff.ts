@@ -5,8 +5,6 @@
  * 1. prepareYieldFocus — Win 放行目标抢前台（须在 hide 之前）
  * 2. hide 本应用窗
  * 3. activateExternalApp — 激活外部并等待焦点稳定
- *
- * 无中间 hide 时用 yieldFocusToExternal（= 1 + 3）。
  */
 import { delay } from './loadRoute'
 import {
@@ -54,12 +52,6 @@ export async function activateExternalApp(bundleId: string | null): Promise<bool
 
   await delay(RESTORE_FOCUS_DELAY_MS)
   return true
-}
-
-/** 一站式还焦（无中间 hide 时用，如另存为对话框关闭后） */
-export async function yieldFocusToExternal(bundleId: string | null): Promise<boolean> {
-  prepareYieldFocus(bundleId)
-  return activateExternalApp(bundleId)
 }
 
 /** 读取当前前台外部应用；前台是本应用或失败时返回 null */

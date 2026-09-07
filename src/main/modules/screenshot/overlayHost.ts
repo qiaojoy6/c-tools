@@ -283,4 +283,15 @@ export class ScreenshotOverlayHost {
     }
     return false
   }
+
+  /** 供系统对话框作 parent（优先已聚焦的遮罩窗） */
+  getDialogParent(): BrowserWindow | undefined {
+    let fallback: BrowserWindow | undefined
+    for (const win of this.wins.values()) {
+      if (win.isDestroyed() || !win.isVisible()) continue
+      if (win.isFocused()) return win
+      fallback ??= win
+    }
+    return fallback
+  }
 }
