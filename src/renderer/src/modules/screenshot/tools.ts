@@ -77,9 +77,9 @@ export function hitWindow(
   x: number,
   y: number
 ): { x: number; y: number; width: number; height: number } | null {
-  // 列表按面积从大到小，从后往前找更小的上层窗
-  for (let i = windows.length - 1; i >= 0; i--) {
-    const b = windows[i]!.bounds
+  // 前→后 = 顶层→下层：点落在谁露出来的区域，就选中谁的整窗 bounds
+  for (const w of windows) {
+    const b = w.bounds
     if (x >= b.x && y >= b.y && x <= b.x + b.width && y <= b.y + b.height) return b
   }
   return null
