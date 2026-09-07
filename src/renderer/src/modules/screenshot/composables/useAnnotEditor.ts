@@ -114,6 +114,21 @@ export function useAnnotEditor(sel: Ref<SelRect | null>) {
     annotMarquee.value = null
   }
 
+  /** 删除当前选中的标注（可撤销） */
+  function deleteSelected(): boolean {
+    if (!selectedIdx.value.length) return false
+    const remove = new Set(selectedIdx.value)
+    pushHistory()
+    strokes.value = strokes.value.filter((_, i) => !remove.has(i))
+    selectedIdx.value = []
+    annotMarquee.value = null
+    if (strokes.value.length === 0) {
+      tool.value = null
+      colorOpen.value = false
+    }
+    return true
+  }
+
   function selectTool(next: AnnotTool): void {
     tool.value = next
     colorOpen.value = false
@@ -175,6 +190,7 @@ export function useAnnotEditor(sel: Ref<SelRect | null>) {
     extendStroke,
     undo,
     redo,
+    deleteSelected,
     selectTool,
     pickColor,
     toggleColorPanel,

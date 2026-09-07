@@ -9,6 +9,7 @@ import {
   Download,
   Redo2,
   Square,
+  Trash2,
   Undo2,
   Pencil,
   X
@@ -76,6 +77,7 @@ const {
   extendStroke,
   undo,
   redo,
+  deleteSelected,
   selectTool,
   pickColor,
   toggleColorPanel,
@@ -126,7 +128,7 @@ const { init, phase, bgImg, vp, stageStyle } = useShotSession({
   onBgReady: () => paintFn()
 })
 
-const { overlayCanvas, paint } = useShotPaint({
+const shotPaint = useShotPaint({
   init,
   phase,
   sel,
@@ -138,12 +140,11 @@ const { overlayCanvas, paint } = useShotPaint({
   canAdjust,
   bgImg
 })
-paintFn = paint
+paintFn = shotPaint.paint
 
 const dock = useShotDock({ sel, init, vp, showSubbar })
 resetDock = () => dock.reset()
 const {
-  dockRef,
   dockManual,
   dockDragging,
   toolbarStyle,
@@ -151,6 +152,14 @@ const {
   onDockPointerMove,
   onDockPointerUp
 } = dock
+
+/** 模板 ref → composable 内的元素引用 */
+function bindOverlayCanvas(el: unknown): void {
+  shotPaint.overlayCanvas.value = el instanceof HTMLCanvasElement ? el : null
+}
+function bindDockEl(el: unknown): void {
+  dock.dockRef.value = el instanceof HTMLElement ? el : null
+}
 
 function boundsSize(): { w: number; h: number } {
   return {
@@ -169,6 +178,16 @@ function onKey(e: KeyboardEvent): void {
     e.preventDefault()
     if (e.shiftKey) redo()
     else undo()
+    return
+  }
+  // 选中标注后 Backspace / Delete 删除
+  if (
+    phase.value === 'edit' &&
+    (e.key === 'Backspace' || e.key === 'Delete') &&
+    selectedIdx.value.length
+  ) {
+    e.preventDefault()
+    deleteSelected()
     return
   }
   if (phase.value === 'edit' && e.key === 'Enter') {
@@ -209,7 +228,7 @@ function onPointerMove(e: PointerEvent): void {
     sel.value = resizeByHandle(drag.base, drag.handle, x, y, bw, bh)
   } else if (drag.type === 'draw') {
     extendStroke(drag.stroke, x, y)
-    paint()
+    paintFn()
   } else if (drag.type === 'annot-move' && sel.value) {
     const lx = x - sel.value.x
     const ly = y - sel.value.y
@@ -411,7 +430,7 @@ function onPointerUp(e: PointerEvent): void {
   drag = { type: 'none' }
   pointerDown = null
   updateCursor(x, y)
-  paint()
+  paintFn()
 }
 
 function updateCursor(x: number, y: number): void {
@@ -513,12 +532,12 @@ function cancelShot(): void {
   >
     <div class="shot-stage" :style="stageStyle">
       <img v-if="init" class="shot-bg" :src="init.imageUrl" alt="" draggable="false" />
-      <canvas ref="overlayCanvas" class="shot-canvas" />
+      <canvas :ref="bindOverlayCanvas" class="shot-canvas" />
     </div>
 
     <div
       v-if="phase === 'edit' && sel"
-      ref="dockRef"
+      :ref="bindDockEl"
       class="shot-dock"
       :class="{ dragging: dockDragging }"
       :style="toolbarStyle"
@@ -584,6 +603,15 @@ function cancelShot(): void {
         <span class="sep" aria-hidden="true" />
 
         <div class="shot-group" role="group" aria-label="操作">
+          <button
+            type="button"
+            aria-label="删除"
+            title="删除"
+            :disabled="!selectedIdx.length"
+            @click="deleteSelected"
+          >
+            <Trash2 class="ico" aria-hidden="true" />
+          </button>
           <button
             type="button"
             aria-label="撤销"
