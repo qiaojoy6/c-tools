@@ -72,6 +72,14 @@ export class SettingsWindow {
     win.webContents.send('settings:shown')
   }
 
+  /** 截屏结束后还原：可见但不抢焦、不重定位 */
+  showInactive(): void {
+    const win = this.win
+    if (!win || win.isDestroyed()) return
+    if (win.isMinimized()) win.restore()
+    if (!win.isVisible()) win.showInactive()
+  }
+
   hide(): void {
     if (this.win?.isVisible()) {
       this.win.hide()

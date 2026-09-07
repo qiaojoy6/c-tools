@@ -27,6 +27,8 @@ export const PANEL_TITLE_BAR_OVERLAY_DARK = {
 export interface PanelShowOptions {
   /** 显示前是否采焦（默认 true；异步短超时，不卡死主进程） */
   captureFocus?: boolean
+  /** 仅恢复可见：不置顶、不抢焦（截屏结束后还原） */
+  restoreOnly?: boolean
 }
 
 /**
@@ -130,6 +132,13 @@ export class PanelWindow {
   private async showAsync(opts?: PanelShowOptions): Promise<void> {
     const win = this.win ?? this.create()
     if (win.isDestroyed()) return
+
+    // 截屏还原：只恢复可见，不把面板抬到其它应用之上
+    if (opts?.restoreOnly) {
+      if (win.isMinimized()) win.restore()
+      if (!win.isVisible()) win.showInactive()
+      return
+    }
 
     // 默认采焦：异步短超时，保证面板内粘贴能回到外部应用
     if (opts?.captureFocus !== false) {

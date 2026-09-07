@@ -11,7 +11,17 @@ import { listAppWindows } from './windowHit'
 export interface ScreenshotSessionDeps extends CompleteDeps {
   getConfig: () => AppConfig
   hideAppWindows: () => { clipboard: boolean; panel: boolean; settings: boolean }
-  restoreAppWindows: (state: { clipboard: boolean; panel: boolean; settings: boolean }) => void
+  /** 截屏前采外部前台（含面板失焦回落） */
+  captureExternalFocus: () => Promise<string | null>
+  /** 关遮罩 + 还焦；被外部盖住时不还原自家窗 */
+  settleAfterScreenshot: (opts: {
+    hideOverlays: () => Promise<void>
+    visibility: { clipboard: boolean; panel: boolean; settings: boolean } | null
+    external: string | null
+    restoreFocus: boolean
+  }) => Promise<void>
+  /** 另存为对话框结束后再还焦 */
+  restoreExternalFocus: (bundleId: string | null) => Promise<void>
 }
 
 /**
@@ -23,6 +33,10 @@ export class ScreenshotSession {
   private frames: ShotDisplayFrame[] = []
   private savedVisibility: { clipboard: boolean; panel: boolean; settings: boolean } | null =
     null
+  /** 截屏开始前的外部前台，结束后还焦 */
+  private savedExternal: string | null = null
+  /** 收尾期间抑制 macOS activate → showPanel */
+  private suppressActivate = false
   private readonly overlays = new ScreenshotOverlayHost()
   private startSeq = 0
   private cleaning = false
@@ -31,6 +45,11 @@ export class ScreenshotSession {
 
   get isActive(): boolean {
     return this.active
+  }
+
+  /** 截屏进行中或刚结束还焦窗口：不要因 activate 把面板抬到前台 */
+  get blocksPanelActivate(): boolean {
+    return this.active || this.suppressActivate
   }
 
   prewarm(): void {
@@ -67,6 +86,7 @@ export class ScreenshotSession {
     const seq = ++this.startSeq
     this.active = true
     this.sessionId = randomUUID()
+    this.savedExternal = await this.deps.captureExternalFocus()
 
     try {
       if (this.deps.getConfig().screenshot.hideAppWindows) {
@@ -132,29 +152,45 @@ export class ScreenshotSession {
     if (!this.active) return false
     try {
       const png = Buffer.from(pngBase64, 'base64')
-      // 先退出截屏再弹对话框，否则 mac 上确定/回车不可用
-      await this.finishCleanupAsync()
+      // 先退出截屏再弹对话框，否则 mac 上确定/回车不可用；对话框期间先不还焦
+      await this.finishCleanupAsync({ restoreFocus: false })
+      const external = this.savedExternal
+      this.savedExternal = null
       await delay(80)
-      return await saveScreenshotPng(png)
+      try {
+        return await saveScreenshotPng(png)
+      } finally {
+        await this.deps.restoreExternalFocus(external)
+      }
     } catch (err) {
       console.error('[screenshot] save failed:', err)
       return false
     }
   }
 
-  private async finishCleanupAsync(): Promise<void> {
+  private async finishCleanupAsync(opts?: { restoreFocus?: boolean }): Promise<void> {
     if (this.cleaning) return
     this.cleaning = true
+    const restoreFocus = opts?.restoreFocus !== false
+    this.suppressActivate = true
     try {
-      await this.overlays.hideAll()
+      const visibility = this.savedVisibility
+      this.savedVisibility = null
+      // 另存为时先不还焦，但仍用 external 在关遮罩前藏窗，避免闪一下
+      const external = this.savedExternal
+      if (restoreFocus) this.savedExternal = null
+
+      await this.deps.settleAfterScreenshot({
+        hideOverlays: () => this.overlays.hideAll(),
+        visibility,
+        external,
+        restoreFocus
+      })
+
       this.frames = []
       this.sessionId = ''
       this.active = false
       clearFrameBuffers()
-      if (this.savedVisibility) {
-        this.deps.restoreAppWindows(this.savedVisibility)
-        this.savedVisibility = null
-      }
       setTimeout(() => {
         try {
           resetScreenshotTemp()
@@ -164,6 +200,10 @@ export class ScreenshotSession {
       }, 0)
     } finally {
       this.cleaning = false
+      // 短暂抑制：遮罩关闭后 macOS 可能仍派发 activate
+      setTimeout(() => {
+        this.suppressActivate = false
+      }, 400)
     }
   }
 }

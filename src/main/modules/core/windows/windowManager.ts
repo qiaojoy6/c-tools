@@ -8,6 +8,7 @@ import {
   activateFocusTarget,
   asExternalBundleId,
   captureWindowsForegroundHwnd,
+  getFrontmostBundleId,
   isWindowsForegroundOurs,
   isWindowsForegroundTarget,
   prepareWindowsFocusHandoff
@@ -124,6 +125,78 @@ export class WindowManager {
 
   showSettings(): void {
     this.settings.show()
+  }
+
+  /**
+   * 截屏开始前采外部前台：当前前台优先，失败则用面板失焦时记下的目标
+   * （打开面板 → 切到其它软件盖住 → 截屏，依赖这条回落）
+   */
+  async captureScreenshotExternalFocus(): Promise<string | null> {
+    if (process.platform === 'win32') {
+      const hwnd = asExternalBundleId(captureWindowsForegroundHwnd())
+      if (hwnd) return hwnd
+    }
+    const raw = await getFrontmostBundleId()
+    return asExternalBundleId(raw) ?? this.lastExternalBundleId
+  }
+
+  /** 按原显隐还原，不置顶、不抢焦（仅截屏前本应用就在前台时用） */
+  private restoreWindowsAfterScreenshot(state: {
+    clipboard: boolean
+    panel: boolean
+    settings: boolean
+  }): void {
+    if (state.panel) this.panel.show({ restoreOnly: true })
+    if (state.clipboard) this.clipboard.showInactive()
+    if (state.settings) this.settings.showInactive()
+  }
+
+  /** 截屏结束后把前台还给截屏前的外部应用 */
+  async restoreExternalFocus(bundleId: string | null): Promise<void> {
+    if (!bundleId) return
+    if (process.platform === 'win32') {
+      prepareWindowsFocusHandoff(bundleId)
+    }
+    await this.activateExternal(bundleId)
+  }
+
+  /**
+   * 截屏收尾（对齐剪贴板：不改动被盖住的功能面板层级）：
+   * - 截屏前已是外部应用在前台：关遮罩后还焦，自家窗保持隐藏（不 show，避免面板弹出来）
+   * - 截屏前本应用就在前台：关遮罩后按原显隐 inactive 还原
+   */
+  async settleAfterScreenshot(opts: {
+    hideOverlays: () => Promise<void>
+    visibility: { clipboard: boolean; panel: boolean; settings: boolean } | null
+    external: string | null
+    restoreFocus: boolean
+  }): Promise<void> {
+    const external = opts.external
+    const coveredByExternal = Boolean(external)
+
+    if (coveredByExternal) {
+      // 遮罩下若面板仍可见，先藏住；结束后也不再 show
+      if (this.clipboard.isVisible()) this.clipboard.hide()
+      if (this.panel.isVisible()) this.panel.hide()
+      if (this.settings.isVisible()) this.settings.hide()
+      if (opts.restoreFocus && process.platform === 'win32') {
+        prepareWindowsFocusHandoff(external!)
+      }
+    }
+
+    await opts.hideOverlays()
+
+    if (opts.restoreFocus && external) {
+      await this.activateExternal(external)
+    }
+
+    // 被其它软件盖着时不要还原窗口，否则会「弹出来」
+    if (coveredByExternal) return
+
+    const restore = opts.visibility
+    if (restore && (restore.clipboard || restore.panel || restore.settings)) {
+      this.restoreWindowsAfterScreenshot(restore)
+    }
   }
 
   hideSettings(): void {

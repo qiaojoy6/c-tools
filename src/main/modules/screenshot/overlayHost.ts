@@ -240,8 +240,18 @@ export class ScreenshotOverlayHost {
   }
 
   async hideAll(): Promise<void> {
+    // 对齐剪贴板 hide：先松焦点再藏，避免系统把本应用其它窗抬到前台
     for (const win of this.wins.values()) {
-      if (!win.isDestroyed() && win.isVisible()) win.hide()
+      if (win.isDestroyed() || !win.isVisible()) continue
+      if (win.isFocused()) win.blur()
+      if (process.platform === 'win32') {
+        win.setAlwaysOnTop(false)
+        win.setFocusable(false)
+        win.hide()
+        win.setFocusable(true)
+      } else {
+        win.hide()
+      }
     }
     if (process.platform === 'darwin' && this.macChromeHidden) {
       await setMacChromeHidden(false)

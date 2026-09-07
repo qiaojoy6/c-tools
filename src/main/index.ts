@@ -211,11 +211,9 @@ if (!gotSingleLock) {
           panel: windowManager.panel,
           settings: windowManager.settings
         }),
-      restoreAppWindows: (state) => {
-        if (state.panel) windowManager.showPanel({ captureFocus: false })
-        if (state.clipboard) windowManager.showClipboard()
-        if (state.settings) windowManager.showSettings()
-      }
+      captureExternalFocus: () => windowManager.captureScreenshotExternalFocus(),
+      settleAfterScreenshot: (opts) => windowManager.settleAfterScreenshot(opts),
+      restoreExternalFocus: (bundleId) => windowManager.restoreExternalFocus(bundleId)
     })
 
     registerLogIpc()
@@ -254,7 +252,8 @@ if (!gotSingleLock) {
     startAppUpdater()
 
     app.on('activate', () => {
-      if (screenshotSession?.isActive) return
+      // 截屏中/刚结束还焦时勿抬起功能面板
+      if (screenshotSession?.blocksPanelActivate) return
       windowManager.showPanel({ captureFocus: false })
     })
   })
