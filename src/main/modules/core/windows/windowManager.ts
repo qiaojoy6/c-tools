@@ -128,42 +128,34 @@ export class WindowManager {
   }
 
   /**
-   * 截屏开始前采外部前台：当前前台优先，失败则用面板失焦时记下的目标
-   * （打开面板 → 切到其它软件盖住 → 截屏，依赖这条回落）
+   * 截屏开始前采外部前台。
+   * - 当前前台是外部应用 → 用之
+   * - 当前前台是本应用 → null（本应用在前台，截完应正常还原并派发 panel:shown）
+   * - 采集失败且面板可见未聚焦 → 回落 lastExternal（被盖住的典型情况）
    */
   async captureScreenshotExternalFocus(): Promise<string | null> {
     if (process.platform === 'win32') {
       const hwnd = asExternalBundleId(captureWindowsForegroundHwnd())
       if (hwnd) return hwnd
+    } else {
+      const raw = await getFrontmostBundleId()
+      const external = asExternalBundleId(raw)
+      if (external) return external
+      // raw 有值说明前台是本应用，不能用陈旧 lastExternal 误判成「被盖住」
+      if (raw) return null
     }
-    const raw = await getFrontmostBundleId()
-    return asExternalBundleId(raw) ?? this.lastExternalBundleId
-  }
 
-  /** 按原显隐还原，不置顶、不抢焦（仅截屏前本应用就在前台时用） */
-  private restoreWindowsAfterScreenshot(state: {
-    clipboard: boolean
-    panel: boolean
-    settings: boolean
-  }): void {
-    if (state.panel) this.panel.show({ restoreOnly: true })
-    if (state.clipboard) this.clipboard.showInactive()
-    if (state.settings) this.settings.showInactive()
-  }
-
-  /** 截屏结束后把前台还给截屏前的外部应用 */
-  async restoreExternalFocus(bundleId: string | null): Promise<void> {
-    if (!bundleId) return
-    if (process.platform === 'win32') {
-      prepareWindowsFocusHandoff(bundleId)
-    }
-    await this.activateExternal(bundleId)
+    const panelWin = this.panel.browserWindow
+    const panelCovered =
+      this.panel.isVisible() && !!panelWin && !panelWin.isDestroyed() && !panelWin.isFocused()
+    if (panelCovered) return this.lastExternalBundleId
+    return null
   }
 
   /**
    * 截屏收尾（对齐剪贴板：不改动被盖住的功能面板层级）：
    * - 截屏前已是外部应用在前台：关遮罩后还焦，自家窗保持隐藏（不 show，避免面板弹出来）
-   * - 截屏前本应用就在前台：关遮罩后按原显隐 inactive 还原
+   * - 截屏前本应用就在前台：关遮罩后正常 show（会发 panel:shown，前端刷新才生效）
    */
   async settleAfterScreenshot(opts: {
     hideOverlays: () => Promise<void>
@@ -194,9 +186,20 @@ export class WindowManager {
     if (coveredByExternal) return
 
     const restore = opts.visibility
-    if (restore && (restore.clipboard || restore.panel || restore.settings)) {
-      this.restoreWindowsAfterScreenshot(restore)
+    if (!restore) return
+    // 本应用前台：走正常 show，保证 panel:shown / settings 刷新
+    if (restore.panel) this.showPanel({ captureFocus: false })
+    if (restore.clipboard) this.showClipboard()
+    if (restore.settings) this.showSettings()
+  }
+
+  /** 截屏结束后把前台还给截屏前的外部应用 */
+  async restoreExternalFocus(bundleId: string | null): Promise<void> {
+    if (!bundleId) return
+    if (process.platform === 'win32') {
+      prepareWindowsFocusHandoff(bundleId)
     }
+    await this.activateExternal(bundleId)
   }
 
   hideSettings(): void {

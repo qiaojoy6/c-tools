@@ -1,4 +1,4 @@
-import { ipcMain, Notification } from 'electron'
+import { ipcMain } from 'electron'
 import { getFrameBuffer } from './capture'
 import type { ScreenshotSession } from './session'
 
@@ -33,17 +33,4 @@ export function registerScreenshotIpc(session: ScreenshotSession): void {
     if (!buf?.byteLength) return null
     return buf.toString('base64')
   })
-}
-
-/** 弱提示：窗口点选不可用 */
-export function notifyWindowPickUnavailable(): void {
-  try {
-    if (!Notification.isSupported()) return
-    new Notification({
-      title: 'c-tools',
-      body: '无法枚举窗口，仍可拖拽框选区域'
-    }).show()
-  } catch {
-    /* ignore */
-  }
 }

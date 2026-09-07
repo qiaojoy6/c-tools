@@ -79,16 +79,6 @@ export class ClipboardWindow {
     void this.showAsync()
   }
 
-  /** 截屏结束后还原：可见但不抢焦 */
-  showInactive(): void {
-    const win = this.win ?? this.create()
-    if (win.isDestroyed()) return
-    this.position(win)
-    if (win.isMinimized()) win.restore()
-    this.applyFloatingLevel(win)
-    if (!win.isVisible()) win.showInactive()
-  }
-
   private async showAsync(): Promise<void> {
     const win = this.win ?? this.create()
     if (win.isDestroyed()) return
