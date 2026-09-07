@@ -73,13 +73,13 @@ export class TrayManager {
         click: () => this.actions.startScreenshot()
       },
       { type: 'separator' },
-      {
-        label: '开机自启',
-        type: 'checkbox',
-        checked: state.launchAtLogin,
-        click: () => this.actions.toggleLogin()
-      },
-      { type: 'separator' },
+      // {
+      //   label: '开机自启',
+      //   type: 'checkbox',
+      //   checked: state.launchAtLogin,
+      //   click: () => this.actions.toggleLogin()
+      // },
+      // { type: 'separator' },
       {
         label: '设置',
         click: () => this.actions.openSettings()

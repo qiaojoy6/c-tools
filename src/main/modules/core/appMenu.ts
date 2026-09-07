@@ -2,7 +2,8 @@ import { Menu, app, type MenuItemConstructorOptions } from 'electron'
 import type { AppConfig, ConfigPatch } from '@shared/types'
 
 /**
- * 应用菜单：保留 Edit（系统复制粘贴依赖菜单 role），View 含开发开关；无 File / Window
+ * 应用菜单：保留 Edit（系统复制粘贴依赖菜单 role）；View 含失焦隐藏开关；
+ * 刷新 / DevTools 仅开发环境（未打包）提供；无 File / Window
  */
 export function setupAppMenu(deps: {
   getConfig: () => AppConfig
@@ -10,6 +11,7 @@ export function setupAppMenu(deps: {
 }): void {
   const rebuild = (): void => {
     const hideOnBlur = deps.getConfig().window.hideOnBlur
+    const isDev = !app.isPackaged
 
     // Edit role 必须保留，否则 webview / 输入框里 ⌘C ⌘V 等全部失效
     const editMenu: MenuItemConstructorOptions = {
@@ -55,18 +57,21 @@ export function setupAppMenu(deps: {
         submenu: [
           { role: 'about' },
           { type: 'separator' },
-          { role: 'services' },
-          { type: 'separator' },
-          { role: 'hide' },
-          { role: 'hideOthers' },
-          { role: 'unhide' },
-          { type: 'separator' },
+          // { role: 'services' },
+          // { type: 'separator' },
+          // { role: 'hide' },
+          // { role: 'hideOthers' },
+          // { role: 'unhide' },
+          // { type: 'separator' },
           { role: 'quit' }
         ]
       })
     }
 
-    template.push(editMenu, viewMenu)
+    template.push(editMenu)
+    if (isDev) {
+      template.push(viewMenu)
+    }
     Menu.setApplicationMenu(Menu.buildFromTemplate(template))
   }
 
