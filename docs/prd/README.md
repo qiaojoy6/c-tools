@@ -197,7 +197,7 @@
 
 | 文件 | 功能 |
 |------|------|
-| `diag.log` | 诊断日志（未捕获异常、渲染/子进程崩溃、启停、更新过程）；超限轮转为 `diag.log.old` |
+| `diag.log` | 诊断日志（未捕获异常、渲染/子进程崩溃、启停、更新过程）；单行截断；写时与启动均按上限轮转为 `diag.log.old` |
 | `diag-session.json` | 会话心跳；下次启动据此判断上次是否非正常退出 |
 | `crashDumps/` | Electron crashReporter 本地 minidump（不上传） |
 

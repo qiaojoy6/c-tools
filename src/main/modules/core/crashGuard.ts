@@ -3,6 +3,7 @@
  * - 同步追加写入 logs/diag.log（打包后无终端也能查）
  * - 捕获 JS 未处理异常、渲染/子进程崩溃
  * - 会话标记 + 心跳：SIGTRAP 等原生 abort 时下一启动可报「上次非正常退出」
+ * - 单行截断 + 写时/启动轮转，避免长会话把日志撑到数 GB
  *
  * 原生 FATAL 无法被 JS 拦住，只能靠上次心跳与子进程事件缩小范围。
  */
@@ -12,7 +13,9 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   statSync,
+  unlinkSync,
   writeFileSync
 } from 'fs'
 import { join } from 'path'
@@ -21,7 +24,10 @@ const SESSION_FILE = 'diag-session.json'
 const LOG_FILE = 'diag.log'
 /** 心跳间隔；过短无意义，过长不利于定位崩溃时刻 */
 const HEARTBEAT_MS = 20_000
+/** 当前日志上限；超限轮转为 .old（仅保留一份） */
 const MAX_LOG_BYTES = 2 * 1024 * 1024
+/** 单行 detail 上限，避免一次 JSON.stringify 巨大对象撑爆磁盘 */
+const MAX_LINE_BYTES = 8 * 1024
 
 interface SessionState {
   pid: number
@@ -35,6 +41,8 @@ interface SessionState {
 let logDir = ''
 let sessionPath = ''
 let logPath = ''
+/** 当前 diag.log 近似字节数，写时累加，轮转后归零 */
+let logBytesApprox = 0
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let installed = false
 let quitLogged = false
@@ -48,7 +56,8 @@ export function installCrashGuard(): void {
   sessionPath = join(logDir, SESSION_FILE)
   logPath = join(logDir, LOG_FILE)
   ensureDir(logDir)
-  rotateIfTooLarge(logPath)
+  logBytesApprox = safeFileSize(logPath)
+  rotateIfTooLarge()
 
   // 本地 minidump，不上传
   try {
@@ -83,11 +92,20 @@ export function installCrashGuard(): void {
 /** 供主进程其它模块写面包屑（尽量少、关键事件） */
 export function writeDiag(event: string, detail?: unknown): void {
   const line = formatLine(event, detail)
+  const lineBytes = Buffer.byteLength(line, 'utf-8')
   try {
-    if (logPath) appendFileSync(logPath, line, 'utf-8')
+    if (logPath) {
+      // 运行中也限长：仅启动时轮转会在长会话里无限涨到数 GB
+      if (logBytesApprox + lineBytes > MAX_LOG_BYTES) {
+        rotateIfTooLarge(true)
+      }
+      appendFileSync(logPath, line, 'utf-8')
+      logBytesApprox += lineBytes
+    }
   } catch {
     /* 磁盘满等忽略，避免二次崩溃 */
   }
+  // 控制台仍打完整 detail，便于开发态排查；落盘已截断
   console.error(`[diag] ${event}`, detail ?? '')
 }
 
@@ -220,24 +238,60 @@ function formatLine(event: string, detail?: unknown): string {
   let body = ''
   if (detail !== undefined) {
     try {
-      body = ' ' + JSON.stringify(detail, (_k, v) => (typeof v === 'bigint' ? String(v) : v))
+      if (typeof detail === 'string') {
+        body = ' ' + clipStr(detail, MAX_LINE_BYTES)
+      } else {
+        body =
+          ' ' +
+          JSON.stringify(detail, (_k, v) => {
+            if (typeof v === 'bigint') return String(v)
+            // Buffer / TypedArray 只记长度，避免二进制整段落盘
+            if (typeof Buffer !== 'undefined' && Buffer.isBuffer(v)) {
+              return `[Buffer length=${v.length}]`
+            }
+            if (ArrayBuffer.isView(v)) {
+              return `[${v.constructor.name} length=${v.byteLength}]`
+            }
+            if (typeof v === 'string' && v.length > 2_000) return clipStr(v, 2_000)
+            return v
+          })
+      }
     } catch {
-      body = ' ' + String(detail)
+      body = ' ' + clipStr(String(detail), MAX_LINE_BYTES)
     }
   }
-  return `[${ts}] ${event}${body}\n`
+  // 整行超限截断（按字符近似；诊断日志以 ASCII 为主）
+  const head = `[${ts}] ${event}`
+  const maxBody = Math.max(0, MAX_LINE_BYTES - head.length - 16)
+  if (body.length > maxBody) {
+    body = `${body.slice(0, maxBody)}…[truncated]`
+  }
+  return `${head}${body}\n`
 }
 
 function serializeError(err: unknown): unknown {
   if (err instanceof Error) {
-    return { name: err.name, message: err.message, stack: err.stack }
+    return {
+      name: err.name,
+      message: clipStr(err.message, 2_000),
+      stack: clipStr(err.stack ?? '', 4_000)
+    }
   }
-  if (typeof err === 'string') return err
+  if (typeof err === 'string') return clipStr(err, 2_000)
   try {
-    return JSON.parse(JSON.stringify(err))
+    const raw = JSON.stringify(err)
+    if (raw.length > MAX_LINE_BYTES) {
+      return { truncated: true, preview: raw.slice(0, 2_000) }
+    }
+    return JSON.parse(raw)
   } catch {
-    return String(err)
+    return clipStr(String(err), 2_000)
   }
+}
+
+function clipStr(s: string, max: number): string {
+  if (s.length <= max) return s
+  return `${s.slice(0, max)}…[truncated]`
 }
 
 function safeUrl(wc: WebContents): string {
@@ -272,19 +326,64 @@ function ensureDir(dir: string): void {
   }
 }
 
-/** 简单轮转：超限则改名为 .old 再开新文件 */
-function rotateIfTooLarge(file: string): void {
+function safeFileSize(file: string): number {
   try {
-    if (!existsSync(file)) return
-    const { size } = statSync(file)
-    if (size < MAX_LOG_BYTES) return
-    const bak = `${file}.old`
+    if (!existsSync(file)) return 0
+    return statSync(file).size
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * 超限轮转：rename 为 .old（不整文件读入内存，避免曾膨胀到数 GB 时 OOM / 再写一份巨文件）。
+ * 已有 .old 则先删；若当前文件已远超上限则直接丢弃，不留巨型 .old。
+ * @param force 写前预测即将超限时强制轮转（即使当前略低于阈值）
+ */
+function rotateIfTooLarge(force = false): void {
+  if (!logPath) return
+  try {
+    const size = safeFileSize(logPath)
+    logBytesApprox = size
+    if (!force && size < MAX_LOG_BYTES) return
+    if (force && size === 0) {
+      logBytesApprox = 0
+      return
+    }
+
+    const bak = `${logPath}.old`
     try {
-      writeFileSync(bak, readFileSync(file))
+      if (existsSync(bak)) unlinkSync(bak)
     } catch {
       /* ignore */
     }
-    writeFileSync(file, '')
+
+    // 已病理膨胀：只清当前文件，不 rename 成数 GB 的 .old
+    if (size > MAX_LOG_BYTES * 2) {
+      try {
+        unlinkSync(logPath)
+      } catch {
+        try {
+          writeFileSync(logPath, '')
+        } catch {
+          /* ignore */
+        }
+      }
+      logBytesApprox = 0
+      return
+    }
+
+    try {
+      renameSync(logPath, bak)
+    } catch {
+      // rename 失败（跨盘等）时直接清空，绝不 readFileSync 整文件
+      try {
+        writeFileSync(logPath, '')
+      } catch {
+        /* ignore */
+      }
+    }
+    logBytesApprox = 0
   } catch {
     /* ignore */
   }

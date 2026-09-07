@@ -442,7 +442,7 @@ onUnmounted(() => {
       <div class="hints">
         <span class="hint"><kbd class="kbd">↵</kbd> 粘贴</span>
         <span class="hint"><kbd class="kbd">←→</kbd> 筛选</span>
-        <span class="hint"><kbd class="kbd">⌫</kbd> 删</span>
+        <span class="hint"><kbd class="kbd">⌫</kbd> 删除</span>
       </div>
       <div class="footer-actions no-drag">
         <Button

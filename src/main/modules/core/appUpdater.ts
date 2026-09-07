@@ -36,12 +36,12 @@ export function startAppUpdater(): void {
 
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
-  // 允许降级检测失败时仍能看日志
+  // debug 极吵且可能含大段内容，只落 info/warn/error；debug 仅控制台
   autoUpdater.logger = {
     info: (m) => writeDiag('updater.info', String(m)),
     warn: (m) => writeDiag('updater.warn', String(m)),
     error: (m) => writeDiag('updater.error', String(m)),
-    debug: (m) => writeDiag('updater.debug', String(m))
+    debug: (m) => console.debug('[updater]', m)
   }
 
   autoUpdater.on('checking-for-update', () => {
