@@ -9,6 +9,15 @@ import {
   DialogHeader,
   DialogTitle
 } from '@renderer/components/ui/dialog'
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle
+} from '@renderer/components/ui/drawer'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import ClearPreviewDataDialog from '@renderer/modules/projects/components/ClearPreviewDataDialog.vue'
@@ -44,7 +53,7 @@ const editName = ref('')
 const editEntry = ref('')
 const editBase = ref('')
 const editPort = ref('')
-/** 编辑弹窗内错误（端口占用等，不放到页面顶栏） */
+/** 编辑 Drawer 内错误（端口占用等，不放到页面顶栏） */
 const editError = ref('')
 /** 保存中：避免重复提交 */
 const editSaving = ref(false)
@@ -141,6 +150,12 @@ async function confirmClearPreviewData(options: ClearPreviewCacheOptions): Promi
   }
 }
 
+/** 编辑 Drawer：忽略点遮罩关闭，其它原因（取消 / Esc / 滑动）照常关 */
+function onEditDrawerOpen(open: boolean, details?: { reason?: string }): void {
+  if (!open && details?.reason === 'outside-press') return
+  if (!open) editing.value = null
+}
+
 async function confirmEdit(): Promise<void> {
   if (!editing.value || editSaving.value) return
   editError.value = ''
@@ -227,12 +242,21 @@ async function confirmEdit(): Promise<void> {
       </DialogContent>
     </Dialog>
 
-    <Dialog :open="Boolean(editing)" @update:open="(v) => !v && (editing = null)">
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>编辑项目</DialogTitle>
-          <DialogDescription>文件夹：{{ editing?.folderName }}</DialogDescription>
-        </DialogHeader>
+    <!-- 编辑项目：右侧 Drawer；点遮罩不关，仅取消/保存/Esc 关闭 -->
+    <Drawer
+      :open="Boolean(editing)"
+      swipe-direction="right"
+      @update:open="onEditDrawerOpen"
+    >
+      <DrawerContent
+        class="w-full sm:max-w-md"
+        @pointer-down-outside="(e) => e.preventDefault()"
+        @interact-outside="(e) => e.preventDefault()"
+      >
+        <DrawerHeader>
+          <DrawerTitle>编辑项目</DrawerTitle>
+          <DrawerDescription>文件夹：{{ editing?.folderName }}</DrawerDescription>
+        </DrawerHeader>
         <div class="edit-fields">
           <label class="field">
             <span>显示名</span>
@@ -256,16 +280,16 @@ async function confirmEdit(): Promise<void> {
           </label>
           <p v-if="editError" class="edit-error" role="alert">{{ editError }}</p>
         </div>
-        <DialogFooter>
-          <Button type="button" variant="ghost" :disabled="editSaving" @click="editing = null">
-            取消
-          </Button>
+        <DrawerFooter class="flex-row justify-end gap-2">
+          <DrawerClose as-child>
+            <Button type="button" variant="ghost" :disabled="editSaving">取消</Button>
+          </DrawerClose>
           <Button type="button" :disabled="editSaving" @click="confirmEdit">
             {{ editSaving ? '保存中…' : '保存' }}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   </div>
 </template>
 
@@ -303,9 +327,12 @@ async function confirmEdit(): Promise<void> {
 
 .edit-fields {
   display: flex;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   gap: 12px;
-  padding: 4px 0 8px;
+  overflow-y: auto;
+  padding: 4px 16px 8px;
 }
 
 .field {
