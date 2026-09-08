@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import type { WebviewContextMenuPayload } from '@shared/types'
 import { PROJECTS_PREVIEW_PARTITION } from '@shared/types'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger
+} from '@renderer/components/ui/context-menu'
 import { ArrowLeft, ArrowRight, Eraser, Lock, RotateCw } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
@@ -67,6 +73,8 @@ interface WebviewEl extends HTMLElement {
   goBack: () => void
   goForward: () => void
   reload: () => void
+  /** 绕过 HTTP 缓存强制拉取（避免 304/本地缓存命中） */
+  reloadIgnoringCache: () => void
   stop: () => void
   getURL: () => string
   loadURL: (url: string) => void
@@ -85,7 +93,7 @@ const canBack = ref(false)
 const canForward = ref(false)
 const loading = ref(false)
 
-const reloadTitle = computed(() => (loading.value ? '停止' : '刷新'))
+const reloadTitle = computed(() => (loading.value ? '停止' : '刷新（右键强制刷新）'))
 const isSecure = computed(() => address.value.startsWith('https:'))
 /** 工具栏「清除」可用的当前 origin（跟地址栏同步） */
 const clearableOrigin = computed(() => originFromUrl(address.value || props.src))
@@ -141,11 +149,19 @@ function goForward(): void {
   if (el?.canGoForward()) el.goForward()
 }
 
+/** 左击：加载中停止，否则普通刷新 */
 function reloadOrStop(): void {
   const el = webviewRef.value
   if (!el) return
   if (el.isLoading()) el.stop()
   else el.reload()
+}
+
+/** 强制刷新（绕过 HTTP 缓存） */
+function forceReload(): void {
+  const el = webviewRef.value
+  if (!el) return
+  el.reloadIgnoringCache()
 }
 
 /** 规范化地址栏输入后导航 */
@@ -190,14 +206,6 @@ function onAddressKeydown(e: KeyboardEvent): void {
     editingAddress.value = false
     syncNavState()
     addressInputRef.value?.blur()
-  }
-}
-
-/** ⌘/Ctrl+L 聚焦地址栏（浏览器习惯） */
-function onChromeKeydown(e: KeyboardEvent): void {
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'l') {
-    e.preventDefault()
-    addressInputRef.value?.focus()
   }
 }
 
@@ -349,7 +357,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="browser" @keydown="onChromeKeydown">
+  <div class="browser">
     <div class="chrome" role="toolbar" aria-label="浏览器工具栏">
       <div class="nav-group">
         <button
@@ -372,15 +380,24 @@ onBeforeUnmount(() => {
         >
           <ArrowRight class="h-3.5 w-3.5" />
         </button>
-        <button
-          type="button"
-          class="nav-btn"
-          :title="reloadTitle"
-          :aria-label="reloadTitle"
-          @click="reloadOrStop"
-        >
-          <RotateCw class="h-3.5 w-3.5" :class="{ spinning: loading }" />
-        </button>
+        <ContextMenu>
+          <ContextMenuTrigger as-child>
+            <button
+              type="button"
+              class="nav-btn"
+              :title="reloadTitle"
+              :aria-label="reloadTitle"
+              @click="reloadOrStop"
+            >
+              <RotateCw class="h-3.5 w-3.5" :class="{ spinning: loading }" />
+            </button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem class="cursor-pointer text-xs" @select="forceReload">
+              强制刷新
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
         <button
           type="button"
           class="nav-btn"

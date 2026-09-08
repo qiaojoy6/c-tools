@@ -90,16 +90,18 @@
 - Switch 开：主进程起本地静态 HTTP（可固定端口，缺省随机；SPA 回退）并打开对应页签全屏 `<webview>`；启动时若固定端口被占用则提示错误
 - 预览内 `target="_blank"` / `window.open`：不弹系统窗，同项目新开页签（共用静态服务；关至该项目无页签时才停服务）
 - 若构建配置了 base，可在编辑里填「基础路径」，预览 URL 挂在此前缀下并按此前缀解析静态资源
-- 预览 webview 带浏览器式工具栏：后退 / 前进 / 刷新（加载中可停止）、清除此网站数据、可编辑地址栏（Enter 跳转、Esc 还原、⌘/Ctrl+L 聚焦）、顶部加载指示条
+- 预览 webview 带浏览器式工具栏：后退 / 前进 / 刷新（加载中可停止；右键弹出强制刷新绕过缓存）、清除此网站数据、可编辑地址栏（Enter 跳转、Esc 还原）、顶部加载指示条
 - 预览 webview 使用持久分区 `persist:projects-preview`（HTTP 缓存等落在 `{userData}/Partitions/projects-preview/`）；工具栏「清除此网站数据」按当前页 origin；设置「项目」可整分区清除（不按地址）；均可自选缓存 / Cookie / Local Storage / IndexedDB / Service Worker（先卸掉 webview 再清，避免崩溃）
 - 固定端口占用等错误在弹窗内提示（编辑弹窗或操作失败对话框），不在页面顶栏展示
-- 预览 webview 支持右键菜单：刷新 / 复制粘贴 / 检查 / 新页签打开链接 / 打开 guest 开发者工具（应用菜单里的 DevTools 只作用于宿主页）
+- 预览 webview 支持右键菜单：刷新 / 强制刷新 / 复制粘贴 / 检查 / 新页签打开链接 / 打开 guest 开发者工具（应用菜单里的 DevTools 只作用于宿主页）
 - Switch 关 / 关页签：停服务；同项目不重复开主服务；切面板模块保留；退出停全部；重启不恢复运行态
 - 工作区路径与 overrides 持久化；打开后自动按上次工作区扫描
 
 ### 相关文件
 
 - `src/main/modules/projects/` — scan / staticServer / runtime / port / ipc
+- `src/renderer/src/modules/projects/components/ProjectWebview.vue` — 预览工具栏（含刷新右键 ContextMenu 强制刷新）
+- `src/renderer/src/components/ui/context-menu/` — shadcn ContextMenu（reka-ui）
 - `src/main/modules/core/webviewContextMenu.ts` — webview guest 右键菜单
 - `src/main/modules/core/webviewWindowOpen.ts` — webview 新窗口拦截 → 宿主开页签
 - `src/main/modules/core/webviewFetchIcon.ts` — 远程 favicon 拉成 data URL（宿主 CSP 不能直接加载外链图）

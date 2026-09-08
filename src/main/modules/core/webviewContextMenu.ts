@@ -25,6 +25,12 @@ export function popupWebviewContextMenu(
         if (!wc.isDestroyed()) wc.reload()
       }
     },
+    {
+      label: '强制刷新',
+      click: () => {
+        if (!wc.isDestroyed()) wc.reloadIgnoringCache()
+      }
+    },
     { type: 'separator' },
     {
       label: '复制',
@@ -40,13 +46,13 @@ export function popupWebviewContextMenu(
         if (!wc.isDestroyed()) wc.paste()
       }
     },
-    {
-      label: '全选',
-      enabled: flags.canSelectAll ?? true,
-      click: () => {
-        if (!wc.isDestroyed()) wc.selectAll()
-      }
-    },
+    // {
+    //   label: '全选',
+    //   enabled: flags.canSelectAll ?? true,
+    //   click: () => {
+    //     if (!wc.isDestroyed()) wc.selectAll()
+    //   }
+    // },
     ...(linkURL
       ? ([
           { type: 'separator' as const },
