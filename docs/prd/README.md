@@ -24,7 +24,7 @@
 - Windows 粘贴：统一模拟 Ctrl+V（SendInput / keybd_event；不用 WM_PASTE 抢先返回，避免 VS Code 等误判成功）；koffi 不可用时回退 PowerShell SendKeys
 - Windows 焦点：快捷键瞬间同步采 hwnd；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）
 - 渲染进程日志 `window.logApi` / `import { logApi }`：debug/info/warn/error；先安全序列化再经 `api.logWrite` 打到主进程终端；DevTools 仍打印原始对象
-- 主进程意外退出兜底：`logs/diag.log`（未捕获异常、渲染/子进程崩溃、启停）；会话心跳检测上次非正常退出；本地 crashReporter minidump（不上传）
+- 主进程意外退出兜底：`logs/diag.log`（未捕获异常、渲染/子进程崩溃、启停）；正常时同步 mirror 到终端；会话心跳检测上次非正常退出；本地 crashReporter minidump（不上传）；终端断管（EIO/EPIPE）只落盘一次、不刷爆日志
 - 自动更新：打包后启动自动检查；发现新版本静默下载并通知；设置页可手动检查 / 重启安装（macOS 需签名）
 
 ### 相关文件
@@ -204,7 +204,7 @@
 
 | 文件 | 功能 |
 |------|------|
-| `diag.log` | 诊断日志（未捕获异常、渲染/子进程崩溃、启停、更新过程）；单行截断；写时与启动均按上限轮转为 `diag.log.old` |
+| `diag.log` | 诊断日志（未捕获异常、渲染/子进程崩溃、启停、更新过程）；单行截断；写时与启动均按上限轮转为 `diag.log.old`；断管噪音本会话只记一次 |
 | `diag-session.json` | 会话心跳；下次启动据此判断上次是否非正常退出 |
 | `crashDumps/` | Electron crashReporter 本地 minidump（不上传） |
 

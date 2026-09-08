@@ -4,6 +4,8 @@
  * - 捕获 JS 未处理异常、渲染/子进程崩溃
  * - 会话标记 + 心跳：SIGTRAP 等原生 abort 时下一启动可报「上次非正常退出」
  * - 单行截断 + 写时/启动轮转，避免长会话把日志撑到数 GB
+ * - 正常双写：diag.log + console.error，开发时终端可直接看
+ * - stdout/stderr 断管（EIO/EPIPE）只落盘一次，且不再 mirror 到 console，避免自刷爆
  *
  * 原生 FATAL 无法被 JS 拦住，只能靠上次心跳与子进程事件缩小范围。
  */
@@ -48,6 +50,14 @@ let installed = false
 let quitLogged = false
 /** 防止 writeDiag / uncaughtException 互相重入（如 console.error 抛 EIO） */
 let writingDiag = false
+/**
+ * stdout/stderr 已断：writeDiag 不再 mirror console。
+ * 管道还能用时照常 console.error；断了再写只会异步 EIO，与 uncaughtException 死循环刷爆日志。
+ * 不替换业务 console.*——开发排查仍靠终端；断管后能查的只有 diag.log。
+ */
+let consoleBroken = false
+/** 断管类错误本会话只落盘一次 */
+let brokenPipeLogged = false
 
 /** 尽早安装（拿锁成功后、whenReady 前即可） */
 export function installCrashGuard(): void {
@@ -60,6 +70,9 @@ export function installCrashGuard(): void {
   ensureDir(logDir)
   logBytesApprox = safeFileSize(logPath)
   rotateIfTooLarge()
+
+  // 先护住 stdio，再挂其它钩子，避免启动阶段 console 已断时刷爆日志
+  attachStdioGuards()
 
   // 本地 minidump，不上传
   try {
@@ -96,28 +109,39 @@ export function writeDiag(event: string, detail?: unknown): void {
   if (writingDiag) return
   writingDiag = true
   try {
-    const line = formatLine(event, detail)
-    const lineBytes = Buffer.byteLength(line, 'utf-8')
-    try {
-      if (logPath) {
-        // 运行中也限长：仅启动时轮转会在长会话里无限涨到数 GB
-        if (logBytesApprox + lineBytes > MAX_LOG_BYTES) {
-          rotateIfTooLarge(true)
-        }
-        appendFileSync(logPath, line, 'utf-8')
-        logBytesApprox += lineBytes
-      }
-    } catch {
-      /* 磁盘满等忽略，避免二次崩溃 */
-    }
-    // 控制台可能已断开（EIO/EPIPE）；绝不可再抛成 uncaughtException
-    try {
-      console.error(`[diag] ${event}`, detail ?? '')
-    } catch {
-      /* ignore broken stdout/stderr */
-    }
+    appendDiagLine(event, detail)
+    // 有终端时同步打到 console，方便开发排查；断管后跳过，避免异步 EIO 死循环
+    safeConsoleError(`[diag] ${event}`, detail ?? '')
   } finally {
     writingDiag = false
+  }
+}
+
+/** 仅落盘、不碰 console（断管场景专用） */
+function writeDiagFileOnly(event: string, detail?: unknown): void {
+  if (writingDiag) return
+  writingDiag = true
+  try {
+    appendDiagLine(event, detail)
+  } finally {
+    writingDiag = false
+  }
+}
+
+function appendDiagLine(event: string, detail?: unknown): void {
+  const line = formatLine(event, detail)
+  const lineBytes = Buffer.byteLength(line, 'utf-8')
+  try {
+    if (logPath) {
+      // 运行中也限长：仅启动时轮转会在长会话里无限涨到数 GB
+      if (logBytesApprox + lineBytes > MAX_LOG_BYTES) {
+        rotateIfTooLarge(true)
+      }
+      appendFileSync(logPath, line, 'utf-8')
+      logBytesApprox += lineBytes
+    }
+  } catch {
+    /* 磁盘满等忽略，避免二次崩溃 */
   }
 }
 
@@ -134,16 +158,64 @@ function isBrokenPipeError(err: unknown): boolean {
   )
 }
 
+/** 仅标记断管；不 noop 掉 console，业务日志在有终端时仍可用 */
+function markConsoleBroken(): void {
+  consoleBroken = true
+}
+
+function safeConsoleError(...args: unknown[]): void {
+  if (consoleBroken) return
+  try {
+    console.error(...args)
+  } catch {
+    markConsoleBroken()
+  }
+}
+
+/** 本会话只记一次断管；只写文件，避免再触发 console */
+function noteBrokenPipe(event: string, err: unknown): void {
+  markConsoleBroken()
+  if (brokenPipeLogged) return
+  brokenPipeLogged = true
+  writeDiagFileOnly(event, serializeError(err))
+}
+
+/**
+ * 监听 stdout/stderr error：有 listener 时 Node 不会把流错误升级成 uncaughtException。
+ * 终端被关、从已退出的父进程继承管道时常见 EIO/EPIPE。
+ */
+function attachStdioGuards(): void {
+  const onStdioError = (err: NodeJS.ErrnoException): void => {
+    if (isBrokenPipeError(err)) {
+      noteBrokenPipe('stdio.broken', err)
+    }
+  }
+  try {
+    process.stdout?.on?.('error', onStdioError)
+  } catch {
+    /* ignore */
+  }
+  try {
+    process.stderr?.on?.('error', onStdioError)
+  } catch {
+    /* ignore */
+  }
+}
+
 function attachProcessHooks(): void {
   process.on('uncaughtException', (err) => {
-    // 断管导致的 write 失败：只落盘一次，避免与 console.error 死循环拖死进程
+    // 断管：只落盘一次且不 console，避免与 writeDiag 死循环
     if (isBrokenPipeError(err)) {
-      writeDiag('uncaughtException.broken-pipe', serializeError(err))
+      noteBrokenPipe('uncaughtException.broken-pipe', err)
       return
     }
     writeDiag('uncaughtException', serializeError(err))
   })
   process.on('unhandledRejection', (reason) => {
+    if (isBrokenPipeError(reason)) {
+      noteBrokenPipe('unhandledRejection.broken-pipe', reason)
+      return
+    }
     writeDiag('unhandledRejection', serializeError(reason))
   })
   process.on('warning', (warning) => {
