@@ -34,6 +34,8 @@ export interface StaticServerOptions {
   entryPath: string
   /** 已规范化的 URL 前缀（无尾斜杠），空表示站点根 */
   basePath?: string
+  /** 固定端口；缺省 0 由系统分配 */
+  port?: number
 }
 
 /** 路径是否落在 root 内（防目录穿越） */
@@ -43,7 +45,7 @@ function isInsideRoot(root: string, candidate: string): boolean {
 }
 
 /**
- * 为静态目录起本地 HTTP 服务（随机端口）；缺文件时回退到入口 HTML（SPA）
+ * 为静态目录起本地 HTTP 服务；可固定端口，缺省随机；缺文件时回退到入口 HTML（SPA）
  * 静态根取入口所在目录，便于 dist/index.html + /assets 的常规产物结构
  */
 export function startStaticServer(
@@ -55,6 +57,7 @@ export function startStaticServer(
   // 资源相对入口目录查找（Vite/webpack 产物）
   const staticRoot = dirname(entryAbs)
   const base = normalizeBasePath(options.basePath)
+  const listenPort = options.port && options.port > 0 ? options.port : 0
 
   const server = createServer(async (req, res) => {
     try {
@@ -137,9 +140,15 @@ export function startStaticServer(
   })
 
   return new Promise((resolvePromise, reject) => {
-    server.once('error', reject)
-    // port 0 → 系统分配空闲端口
-    server.listen(0, '127.0.0.1', () => {
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE' && listenPort) {
+        reject(new Error(`端口 ${listenPort} 已被占用，请更换固定端口或关闭占用进程`))
+        return
+      }
+      reject(err)
+    })
+    // port 0 → 系统分配空闲端口；否则绑定固定端口
+    server.listen(listenPort, '127.0.0.1', () => {
       const addr = server.address()
       if (!addr || typeof addr === 'string') {
         reject(new Error('无法获取静态服务端口'))

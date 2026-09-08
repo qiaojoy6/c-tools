@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { DEFAULT_CONFIG } from '../../config'
 import type { ConfigManager } from '../../config'
 import type {
@@ -6,11 +6,26 @@ import type {
   ConfigPatch,
   ConfigUpdateResult,
   ShortcutConfig,
-  WebviewContextMenuPayload
+  WebviewContextMenuPayload,
+  ClearPreviewCacheOptions
 } from '@shared/types'
 import { normalizeAccelerator, type ShortcutManager } from './shortcutManager'
 import type { WindowManager } from './windows'
 import { popupWebviewContextMenu } from './webviewContextMenu'
+import { fetchIconDataUrl } from './webviewFetchIcon'
+import { clearProjectsPreviewSession } from './webviewPreviewSession'
+
+/** 通知所有窗口：即将清预览分区（先卸 webview）/ 已清完（可挂回） */
+function broadcastPreviewCacheLifecycle(channel: 'webview:preview-cache-prepare' | 'webview:preview-cache-done'): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(channel)
+  }
+}
+
+/** 给渲染进程一帧时间卸掉 webview，降低 clearStorage 原生崩溃概率 */
+function waitPreviewUnmount(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 80))
+}
 
 export interface CoreIpcDeps {
   config: ConfigManager
@@ -110,6 +125,31 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
     'webview:contextMenu',
     (event, payload: WebviewContextMenuPayload): void => {
       popupWebviewContextMenu(event, payload)
+    }
+  )
+
+  /** webview:fetchIcon — 远程 favicon → data URL（绕过宿主 CSP img-src） */
+  ipcMain.handle('webview:fetchIcon', async (_e, url: string): Promise<string | null> => {
+    if (typeof url !== 'string' || !url.trim()) return null
+    return fetchIconDataUrl(url.trim())
+  })
+
+  /** webview:clearPreviewCache — 按 origin 或整分区清除预览浏览数据 */
+  ipcMain.handle(
+    'webview:clearPreviewCache',
+    async (_e, options?: ClearPreviewCacheOptions): Promise<boolean> => {
+      try {
+        broadcastPreviewCacheLifecycle('webview:preview-cache-prepare')
+        await waitPreviewUnmount()
+        await clearProjectsPreviewSession(
+          options && typeof options === 'object' ? options : {}
+        )
+        broadcastPreviewCacheLifecycle('webview:preview-cache-done')
+        return true
+      } catch {
+        broadcastPreviewCacheLifecycle('webview:preview-cache-done')
+        return false
+      }
     }
   )
 }

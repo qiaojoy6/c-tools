@@ -5,6 +5,7 @@ import { SETTINGS_MODULES } from '@renderer/modules/settings/tabs'
 import GeneralSettings from '@renderer/modules/settings/components/GeneralSettings.vue'
 import ClipboardSettings from '@renderer/modules/settings/components/ClipboardSettings.vue'
 import ScreenshotSettings from '@renderer/modules/settings/components/ScreenshotSettings.vue'
+import ProjectSettings from '@renderer/modules/settings/components/ProjectSettings.vue'
 
 const config = ref<AppConfig | null>(null)
 const activeModule = ref(SETTINGS_MODULES[0]!.id)
@@ -94,6 +95,7 @@ onUnmounted(() => {
           :config="config"
           @apply="apply"
         />
+        <ProjectSettings v-else-if="activeModule === 'projects'" />
       </div>
     </main>
 

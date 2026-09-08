@@ -79,7 +79,7 @@ const emit = defineEmits<{
         <button
           type="button"
           class="chip chip-name"
-          title="编辑显示名、入口与基础路径"
+          title="编辑显示名、入口、基础路径与固定端口"
           :disabled="busy"
           @click="emit('edit', p)"
         >
@@ -89,7 +89,7 @@ const emit = defineEmits<{
         </button>
         <p
           class="row-mid"
-          :title="`${p.absPath} · ${p.entryPath}${p.basePath ? ` · base ${p.basePath}/` : ''}`"
+          :title="`${p.absPath} · ${p.entryPath}${p.basePath ? ` · base ${p.basePath}/` : ''}${p.port ? ` · :${p.port}` : ''}`"
         >
           {{ p.folderName === '.' ? '工作区根目录' : p.folderName }}
           <span class="sep">·</span>
@@ -97,6 +97,10 @@ const emit = defineEmits<{
           <template v-if="p.basePath">
             <span class="sep">·</span>
             {{ p.basePath }}/
+          </template>
+          <template v-if="p.port">
+            <span class="sep">·</span>
+            <span class="port-fixed">:{{ p.port }}</span>
           </template>
         </p>
         <div class="start-cell">
@@ -236,6 +240,12 @@ const emit = defineEmits<{
 .sep {
   margin: 0 4px;
   opacity: 0.5;
+}
+
+.port-fixed {
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  opacity: 0.85;
 }
 
 .start-cell {

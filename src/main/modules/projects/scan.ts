@@ -30,12 +30,14 @@ function toScanned(
   override?: ProjectOverride,
   fallbackName?: string
 ): ScannedProject {
+  const fixed = override?.port
   return {
     folderName,
     absPath,
     displayName: override?.displayName?.trim() || fallbackName || folderName,
     entryPath,
     basePath: normalizeBasePath(override?.basePath),
+    port: typeof fixed === 'number' && fixed > 0 ? fixed : null,
     iconUrl: resolveProjectIconDataUrl(absPath, entryPath)
   }
 }

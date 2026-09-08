@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 项目图标：有 data URL 则显示图；否则用名称首字占位
+ * 页签/列表图标：data URL（本地项目或主进程拉取的 favicon）；否则用名称首字占位
  */
 defineProps<{
   iconUrl?: string | null

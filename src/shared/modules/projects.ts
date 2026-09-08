@@ -11,6 +11,11 @@ export interface ProjectOverride {
    * 预览 URL 会挂在此前缀下，静态资源按此前缀剥离后查找
    */
   basePath?: string
+  /**
+   * 固定预览端口（1024–65535）；缺省由系统分配随机端口
+   * 落盘为 number；updateOverride 可传原始字符串，由主进程 parseFixedPort 校验
+   */
+  port?: number | string
 }
 
 /** 项目模块持久化配置 */
@@ -33,6 +38,8 @@ export interface ScannedProject {
   entryPath: string
   /** 规范化后的 URL 前缀，无自定义时为 `''`（即站点根 `/`） */
   basePath: string
+  /** 固定预览端口；未配置则为 null（启动时随机） */
+  port: number | null
   /** 项目图标 data URL；未找到则为 null */
   iconUrl: string | null
 }

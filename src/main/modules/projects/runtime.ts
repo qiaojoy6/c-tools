@@ -1,6 +1,7 @@
 import type { ProjectRuntimeInfo, ProjectsConfig, ScannedProject } from '@shared/types'
 import { scanWorkspace } from './scan'
 import { startStaticServer, type StaticServerHandle } from './staticServer'
+import { assertPortAvailable } from './port'
 
 interface RunningEntry {
   handle: StaticServerHandle
@@ -51,10 +52,21 @@ export class ProjectsRuntime {
   }
 
   private async startProject(project: ScannedProject): Promise<ProjectRuntimeInfo> {
-    const handle = await startStaticServer(project.absPath, {
-      entryPath: project.entryPath,
-      basePath: project.basePath
-    })
+    // 固定端口：启动前再探测一次，给出明确提示
+    if (project.port) {
+      await assertPortAvailable(project.port)
+    }
+    let handle: StaticServerHandle
+    try {
+      handle = await startStaticServer(project.absPath, {
+        entryPath: project.entryPath,
+        basePath: project.basePath,
+        port: project.port ?? undefined
+      })
+    } catch (err) {
+      if (err instanceof Error) throw err
+      throw new Error('启动静态服务失败')
+    }
     this.running.set(project.folderName, {
       handle,
       displayName: project.displayName,

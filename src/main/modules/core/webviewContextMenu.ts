@@ -55,6 +55,18 @@ export function popupWebviewContextMenu(
             click: () => clipboard.writeText(linkURL)
           },
           {
+            label: '在新页签中打开链接',
+            click: () => {
+              const host = wc.hostWebContents
+              if (host && !host.isDestroyed()) {
+                host.send('webview:window-open', {
+                  webContentsId: wc.id,
+                  url: linkURL
+                })
+              }
+            }
+          },
+          {
             label: '在浏览器中打开链接',
             click: () => {
               void shell.openExternal(linkURL)

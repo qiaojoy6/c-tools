@@ -5,6 +5,7 @@ import type { ConfigManager } from '../../config'
 import { scanWorkspace } from './scan'
 import type { ProjectsRuntime } from './runtime'
 import { normalizeBasePath } from './basePath'
+import { assertPortAvailable, parseFixedPort } from './port'
 
 export interface ProjectsIpcDeps {
   config: ConfigManager
@@ -20,7 +21,7 @@ export interface ProjectsIpcDeps {
  * | projects:setWorkspace    | 写入工作区路径并返回扫描结果 |
  * | projects:openWorkspace   | 在文件管理器中打开工作区 |
  * | projects:scan            | 按当前配置扫描 |
- * | projects:updateOverride  | 更新显示名/入口/基础路径 |
+ * | projects:updateOverride  | 更新显示名/入口/基础路径/固定端口 |
  * | projects:start           | 启动静态服务 |
  * | projects:stop            | 停止静态服务 |
  * | projects:listRunning     | 当前运行中的项目 |
@@ -60,7 +61,7 @@ export function registerProjectsIpc(deps: ProjectsIpcDeps): void {
 
   ipcMain.handle(
     'projects:updateOverride',
-    (_e, folderName: string, patch: ProjectOverride): ScannedProject[] => {
+    async (_e, folderName: string, patch: ProjectOverride): Promise<ScannedProject[]> => {
       const projects = structuredClone(config.get().projects)
       const prev = projects.overrides[folderName] ?? {}
       const next: ProjectOverride = { ...prev }
@@ -80,8 +81,38 @@ export function registerProjectsIpc(deps: ProjectsIpcDeps): void {
         if (base) next.basePath = base
         else delete next.basePath
       }
+      if (patch.port !== undefined) {
+        // 0 / 未设 → 清除固定端口；否则校验范围、与其它项目冲突、并探测本机占用
+        if (!patch.port) {
+          delete next.port
+        } else {
+          const port = parseFixedPort(patch.port)
+          if (port === undefined) {
+            delete next.port
+          } else {
+            // 其它项目已配置同一固定端口（即使未启动也不可重复）
+            const scanned = scanWorkspace(config.get().projects)
+            const takenBy = scanned.find((p) => p.folderName !== folderName && p.port === port)
+            if (takenBy) {
+              throw new Error(`端口 ${port} 已分配给项目「${takenBy.displayName}」，请更换`)
+            }
 
-      if (!next.displayName && !next.entryPath && !next.basePath) {
+            const holders = runtime.listRunning().filter((r) => r.port === port)
+            const onlySelf = holders.length === 1 && holders[0]!.folderName === folderName
+            const conflict = holders.find((r) => r.folderName !== folderName)
+            if (conflict) {
+              throw new Error(`端口 ${port} 已被项目「${conflict.displayName}」占用，请更换`)
+            }
+            // 本项目已占用该端口时可跳过；否则探测本机是否可绑定
+            if (!onlySelf) {
+              await assertPortAvailable(port)
+            }
+            next.port = port
+          }
+        }
+      }
+
+      if (!next.displayName && !next.entryPath && !next.basePath && next.port === undefined) {
         delete projects.overrides[folderName]
       } else {
         projects.overrides[folderName] = next

@@ -1,19 +1,62 @@
 <script setup lang="ts">
 import type { WebviewContextMenuPayload } from '@shared/types'
-import { ArrowLeft, ArrowRight, Lock, RotateCw } from 'lucide-vue-next'
+import { PROJECTS_PREVIEW_PARTITION } from '@shared/types'
+import { ArrowLeft, ArrowRight, Eraser, Lock, RotateCw } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 /**
  * 项目预览 webview：浏览器式工具栏 + guest 右键菜单（检查 / 开发者工具）
  * Electron 默认不为 <webview> 提供系统右键菜单
+ * target=_blank / window.open 由主进程 deny 后经 IPC 冒泡为 open-window
  */
 const props = defineProps<{
   src: string
 }>()
 
+const emit = defineEmits<{
+  'open-window': [url: string]
+  'title-updated': [title: string]
+  'icon-updated': [iconUrl: string]
+  /** 请求清除当前页 origin 的浏览数据：须由宿主先卸掉全部 webview 再清 */
+  'clear-cache-request': [origin: string]
+}>()
+
+const BLANK_URL = 'about:blank'
+
+function isBlankUrl(url: string): boolean {
+  return !url || url === BLANK_URL
+}
+
+/** 从 URL 取可清除的 http(s) origin */
+function originFromUrl(raw: string): string | null {
+  if (isBlankUrl(raw)) return null
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    return u.origin
+  } catch {
+    return null
+  }
+}
+
+/** 地址栏展示：空白页不显示 about:blank，方便直接输入 */
+function addressFromUrl(url: string): string {
+  return isBlankUrl(url) ? '' : url
+}
+
 /** Electron webview 的 context-menu 事件带 params */
 interface WebviewContextMenuEvent extends Event {
   params: Omit<WebviewContextMenuPayload, 'webContentsId'>
+}
+
+/** page-title-updated 事件 */
+interface WebviewTitleEvent extends Event {
+  title: string
+}
+
+/** page-favicon-updated 事件 */
+interface WebviewFaviconEvent extends Event {
+  favicons: string[]
 }
 
 /** 导航相关 API（Electron <webview> 自定义元素） */
@@ -28,13 +71,14 @@ interface WebviewEl extends HTMLElement {
   getURL: () => string
   loadURL: (url: string) => void
   isLoading: () => boolean
+  executeJavaScript: (code: string, userGesture?: boolean) => Promise<unknown>
 }
 
 const webviewRef = ref<WebviewEl | null>(null)
 const addressInputRef = ref<HTMLInputElement | null>(null)
 
 /** 地址栏展示 / 编辑中的 URL */
-const address = ref(props.src)
+const address = ref(addressFromUrl(props.src))
 /** 是否正在编辑地址栏（编辑中不跟页面 URL 抢同步） */
 const editingAddress = ref(false)
 const canBack = ref(false)
@@ -43,6 +87,23 @@ const loading = ref(false)
 
 const reloadTitle = computed(() => (loading.value ? '停止' : '刷新'))
 const isSecure = computed(() => address.value.startsWith('https:'))
+/** 工具栏「清除」可用的当前 origin（跟地址栏同步） */
+const clearableOrigin = computed(() => originFromUrl(address.value || props.src))
+
+/** 交给宿主：先卸 webview，再按当前 origin 清数据，避免 clearStorage 时原生崩溃 */
+function requestClearCache(): void {
+  const el = webviewRef.value
+  let raw = address.value || props.src
+  try {
+    const pageUrl = el?.getURL()
+    if (pageUrl) raw = pageUrl
+  } catch {
+    // webview 未就绪则用地址栏
+  }
+  const origin = originFromUrl(raw)
+  if (!origin) return
+  emit('clear-cache-request', origin)
+}
 
 function syncNavState(): void {
   const el = webviewRef.value
@@ -53,11 +114,21 @@ function syncNavState(): void {
     loading.value = el.isLoading()
     if (!editingAddress.value) {
       const url = el.getURL()
-      if (url) address.value = url
+      if (url) address.value = addressFromUrl(url)
     }
   } catch {
     // webview 尚未就绪时 API 可能抛错，忽略
   }
+}
+
+/** 空白新标签页：自动聚焦地址栏 */
+function focusAddressIfBlank(): void {
+  if (!isBlankUrl(props.src)) return
+  nextTick(() => {
+    editingAddress.value = true
+    address.value = ''
+    addressInputRef.value?.focus()
+  })
 }
 
 function goBack(): void {
@@ -148,6 +219,72 @@ function onContextMenu(e: Event): void {
   })
 }
 
+function onPageTitleUpdated(e: Event): void {
+  const title = (e as WebviewTitleEvent).title
+  if (typeof title === 'string' && title.trim() && title !== BLANK_URL) {
+    emit('title-updated', title)
+  }
+}
+
+/** 作废进行中的图标拉取（导航切换时） */
+let faviconSeq = 0
+/** 本轮导航是否已成功写入图标（避免 finish-load 再打一遍） */
+let faviconReady = false
+
+/**
+ * 远程 favicon → 主进程拉成 data URL 再上报
+ * 宿主 CSP 的 img-src 不含 http(s)，直接用外链地址不会发请求
+ */
+async function publishFavicon(url: string): Promise<void> {
+  const seq = ++faviconSeq
+  try {
+    const dataUrl = await window.api.fetchIconDataUrl(url)
+    if (seq !== faviconSeq || !dataUrl) return
+    faviconReady = true
+    emit('icon-updated', dataUrl)
+  } catch {
+    // 拉取失败保持占位
+  }
+}
+
+function onPageFaviconUpdated(e: Event): void {
+  const list = (e as WebviewFaviconEvent).favicons
+  if (!Array.isArray(list)) return
+  const icon = list.find((u) => typeof u === 'string' && u.trim() && u !== BLANK_URL)
+  if (icon) void publishFavicon(icon.trim())
+}
+
+/** 事件未带 favicon 时：从页面 link / 默认 /favicon.ico 兜底 */
+async function resolveFaviconFallback(el: WebviewEl): Promise<void> {
+  if (faviconReady) return
+  try {
+    const pageUrl = el.getURL()
+    if (isBlankUrl(pageUrl)) return
+    const href = await el.executeJavaScript(`(() => {
+      const link = document.querySelector(
+        'link[rel="icon"],link[rel="shortcut icon"],link[rel~="icon"]'
+      );
+      if (link && link.href) return link.href;
+      try { return new URL('/favicon.ico', location.href).href; } catch { return null; }
+    })()`)
+    if (typeof href === 'string' && href.trim()) void publishFavicon(href.trim())
+  } catch {
+    // guest 未就绪
+  }
+}
+
+function onNavEvent(e: Event): void {
+  if (e.type === 'did-start-loading' || e.type === 'did-navigate') {
+    faviconSeq += 1
+    faviconReady = false
+  }
+  if (e.type === 'did-finish-load') {
+    const el = webviewRef.value
+    if (el) void resolveFaviconFallback(el)
+  }
+  syncNavState()
+}
+
 const navEvents = [
   'did-navigate',
   'did-navigate-in-page',
@@ -157,22 +294,40 @@ const navEvents = [
   'did-fail-load'
 ] as const
 
+let offWindowOpen: (() => void) | null = null
+
 function bindWebview(el: WebviewEl | null): void {
   if (!el) return
   for (const name of navEvents) {
-    el.addEventListener(name, syncNavState)
+    el.addEventListener(name, onNavEvent)
   }
   // dom-ready 后才能稳定读 URL / 历史
   el.addEventListener('dom-ready', syncNavState)
+  el.addEventListener('page-title-updated', onPageTitleUpdated)
+  el.addEventListener('page-favicon-updated', onPageFaviconUpdated)
+  // 主进程 deny 后推送；按 guest webContentsId 匹配本实例
+  offWindowOpen?.()
+  offWindowOpen = window.api.onWebviewWindowOpen(({ webContentsId, url }) => {
+    try {
+      if (el.getWebContentsId() === webContentsId) emit('open-window', url)
+    } catch {
+      // webview 未就绪
+    }
+  })
   syncNavState()
+  focusAddressIfBlank()
 }
 
 function unbindWebview(el: WebviewEl | null): void {
   if (!el) return
   for (const name of navEvents) {
-    el.removeEventListener(name, syncNavState)
+    el.removeEventListener(name, onNavEvent)
   }
   el.removeEventListener('dom-ready', syncNavState)
+  el.removeEventListener('page-title-updated', onPageTitleUpdated)
+  el.removeEventListener('page-favicon-updated', onPageFaviconUpdated)
+  offWindowOpen?.()
+  offWindowOpen = null
 }
 
 watch(webviewRef, (el, prev) => {
@@ -183,7 +338,8 @@ watch(webviewRef, (el, prev) => {
 watch(
   () => props.src,
   (src) => {
-    if (!editingAddress.value) address.value = src
+    if (!editingAddress.value) address.value = addressFromUrl(src)
+    focusAddressIfBlank()
   }
 )
 
@@ -225,6 +381,16 @@ onBeforeUnmount(() => {
         >
           <RotateCw class="h-3.5 w-3.5" :class="{ spinning: loading }" />
         </button>
+        <button
+          type="button"
+          class="nav-btn"
+          title="清除此网站数据"
+          aria-label="清除此网站数据"
+          :disabled="!clearableOrigin"
+          @click="requestClearCache"
+        >
+          <Eraser class="h-3.5 w-3.5" />
+        </button>
       </div>
 
       <div class="omnibox">
@@ -236,6 +402,7 @@ onBeforeUnmount(() => {
           type="text"
           spellcheck="false"
           autocomplete="off"
+          placeholder="输入网址后回车"
           aria-label="地址栏"
           @focus="onAddressFocus"
           @blur="onAddressBlur"
@@ -249,11 +416,13 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="viewport">
+      <!-- allowpopups：否则 window.open / target=_blank 不会走到主进程 handler -->
       <webview
         ref="webviewRef"
         class="project-webview"
         :src="src"
-        partition="persist:projects-preview"
+        allowpopups
+        :partition="PROJECTS_PREVIEW_PARTITION"
         @context-menu="onContextMenu"
       />
     </div>

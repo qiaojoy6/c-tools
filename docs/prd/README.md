@@ -83,25 +83,32 @@
 
 ### 功能
 
-- 功能面板「项目」模块：顶栏固定「首页」+ 已启动项目浏览器式横向页签（含项目图标）
+- 功能面板「项目」模块：顶栏固定「首页」+ 已启动项目浏览器式横向页签（含项目图标；多时均分压缩至最小宽度，仍放不下则横向滚动，标题省略）+「+」新开空白标签页（地址栏手动输入网址；加载后同步页面 title / favicon）
 - 首页：工作区行（点「工作区」选根目录；可打开 / 重新扫描 / 删除工作区配置）+ 项目行（图标 + 名称芯片可编辑、路径、启动 Switch）
 - 扫描：一级子目录含 `index.html` / `dist/index.html`；若工作区根自身含入口也识别为项目（id `.`）；解析 favicon / HTML `rel=icon` 为图标
-- 可编辑显示名、入口相对路径；写入本地配置 `projects.overrides`
-- Switch 开：主进程起本地静态 HTTP（随机端口，SPA 回退）并打开对应页签全屏 `<webview>`
+- 可编辑显示名、入口相对路径、固定端口；写入本地配置 `projects.overrides`；保存固定端口前检测占用
+- Switch 开：主进程起本地静态 HTTP（可固定端口，缺省随机；SPA 回退）并打开对应页签全屏 `<webview>`；启动时若固定端口被占用则提示错误
+- 预览内 `target="_blank"` / `window.open`：不弹系统窗，同项目新开页签（共用静态服务；关至该项目无页签时才停服务）
 - 若构建配置了 base，可在编辑里填「基础路径」，预览 URL 挂在此前缀下并按此前缀解析静态资源
-- 预览 webview 带浏览器式工具栏：后退 / 前进 / 刷新（加载中可停止）、可编辑地址栏（Enter 跳转、Esc 还原、⌘/Ctrl+L 聚焦）、顶部加载指示条
-- 预览 webview 支持右键菜单：刷新 / 复制粘贴 / 检查 / 打开 guest 开发者工具（应用菜单里的 DevTools 只作用于宿主页）
-- Switch 关 / 关页签：停服务；同项目不重复开；切面板模块保留；退出停全部；重启不恢复运行态
+- 预览 webview 带浏览器式工具栏：后退 / 前进 / 刷新（加载中可停止）、清除此网站数据、可编辑地址栏（Enter 跳转、Esc 还原、⌘/Ctrl+L 聚焦）、顶部加载指示条
+- 预览 webview 使用持久分区 `persist:projects-preview`（HTTP 缓存等落在 `{userData}/Partitions/projects-preview/`）；工具栏「清除此网站数据」按当前页 origin；设置「项目」可整分区清除（不按地址）；均可自选缓存 / Cookie / Local Storage / IndexedDB / Service Worker（先卸掉 webview 再清，避免崩溃）
+- 固定端口占用等错误在弹窗内提示（编辑弹窗或操作失败对话框），不在页面顶栏展示
+- 预览 webview 支持右键菜单：刷新 / 复制粘贴 / 检查 / 新页签打开链接 / 打开 guest 开发者工具（应用菜单里的 DevTools 只作用于宿主页）
+- Switch 关 / 关页签：停服务；同项目不重复开主服务；切面板模块保留；退出停全部；重启不恢复运行态
 - 工作区路径与 overrides 持久化；打开后自动按上次工作区扫描
 
 ### 相关文件
 
-- `src/main/modules/projects/` — scan / staticServer / runtime / ipc
+- `src/main/modules/projects/` — scan / staticServer / runtime / port / ipc
 - `src/main/modules/core/webviewContextMenu.ts` — webview guest 右键菜单
+- `src/main/modules/core/webviewWindowOpen.ts` — webview 新窗口拦截 → 宿主开页签
+- `src/main/modules/core/webviewFetchIcon.ts` — 远程 favicon 拉成 data URL（宿主 CSP 不能直接加载外链图）
+- `src/main/modules/core/webviewPreviewSession.ts` — 按 origin 或整分区清除预览浏览数据
+- `src/renderer/src/modules/settings/components/ProjectSettings.vue` — 设置「项目」清除全部预览数据
 - `src/preload/modules/projects.ts`
 - `src/shared/modules/projects.ts`
 - `src/renderer/src/pages/ProjectsPage.vue`
-- `src/renderer/src/modules/projects/` — composables、列表与页签、ProjectWebview、ProjectIcon
+- `src/renderer/src/modules/projects/` — composables、列表与页签、ProjectWebview、ProjectIcon、ClearPreviewDataDialog
 - `src/main/modules/projects/icon.ts` — 扫描时解析项目图标
 - `src/renderer/src/modules/panel/tabs.ts` — 面板模块注册
 - `src/main/modules/core/windows/panelWindow.ts` — `webviewTag`
@@ -152,9 +159,10 @@
 
 ### 功能
 
-- 独立设置窗口，左侧按模块 Tab 切换（通用 / 剪贴板 / 截屏，可扩展）
+- 独立设置窗口，左侧按模块 Tab 切换（通用 / 剪贴板 / 截屏 / 项目，可扩展）
 - 自定义呼出剪贴板快捷键（可恢复默认；可清空关闭）
 - 截屏：快捷键（可恢复默认；可清空关闭）、截屏时是否隐藏本应用窗口
+- 项目：清除全部预览浏览数据（整分区，不按地址；可选缓存 / Cookie / Local Storage 等）
 - 最大保存条数
 - 过期自动清理周期
 - 开机自启
@@ -167,9 +175,8 @@
 
 - `src/renderer/src/pages/SettingsPage.vue`
 - `src/renderer/src/modules/settings/tabs.ts` — 模块 Tab 注册
-- `src/renderer/src/modules/settings/components/` — GeneralSettings / ClipboardSettings / ScreenshotSettings / HotkeyInput
+- `src/renderer/src/modules/settings/components/` — GeneralSettings / ClipboardSettings / ScreenshotSettings / ProjectSettings / HotkeyInput
 - `src/renderer/src/composables/useTheme.ts` — 渲染进程应用 `.dark`
-- `src/renderer/src/assets/main.css` — 浅/深设计令牌
 - `src/main/modules/core/theme.ts` — 主进程 nativeTheme 同步
 - `src/main/modules/core/windows/settingsWindow.ts`
 - `src/main/modules/core/appUpdater.ts` / `updaterIpc.ts`

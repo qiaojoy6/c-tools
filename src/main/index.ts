@@ -25,7 +25,8 @@ import {
   registerUpdaterIpc,
   startAppUpdater,
   normalizeAccelerator,
-  setupAppMenu
+  setupAppMenu,
+  installWebviewWindowOpenHandler
 } from './modules/core'
 import { registerAllCustomSchemes } from './modules/core/schemes'
 import { ProjectsRuntime, registerProjectsIpc } from './modules/projects'
@@ -216,6 +217,8 @@ if (!gotSingleLock) {
 
     registerLogIpc()
     registerUpdaterIpc()
+    // webview target=_blank / window.open → 宿主开页签（deny 系统弹窗）
+    installWebviewWindowOpenHandler()
     registerCoreIpc({
       config: configManager,
       shortcuts: shortcutManager,

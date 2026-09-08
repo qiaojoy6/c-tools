@@ -4,7 +4,9 @@ import type {
   ConfigPatch,
   ConfigUpdateResult,
   UpdateStatus,
-  WebviewContextMenuPayload
+  WebviewContextMenuPayload,
+  WebviewWindowOpenPayload,
+  ClearPreviewCacheOptions
 } from '@shared/types'
 
 /**
@@ -31,6 +33,35 @@ export const appApi = {
   /** webview:contextMenu — guest 右键菜单（检查 / 开发者工具） */
   popupWebviewContextMenu: (payload: WebviewContextMenuPayload): Promise<void> =>
     ipcRenderer.invoke('webview:contextMenu', payload),
+
+  /** webview:fetchIcon — 远程图标转 data URL（宿主 CSP 不能直接加载外链 img） */
+  fetchIconDataUrl: (url: string): Promise<string | null> =>
+    ipcRenderer.invoke('webview:fetchIcon', url),
+
+  /** webview:clearPreviewCache — 按 origin 或整分区清除预览浏览数据 */
+  clearPreviewCache: (options?: ClearPreviewCacheOptions): Promise<boolean> =>
+    ipcRenderer.invoke('webview:clearPreviewCache', options ?? {}),
+
+  /** 订阅：即将清除预览分区（宿主应先卸掉 webview） */
+  onPreviewCachePrepare: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('webview:preview-cache-prepare', listener)
+    return () => ipcRenderer.removeListener('webview:preview-cache-prepare', listener)
+  },
+  /** 订阅：预览分区已清除完毕（可挂回 webview） */
+  onPreviewCacheDone: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('webview:preview-cache-done', listener)
+    return () => ipcRenderer.removeListener('webview:preview-cache-done', listener)
+  },
+
+  /** 订阅 webview:window-open（guest 的 target=_blank / window.open） */
+  onWebviewWindowOpen: (callback: (payload: WebviewWindowOpenPayload) => void): (() => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, payload: WebviewWindowOpenPayload): void =>
+      callback(payload)
+    ipcRenderer.on('webview:window-open', listener)
+    return () => ipcRenderer.removeListener('webview:window-open', listener)
+  },
 
   /** updater:status */
   getUpdateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:status'),
