@@ -46,6 +46,8 @@ let logBytesApprox = 0
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let installed = false
 let quitLogged = false
+/** 防止 writeDiag / uncaughtException 互相重入（如 console.error 抛 EIO） */
+let writingDiag = false
 
 /** 尽早安装（拿锁成功后、whenReady 前即可） */
 export function installCrashGuard(): void {
@@ -91,26 +93,54 @@ export function installCrashGuard(): void {
 
 /** 供主进程其它模块写面包屑（尽量少、关键事件） */
 export function writeDiag(event: string, detail?: unknown): void {
-  const line = formatLine(event, detail)
-  const lineBytes = Buffer.byteLength(line, 'utf-8')
+  if (writingDiag) return
+  writingDiag = true
   try {
-    if (logPath) {
-      // 运行中也限长：仅启动时轮转会在长会话里无限涨到数 GB
-      if (logBytesApprox + lineBytes > MAX_LOG_BYTES) {
-        rotateIfTooLarge(true)
+    const line = formatLine(event, detail)
+    const lineBytes = Buffer.byteLength(line, 'utf-8')
+    try {
+      if (logPath) {
+        // 运行中也限长：仅启动时轮转会在长会话里无限涨到数 GB
+        if (logBytesApprox + lineBytes > MAX_LOG_BYTES) {
+          rotateIfTooLarge(true)
+        }
+        appendFileSync(logPath, line, 'utf-8')
+        logBytesApprox += lineBytes
       }
-      appendFileSync(logPath, line, 'utf-8')
-      logBytesApprox += lineBytes
+    } catch {
+      /* 磁盘满等忽略，避免二次崩溃 */
     }
-  } catch {
-    /* 磁盘满等忽略，避免二次崩溃 */
+    // 控制台可能已断开（EIO/EPIPE）；绝不可再抛成 uncaughtException
+    try {
+      console.error(`[diag] ${event}`, detail ?? '')
+    } catch {
+      /* ignore broken stdout/stderr */
+    }
+  } finally {
+    writingDiag = false
   }
-  // 控制台仍打完整 detail，便于开发态排查；落盘已截断
-  console.error(`[diag] ${event}`, detail ?? '')
+}
+
+/** stdout/stderr 断开时的噪音，记一次即可，不当成致命逻辑错误 */
+function isBrokenPipeError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const msg = 'message' in err ? String((err as { message?: unknown }).message) : ''
+  const code = 'code' in err ? String((err as { code?: unknown }).code) : ''
+  return (
+    code === 'EIO' ||
+    code === 'EPIPE' ||
+    /write EIO/i.test(msg) ||
+    /write EPIPE/i.test(msg)
+  )
 }
 
 function attachProcessHooks(): void {
   process.on('uncaughtException', (err) => {
+    // 断管导致的 write 失败：只落盘一次，避免与 console.error 死循环拖死进程
+    if (isBrokenPipeError(err)) {
+      writeDiag('uncaughtException.broken-pipe', serializeError(err))
+      return
+    }
     writeDiag('uncaughtException', serializeError(err))
   })
   process.on('unhandledRejection', (reason) => {
@@ -228,8 +258,8 @@ function readSession(): SessionState | null {
 function writeSession(state: SessionState): void {
   try {
     writeFileSync(sessionPath, JSON.stringify(state, null, 2), 'utf-8')
-  } catch (err) {
-    console.error('[diag] write session failed', err)
+  } catch {
+    /* 会话文件写失败不打 console，避免断管时再炸 */
   }
 }
 
