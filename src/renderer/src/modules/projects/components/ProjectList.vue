@@ -24,8 +24,8 @@ const emit = defineEmits<{
 
 <template>
   <div class="home">
-    <!-- 工作区行 -->
-    <div class="row">
+    <!-- 工作区工具栏 -->
+    <div class="toolbar">
       <button
         type="button"
         class="chip chip-workspace"
@@ -35,7 +35,7 @@ const emit = defineEmits<{
       >
         工作区
       </button>
-      <p class="row-mid" :title="workspaceRoot ?? undefined">
+      <p class="toolbar-path" :title="workspaceRoot ?? undefined">
         {{ workspaceRoot || '点击左侧选择根目录' }}
       </p>
       <Button
@@ -73,37 +73,49 @@ const emit = defineEmits<{
       </Button>
     </div>
 
-    <!-- 项目行 -->
-    <template v-if="projects.length">
-      <div v-for="p in projects" :key="p.folderName" class="row">
-        <button
-          type="button"
-          class="chip chip-name"
-          title="编辑显示名、入口、基础路径与固定端口"
-          :disabled="busy"
-          @click="emit('edit', p)"
-        >
-          <ProjectIcon :icon-url="p.iconUrl" :name="p.displayName" :size="14" />
-          <span class="chip-text">{{ p.displayName }}</span>
-          <Pencil class="chip-edit h-3 w-3" />
-        </button>
-        <p
-          class="row-mid"
-          :title="`${p.absPath} · ${p.entryPath}${p.basePath ? ` · base ${p.basePath}/` : ''}${p.port ? ` · :${p.port}` : ''}`"
-        >
-          {{ p.folderName === '.' ? '工作区根目录' : p.folderName }}
-          <span class="sep">·</span>
-          {{ p.entryPath }}
-          <template v-if="p.basePath">
-            <span class="sep">·</span>
-            {{ p.basePath }}/
-          </template>
-          <template v-if="p.port">
-            <span class="sep">·</span>
-            <span class="port-fixed">:{{ p.port }}</span>
-          </template>
-        </p>
-        <div class="start-cell">
+    <!-- 项目卡片网格 -->
+    <div v-if="projects.length" class="card-grid">
+      <article
+        v-for="p in projects"
+        :key="p.folderName"
+        class="card"
+        :class="{ 'card-running': runningIds.has(p.folderName) }"
+      >
+        <div class="card-top">
+          <ProjectIcon :icon-url="p.iconUrl" :name="p.displayName" :size="28" />
+          <div class="card-titles">
+            <button
+              type="button"
+              class="card-name"
+              title="编辑显示名、入口、基础路径与固定端口"
+              :disabled="busy"
+              @click="emit('edit', p)"
+            >
+              <span class="card-name-text">{{ p.displayName }}</span>
+              <Pencil class="card-edit h-3 w-3" />
+            </button>
+            <p class="card-folder" :title="p.absPath">
+              {{ p.folderName === '.' ? '工作区根目录' : p.folderName }}
+            </p>
+          </div>
+        </div>
+
+        <dl class="card-meta">
+          <div class="meta-row">
+            <dt>入口</dt>
+            <dd :title="p.entryPath">{{ p.entryPath }}</dd>
+          </div>
+          <div v-if="p.basePath" class="meta-row">
+            <dt>基础路径</dt>
+            <dd>{{ p.basePath }}/</dd>
+          </div>
+          <div v-if="p.port" class="meta-row">
+            <dt>端口</dt>
+            <dd class="port-fixed">:{{ p.port }}</dd>
+          </div>
+        </dl>
+
+        <div class="card-footer">
           <span class="start-label">启动</span>
           <Switch
             :model-value="runningIds.has(p.folderName)"
@@ -111,8 +123,8 @@ const emit = defineEmits<{
             @update:model-value="(v) => emit('toggle', p.folderName, v)"
           />
         </div>
-      </div>
-    </template>
+      </article>
+    </div>
 
     <!-- 未选工作区：空白区引导 -->
     <button
@@ -142,13 +154,14 @@ const emit = defineEmits<{
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   padding: 14px 16px 20px;
   overflow: auto;
 }
 
-.row {
+.toolbar {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 12px;
   min-height: 40px;
@@ -207,26 +220,7 @@ const emit = defineEmits<{
   opacity: 0.6;
 }
 
-.chip-name {
-  justify-content: flex-start;
-}
-
-.chip-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chip-edit {
-  flex-shrink: 0;
-  opacity: 0.45;
-}
-
-.chip-name:hover .chip-edit {
-  opacity: 0.9;
-}
-
-.row-mid {
+.toolbar-path {
   margin: 0;
   min-width: 0;
   flex: 1;
@@ -237,25 +231,151 @@ const emit = defineEmits<{
   color: var(--muted-foreground);
 }
 
-.sep {
-  margin: 0 4px;
-  opacity: 0.5;
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--muted) 22%, transparent);
+  padding: 14px;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.card:hover {
+  border-color: color-mix(in oklab, var(--foreground) 18%, var(--border));
+  background: color-mix(in oklab, var(--muted) 38%, transparent);
+}
+
+.card-running {
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent);
+}
+
+.card-top {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.card-titles {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-name {
+  display: inline-flex;
+  max-width: 100%;
+  cursor: pointer;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  outline: none;
+  text-align: left;
+}
+
+.card-name:focus-visible {
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 45%, transparent);
+}
+
+.card-name:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.card-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-edit {
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.card-name:hover:not(:disabled) .card-edit {
+  opacity: 0.9;
+}
+
+.card-folder {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.card-meta {
+  display: flex;
+  margin: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.meta-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.meta-row dt {
+  flex-shrink: 0;
+  width: 52px;
+  color: var(--muted-foreground);
+  opacity: 0.85;
+}
+
+.meta-row dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foreground);
 }
 
 .port-fixed {
   font-variant-numeric: tabular-nums;
-  color: var(--foreground);
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
-.start-cell {
+.card-footer {
   display: flex;
   flex-shrink: 0;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 4px 10px;
+  border-top: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  padding-top: 10px;
 }
 
 .start-label {
