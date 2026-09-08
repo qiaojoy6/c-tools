@@ -20,7 +20,7 @@ const emit = defineEmits<{
     <div class="tab-scroll">
       <button
         type="button"
-        class="tab"
+        class="tab !max-w-[50px]"
         role="tab"
         :aria-selected="activeView === 'home'"
         :data-active="activeView === 'home'"
@@ -104,7 +104,6 @@ const emit = defineEmits<{
   display: inline-flex;
   /* 均分可用宽度；少时不超过 max，多时压到 min；再多则溢出由栏滚动 */
   flex: 1 1 0;
-  width: 0;
   min-width: 72px;
   max-width: 168px;
   min-height: 32px;

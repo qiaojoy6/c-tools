@@ -11,9 +11,11 @@ import type {
 } from '@shared/types'
 import { normalizeAccelerator, type ShortcutManager } from './shortcutManager'
 import type { WindowManager } from './windows'
-import { popupWebviewContextMenu } from './webviewContextMenu'
-import { fetchIconDataUrl } from './webviewFetchIcon'
-import { clearProjectsPreviewSession } from './webviewPreviewSession'
+import {
+  popupWebviewContextMenu,
+  fetchIconDataUrl,
+  clearProjectsPreviewSession
+} from './webview'
 
 /** 通知所有窗口：即将清预览分区（先卸 webview）/ 已清完（可挂回） */
 function broadcastPreviewCacheLifecycle(channel: 'webview:preview-cache-prepare' | 'webview:preview-cache-done'): void {

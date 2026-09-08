@@ -102,10 +102,7 @@
 - `src/main/modules/projects/` — scan / staticServer / runtime / port / ipc
 - `src/renderer/src/modules/projects/components/ProjectWebview.vue` — 预览工具栏（含刷新右键 ContextMenu 强制刷新）
 - `src/renderer/src/components/ui/context-menu/` — shadcn ContextMenu（reka-ui）
-- `src/main/modules/core/webviewContextMenu.ts` — webview guest 右键菜单
-- `src/main/modules/core/webviewWindowOpen.ts` — webview 新窗口拦截 → 宿主开页签
-- `src/main/modules/core/webviewFetchIcon.ts` — 远程 favicon 拉成 data URL（宿主 CSP 不能直接加载外链图）
-- `src/main/modules/core/webviewPreviewSession.ts` — 按 origin 或整分区清除预览浏览数据
+- `src/main/modules/core/webview/` — guest 右键菜单 / 新窗口拦截 / favicon 拉取 / 预览分区数据清除
 - `src/renderer/src/modules/settings/components/ProjectSettings.vue` — 设置「项目」清除全部预览数据
 - `src/preload/modules/projects.ts`
 - `src/shared/modules/projects.ts`

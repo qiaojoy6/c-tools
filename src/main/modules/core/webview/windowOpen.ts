@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import type { WebviewWindowOpenPayload } from '@shared/types'
-import { writeDiag } from './crashGuard'
+import { writeDiag } from '../crashGuard'
 
 /**
  * 拦截 webview guest 的 window.open / target=_blank：

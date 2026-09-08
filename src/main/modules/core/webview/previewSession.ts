@@ -1,6 +1,6 @@
 import { session } from 'electron'
 import { PROJECTS_PREVIEW_PARTITION, type ClearPreviewCacheOptions } from '@shared/types'
-import { writeDiag } from './crashGuard'
+import { writeDiag } from '../crashGuard'
 
 /** 解析可清除的 http(s) origin；空白页 / 非法 URL 返回 null */
 function normalizeClearOrigin(raw: string | undefined): string | null {
