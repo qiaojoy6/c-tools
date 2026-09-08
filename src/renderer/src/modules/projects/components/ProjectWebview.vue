@@ -352,7 +352,16 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  unbindWebview(webviewRef.value)
+  // 关页签 / 卸 webview 前先关对应开发者工具，避免独立窗残留
+  const el = webviewRef.value
+  if (el) {
+    try {
+      void window.api.closeWebviewDevTools(el.getWebContentsId())
+    } catch {
+      // guest 已不可用
+    }
+  }
+  unbindWebview(el)
 })
 </script>
 

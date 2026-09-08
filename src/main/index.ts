@@ -26,7 +26,8 @@ import {
   startAppUpdater,
   normalizeAccelerator,
   setupAppMenu,
-  installWebviewWindowOpenHandler
+  installWebviewWindowOpenHandler,
+  installGuestDevToolsLifecycle
 } from './modules/core'
 import { registerAllCustomSchemes } from './modules/core/schemes'
 import { ProjectsRuntime, registerProjectsIpc } from './modules/projects'
@@ -219,6 +220,15 @@ if (!gotSingleLock) {
     registerUpdaterIpc()
     // webview target=_blank / window.open → 宿主开页签（deny 系统弹窗）
     installWebviewWindowOpenHandler()
+    // guest 销毁时关掉对应开发者工具独立窗
+    installGuestDevToolsLifecycle()
+
+    projectsRuntime = new ProjectsRuntime()
+    registerProjectsIpc({
+      config: configManager,
+      runtime: projectsRuntime
+    })
+
     registerCoreIpc({
       config: configManager,
       shortcuts: shortcutManager,
@@ -235,12 +245,6 @@ if (!gotSingleLock) {
       windows: windowManager
     })
     registerScreenshotIpc(screenshotSession)
-
-    projectsRuntime = new ProjectsRuntime()
-    registerProjectsIpc({
-      config: configManager,
-      runtime: projectsRuntime
-    })
 
     applyLoginItem(cfg.general.launchAtLogin)
     applyNativeThemeSource(cfg.general.theme)

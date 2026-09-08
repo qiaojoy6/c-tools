@@ -1,5 +1,6 @@
-/** 预览 webview：右键菜单 / 新窗口拦截 / 图标拉取 / 分区数据清除 */
+/** 预览 webview：右键菜单 / 新窗口拦截 / 图标拉取 / 分区数据清除 / guest DevTools 生命周期 */
 export { popupWebviewContextMenu } from './contextMenu'
 export { fetchIconDataUrl } from './fetchIcon'
 export { clearProjectsPreviewSession } from './previewSession'
 export { installWebviewWindowOpenHandler } from './windowOpen'
+export { closeGuestDevTools, installGuestDevToolsLifecycle } from './devtools'

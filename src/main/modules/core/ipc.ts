@@ -14,7 +14,8 @@ import type { WindowManager } from './windows'
 import {
   popupWebviewContextMenu,
   fetchIconDataUrl,
-  clearProjectsPreviewSession
+  clearProjectsPreviewSession,
+  closeGuestDevTools
 } from './webview'
 
 /** 通知所有窗口：即将清预览分区（先卸 webview）/ 已清完（可挂回） */
@@ -129,6 +130,12 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
       popupWebviewContextMenu(event, payload)
     }
   )
+
+  /** webview:closeDevTools — 关闭指定 guest 的开发者工具 */
+  ipcMain.handle('webview:closeDevTools', (_e, guestId: number): boolean => {
+    if (typeof guestId !== 'number') return false
+    return closeGuestDevTools(guestId)
+  })
 
   /** webview:fetchIcon — 远程 favicon → data URL（绕过宿主 CSP img-src） */
   ipcMain.handle('webview:fetchIcon', async (_e, url: string): Promise<string | null> => {

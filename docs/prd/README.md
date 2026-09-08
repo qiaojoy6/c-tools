@@ -93,7 +93,7 @@
 - 预览 webview 带浏览器式工具栏：后退 / 前进 / 刷新（加载中可停止；右键弹出强制刷新绕过缓存）、清除此网站数据、可编辑地址栏（Enter 跳转、Esc 还原）、顶部加载指示条
 - 预览 webview 使用持久分区 `persist:projects-preview`（HTTP 缓存等落在 `{userData}/Partitions/projects-preview/`）；工具栏「清除此网站数据」按当前页 origin；设置「项目」可整分区清除（不按地址）；均可自选缓存 / Cookie / Local Storage / IndexedDB / Service Worker（先卸掉 webview 再清，避免崩溃）
 - 固定端口占用等错误在弹窗内提示（编辑弹窗或操作失败对话框），不在页面顶栏展示
-- 预览 webview 支持右键菜单：刷新 / 强制刷新 / 复制粘贴 / 检查 / 新页签打开链接 / 打开 guest 开发者工具（应用菜单里的 DevTools 只作用于宿主页）
+- 预览 webview 支持右键菜单：刷新 / 强制刷新 / 复制粘贴 / 检查 / 新页签打开链接 / 打开 guest 开发者工具（应用菜单里的 DevTools 只作用于宿主页）；关闭预览页签或销毁 webview 时同步关闭对应开发者工具窗
 - Switch 关 / 关页签：停服务；同项目不重复开主服务；切面板模块保留；退出停全部；重启不恢复运行态
 - 工作区路径与 overrides 持久化；打开后自动按上次工作区扫描
 

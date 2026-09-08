@@ -34,6 +34,10 @@ export const appApi = {
   popupWebviewContextMenu: (payload: WebviewContextMenuPayload): Promise<void> =>
     ipcRenderer.invoke('webview:contextMenu', payload),
 
+  /** webview:closeDevTools — 关闭指定 guest 的开发者工具 */
+  closeWebviewDevTools: (guestId: number): Promise<boolean> =>
+    ipcRenderer.invoke('webview:closeDevTools', guestId),
+
   /** webview:fetchIcon — 远程图标转 data URL（宿主 CSP 不能直接加载外链 img） */
   fetchIconDataUrl: (url: string): Promise<string | null> =>
     ipcRenderer.invoke('webview:fetchIcon', url),
