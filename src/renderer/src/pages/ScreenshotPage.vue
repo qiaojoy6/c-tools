@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   BoxSelect,
   Check,
+  GripVertical,
   Highlighter,
   Download,
   Redo2,
@@ -521,7 +522,7 @@ function cancelShot(): void {
 <template>
   <div
     class="shot"
-    :style="{ cursor: shotCursor }"
+    :style="{ cursor: dockDragging ? 'grabbing' : shotCursor }"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
@@ -546,6 +547,16 @@ function cancelShot(): void {
       @pointercancel="onDockPointerUp"
     >
       <div class="shot-toolbar" role="toolbar" aria-label="截屏标注工具">
+        <button
+          type="button"
+          class="shot-drag-handle"
+          data-dock-drag
+          aria-label="拖动工具条"
+          title="拖动"
+        >
+          <GripVertical class="ico" aria-hidden="true" />
+        </button>
+        <span class="sep" aria-hidden="true" />
         <div class="shot-group" role="group" aria-label="画笔工具">
           <button
             type="button"
@@ -795,14 +806,23 @@ function cancelShot(): void {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  cursor: grab;
   touch-action: none;
-}
-.shot-dock.dragging {
-  cursor: grabbing;
 }
 .shot-dock :is(button, input, a) {
   cursor: pointer;
+}
+.shot-dock .shot-drag-handle {
+  width: 18px;
+  cursor: grab;
+  color: var(--muted-foreground);
+}
+.shot-dock .shot-drag-handle:hover:not(:disabled) {
+  color: var(--muted-foreground);
+  background: transparent;
+}
+.shot-dock.dragging,
+.shot-dock.dragging * {
+  cursor: grabbing !important;
 }
 .shot-toolbar,
 .shot-subbar {

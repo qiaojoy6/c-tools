@@ -3,7 +3,7 @@ import { computed, onUnmounted, ref, watch, type Ref } from 'vue'
 import { DOCK_MARGIN, placeDock, type SelRect } from '../tools'
 
 /**
- * 截屏工具条：自动落位 + 空白处拖拽
+ * 截屏工具条：自动落位 + 拖拽手柄挪位
  */
 export function useShotDock(deps: {
   sel: Ref<SelRect | null>
@@ -68,14 +68,15 @@ export function useShotDock(deps: {
     dockRo = null
   })
 
-  function isDockInteractiveTarget(t: EventTarget | null): boolean {
+  /** 仅拖拽手柄可挪动工具条 */
+  function isDockDragHandle(t: EventTarget | null): boolean {
     if (!(t instanceof Element)) return false
-    return !!t.closest('button, input, a, [role="slider"]')
+    return !!t.closest('[data-dock-drag]')
   }
 
   function onDockPointerDown(e: PointerEvent): void {
     e.stopPropagation()
-    if (e.button !== 0 || isDockInteractiveTarget(e.target)) return
+    if (e.button !== 0 || !isDockDragHandle(e.target)) return
     const el = dockRef.value
     if (!el) return
     const r = el.getBoundingClientRect()
