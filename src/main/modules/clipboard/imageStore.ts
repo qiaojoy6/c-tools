@@ -8,6 +8,15 @@ import type { ClipImage } from '@shared/types'
 /** 自定义协议：渲染进程用 clipimg://local/{fileId} 读本地图片 */
 export const CLIP_IMG_SCHEME = 'clipimg'
 
+/** BGRA 位图中是否存在非不透明像素（窗口阴影等透明边） */
+function nativeImageHasTransparency(img: Electron.NativeImage): boolean {
+  const bitmap = img.toBitmap()
+  for (let i = 3; i < bitmap.length; i += 4) {
+    if (bitmap[i]! < 255) return true
+  }
+  return false
+}
+
 /**
  * 剪贴板图片磁盘存储：二进制文件 + hash 去重。
  * JSON 只存元数据；删除记录后由 purgeOrphans 清掉无引用文件。
@@ -41,11 +50,16 @@ export class ClipboardImageStore {
     return { fileId, hash, byteLength: buffer.byteLength }
   }
 
-  /** 从系统剪贴板 NativeImage 编码入库（JPEG 明显更小时用 JPEG） */
+  /** 从系统剪贴板 NativeImage 编码入库（无透明且 JPEG 明显更小时用 JPEG） */
   saveFromNativeImage(img: Electron.NativeImage): ClipImage | null {
     if (img.isEmpty()) return null
     const { width, height } = img.getSize()
     const png = img.toPNG()
+    // 有透明通道时必须 PNG：JPEG 会把透明铺成黑边（窗口阴影/圆角截图常见）
+    if (nativeImageHasTransparency(img)) {
+      const saved = this.saveBuffer(png, 'png')
+      return { ...saved, width, height }
+    }
     const jpg = img.toJPEG(85)
     // 体积至少小约 15% 才用有损，避免纯色/UI 截图无谓发糊
     const useJpeg = jpg.byteLength < png.byteLength * 0.85
