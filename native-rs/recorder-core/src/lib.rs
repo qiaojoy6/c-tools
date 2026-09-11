@@ -1,5 +1,6 @@
 //! recorder-core：纯 Rust 录屏内核（无 UI / 无 napi）
 
+mod aec;
 mod audio;
 mod crop;
 mod encoder;

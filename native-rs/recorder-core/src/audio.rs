@@ -16,11 +16,14 @@ use std::time::{Duration, Instant};
 const TARGET_RATE: u32 = 48_000;
 const TARGET_CH: u16 = 2;
 
-/// 枚举麦克风
+/// 枚举麦克风（排除 BlackHole 等虚拟环回，避免与系统声双录）
 pub fn list_mics() -> Result<Vec<DeviceInfo>, RecorderError> {
     let list = flex_devices().map_err(|e| RecorderError::Audio(e.to_string()))?;
     let mut out = Vec::new();
-    for d in list.into_iter().filter(|d| !d.is_loopback) {
+    for d in list
+        .into_iter()
+        .filter(|d| !d.is_loopback && !is_virtual_loopback_name(&d.name))
+    {
         out.push(DeviceInfo {
             id: d.id,
             name: d.name,
@@ -143,10 +146,8 @@ impl AudioSession {
             let _ = std::fs::remove_file(path);
             let cfg = StreamConfig {
                 kind: SourceKind::Mic,
-                device_id: opts
-                    .mic_device_id
-                    .clone()
-                    .or_else(prefer_builtin_mic_id),
+                // 禁止把虚拟声卡当麦，否则会与系统声环回叠成重音
+                device_id: resolve_mic_device_id(opts.mic_device_id.as_deref()),
                 output: OutputFormat {
                     sample_rate: TARGET_RATE,
                     channels: TARGET_CH,
@@ -320,9 +321,24 @@ impl AudioSession {
             None
         };
 
+        let mut mic_aec: Option<PathBuf> = None;
         match (mic, sys_fixed.as_ref()) {
             (Some(m), Some(s)) => {
-                mix_wavs(&self.ffmpeg_bin, m, s, &self.final_path)?;
+                // 麦+系统同时开：先消外放漏进麦的回声，再混音（耳机无漏音时自动跳过）
+                let aec_path = sibling(&self.final_path, "mic.aec.tmp.wav");
+                let mic_for_mix = match crate::aec::cancel_system_echo_from_mic(m, s, &aec_path) {
+                    Ok(true) => {
+                        mic_aec = Some(aec_path);
+                        mic_aec.as_ref().unwrap().as_path()
+                    }
+                    Ok(false) => m.as_path(),
+                    Err(e) => {
+                        eprintln!("[recorder-audio] aec failed, mix raw mic: {e}");
+                        let _ = std::fs::remove_file(&aec_path);
+                        m.as_path()
+                    }
+                };
+                mix_wavs(&self.ffmpeg_bin, mic_for_mix, s, &self.final_path)?;
             }
             (Some(m), None) => {
                 std::fs::copy(m, &self.final_path).map_err(RecorderError::Io)?;
@@ -340,6 +356,7 @@ impl AudioSession {
             self.mic_path.as_ref(),
             self.sys_path.as_ref(),
             sys_fixed.as_ref(),
+            mic_aec.as_ref(),
         ]
         .into_iter()
         .flatten()
@@ -621,7 +638,10 @@ fn prefer_builtin_speaker_id() -> Option<String> {
 
 fn prefer_builtin_mic_id() -> Option<String> {
     let list = flex_devices().ok()?;
-    let mics: Vec<_> = list.into_iter().filter(|d| !d.is_loopback).collect();
+    let mics: Vec<_> = list
+        .into_iter()
+        .filter(|d| !d.is_loopback && !is_virtual_loopback_name(&d.name))
+        .collect();
     for d in &mics {
         let n = d.name.to_ascii_lowercase();
         if (n.contains("macbook")
@@ -629,13 +649,29 @@ fn prefer_builtin_mic_id() -> Option<String> {
             || n.contains("内置")
             || n.contains("built-in"))
             && !n.contains("airpods")
-            && !n.contains("oray")
-            && !n.contains("blackhole")
         {
             return Some(d.id.clone());
         }
     }
-    None
+    mics.first().map(|d| d.id.clone())
+}
+
+/// 解析麦设备：虚拟环回不可作麦，回退内置麦
+fn resolve_mic_device_id(preferred: Option<&str>) -> Option<String> {
+    if let Some(id) = preferred {
+        if let Ok(list) = flex_devices() {
+            if let Some(d) = list.iter().find(|d| d.id == id) {
+                if !d.is_loopback && !is_virtual_loopback_name(&d.name) {
+                    return Some(id.to_string());
+                }
+                eprintln!(
+                    "[recorder-audio] mic device {:?} is virtual/loopback, fall back to builtin",
+                    d.name
+                );
+            }
+        }
+    }
+    prefer_builtin_mic_id()
 }
 
 fn resolve_virtual_loopback_mic_id(preferred: Option<&str>) -> Option<String> {

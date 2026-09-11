@@ -169,11 +169,12 @@
 - 区域录制中：选区外侧显示点击穿透的蓝色范围框；录制控制统一用悬浮条（与全屏相同 UI；落点优先选区下/上，不够则左/右，再不行用全屏记住的位置；可拖放；悬停可开关系统声/麦克风、暂停·停止；尽量 `setContentProtection`）；停止后弹自定义保存路径；结束后自动收起
 - 渲染进程通过 `window.api.recorder` 控制（含 `setMicEnabled` / `setSystemAudioEnabled`）；录制悬浮条已接通实时音源开关；托盘右键可「区域录屏 / 全屏录屏 / 暂停·继续 / 停止录屏」
 - 系统声：macOS 14.4+ CoreAudio Process Tap（需「系统设置 → 隐私与安全性」中允许音频/系统音频录制）；失败时自动回退到本机虚拟声卡输入（BlackHole / OrayVirtual 等）；麦克风与系统声分轨采集后混音；Windows 为 WASAPI loopback
+- 麦+系统声同时开：停录混音前对麦轨做简易 AEC（以系统声为参考消外放漏音；耳机等无明显漏音时自动跳过）；麦克风列表排除虚拟环回设备
 - 打包内置 ffmpeg sidecar（`ffmpeg-static` → `Resources/bin`）；开发态优先用同包二进制，否则回退 PATH；终端用户无需本机安装 ffmpeg
 
 ### 相关文件
 
-- `native-rs/recorder-core/` — 纯 Rust 录屏内核
+- `native-rs/recorder-core/` — 纯 Rust 录屏内核（含 `aec.rs` 混音前回声消除）
 - `native-rs/recorder-napi/` — napi 胶水与 `.node` 构建
 - `native/` — 编译产物 `.node`（开发与打包资源）
 - `electron-builder.yml` — `extraResources` 拷贝 `native/*.node` 与 `ffmpeg-static` 可执行文件到 `bin/`
