@@ -124,6 +124,7 @@ export class RecorderHost {
       fps?: number
       quality?: string
       outputPath: string
+      ffmpegPath?: string
       region?: { x: number; y: number; width: number; height: number }
     } = {
       enableMic,
@@ -140,6 +141,13 @@ export class RecorderHost {
     if (systemDeviceId) config.systemDeviceId = systemDeviceId
     const region = normalizeRegion(opts.region)
     if (region) config.region = region
+    const ffmpegPath = resolveFfmpegPath()
+    if (ffmpegPath) {
+      config.ffmpegPath = ffmpegPath
+      console.log('[recorder] ffmpeg:', ffmpegPath)
+    } else {
+      console.warn('[recorder] ffmpeg: 未找到内置路径，将回退系统 PATH')
+    }
     this.native!.startRecord(config)
     return { outputPath }
   }
@@ -244,6 +252,25 @@ export class RecorderHost {
       `recorder native binary not found: ${name}（请先执行 npm run build:native，产物在 native/ 或 native-rs/recorder-napi/）`
     )
   }
+}
+
+/**
+ * 解析 ffmpeg：打包版用 Resources/bin；开发态用 ffmpeg-static；都没有则让 Rust 回退 PATH。
+ */
+function resolveFfmpegPath(): string | undefined {
+  const binName = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+  if (app.isPackaged) {
+    const packed = join(process.resourcesPath, 'bin', binName)
+    return existsSync(packed) ? packed : undefined
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fromPkg = require('ffmpeg-static') as string | null
+    if (fromPkg && existsSync(fromPkg)) return fromPkg
+  } catch {
+    /* 未安装 ffmpeg-static 时忽略 */
+  }
+  return undefined
 }
 
 function nodeFileName(): string {

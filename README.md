@@ -22,7 +22,7 @@ c-tools 是一款基于 Electron + Vue 的桌面效率工具，目前以剪贴�
 | **Node.js** | 前端 / Electron | 建议 **18+**（推荐 LTS），已装则可跳过 |
 | **npm** | 包管理 | 随 Node 安装 |
 | **Rust** | 编译录屏 `.node` | [rustup](https://rustup.rs/) 安装；仓库含 `rust-toolchain.toml`，进入项目后会自动对齐工具链 |
-| **ffmpeg** | 录屏编码 / 混流 | 需在 `PATH` 中可执行 `ffmpeg`（macOS：`brew install ffmpeg`） |
+| **ffmpeg** | 录屏编码 / 混流 | 由依赖 `ffmpeg-static` 提供；`npm install` 后即可。打包会把可执行文件打进安装包，用户机不必再装 |
 
 可选但推荐：
 
@@ -36,7 +36,8 @@ node -v
 npm -v
 rustc --version
 cargo --version
-ffmpeg -version
+# 可选：确认 ffmpeg-static 已下载
+node -e "console.log(require('ffmpeg-static'))"
 ```
 
 ### 2. 克隆与安装
@@ -93,7 +94,7 @@ npm run format
 
 ### 5. 打包安装包
 
-先确保当前平台的 `.node` 已在 `native/` 中，再打包（`electron-builder` 会把 `native/*.node` 打进 `extraResources`）：
+先确保当前平台的 `.node` 已在 `native/` 中，且 `node_modules/ffmpeg-static` 下已有当前平台的 `ffmpeg`（`npm install` 时下载），再打包（`electron-builder` 会把 `native/*.node` 与 ffmpeg 可执行文件打进 `extraResources`）：
 
 ```bash
 # macOS（dmg + zip，产物在 dist/）
@@ -131,7 +132,7 @@ npm run build:unpack
 | 现象 | 处理 |
 |------|------|
 | 录屏不可用 / 找不到 `.node` | 执行 `npm run build:native`，确认 `native/` 下有当前平台文件 |
-| `ffmpeg not found` | 安装 ffmpeg 并保证在 PATH 中 |
+| `ffmpeg not found` | 执行 `npm install` 确保 `ffmpeg-static` 已下载；打包版应自带 `Resources/bin/ffmpeg` |
 | 改了 Rust 但行为没变 | 重新 `build:native` 后**整进程重启** `npm run dev` |
 | macOS 无系统声 | 系统设置 → 隐私与安全性，允许麦克风及「音频 / 屏幕与系统音频录制」；开发态依赖 Electron.app 的 plist 文案（`postinstall` / `build:native` 会尝试写入） |
 | Windows 编不过原生模块 | 安装 VS Build Tools（MSVC），在 **Windows** 上执行 `npm run build:native` |

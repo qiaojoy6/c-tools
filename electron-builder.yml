@@ -18,6 +18,8 @@ files:
   - '!Cargo.lock'
   - '!rust-toolchain.toml'
   - '!scripts/**'
+  # 二进制走 extraResources，避免 ~45MB ffmpeg 再进 asar
+  - '!node_modules/ffmpeg-static/**'
 asarUnpack:
   - resources/**
   - node_modules/koffi/**
@@ -27,6 +29,13 @@ extraResources:
     to: native
     filter:
       - '*.node'
+  # 只拷可执行文件（+许可证），不拷整个 npm 包
+  - from: node_modules/ffmpeg-static
+    to: bin
+    filter:
+      - ffmpeg
+      - ffmpeg.exe
+      - ffmpeg.LICENSE
 win:
   executableName: c-tools
 nsis:
