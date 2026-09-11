@@ -25,6 +25,8 @@ pub enum RecorderError {
     AlreadyRecording,
     #[error("not recording")]
     NotRecording,
+    #[error("not paused")]
+    NotPaused,
     #[error("capture error: {0}")]
     Capture(String),
     #[error("audio error: {0}")]

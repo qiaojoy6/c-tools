@@ -1,8 +1,6 @@
 //! 音频采集：麦克风 / 系统声环回（flexaudio）→ WAV
 //!
-//! 不用 flexaudio Mix：macOS Process Tap 的 native_format 在建流时被写死为 48k，
-//! 而本机扬声器常为 44.1k，混进同一条流后无法单独校正，听感会变尖。
-//! 改为麦/系统分录，系统轨按真实设备采样率 asetrate 校正后再 amix。
+//! 不用 flexaudio Mix：麦/系统分轨采集，停录后混音。暂停时丢弃采样不写入，保证与画面时间轴一致。
 
 use crate::types::{DeviceInfo, DeviceType};
 use crate::RecorderError;
@@ -96,6 +94,8 @@ pub struct AudioCaptureOpts {
     pub mic_device_id: Option<String>,
     pub system_device_id: Option<String>,
     pub ffmpeg_bin: String,
+    /// 软暂停：为 true 时丢弃采样不写盘
+    pub pause_flag: Arc<AtomicBool>,
 }
 
 impl AudioSession {
@@ -130,6 +130,8 @@ impl AudioSession {
             opts.enable_mic, opts.enable_system_audio
         );
 
+        let pause_flag = Arc::clone(&opts.pause_flag);
+
         if let Some(path) = &mic_path {
             let _ = std::fs::remove_file(path);
             let cfg = StreamConfig {
@@ -151,6 +153,7 @@ impl AudioSession {
                 path.clone(),
                 TARGET_RATE,
                 Arc::clone(&stop),
+                Arc::clone(&pause_flag),
                 Arc::clone(&samples_written),
                 None,
                 None,
@@ -229,6 +232,7 @@ impl AudioSession {
                 path.clone(),
                 TARGET_RATE,
                 Arc::clone(&stop),
+                Arc::clone(&pause_flag),
                 Arc::clone(&samples_written),
                 Some(virt_id),
                 Some(Arc::clone(&sys_used_virt)),
@@ -321,6 +325,7 @@ fn spawn_writer(
     path: PathBuf,
     header_rate: u32,
     stop: Arc<AtomicBool>,
+    pause: Arc<AtomicBool>,
     samples_written: Arc<AtomicU64>,
     virt_fallback_id: Option<Option<String>>,
     used_virt_flag: Option<Arc<AtomicBool>>,
@@ -352,11 +357,16 @@ fn spawn_writer(
             let track_samples = AtomicU64::new(0);
 
             while !stop.load(Ordering::SeqCst) {
+                let paused = pause.load(Ordering::SeqCst);
                 let mut got = false;
                 while let Some(chunk) = stream.poll_chunk() {
                     got = true;
                     let ch = TARGET_CH as usize;
                     if ch == 0 || chunk.data.len() % ch != 0 {
+                        continue;
+                    }
+                    // 暂停：抽干队列但不写盘，避免继续后音画错位
+                    if paused {
                         continue;
                     }
                     samples_written.fetch_add(chunk.data.len() as u64, Ordering::Relaxed);

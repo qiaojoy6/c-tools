@@ -144,7 +144,7 @@ if (!gotSingleLock) {
           console.error('[recorder] unavailable:', st.reason)
           return
         }
-        if (st.state === 'recording') {
+        if (st.state === 'recording' || st.state === 'paused') {
           recorderHost.stop()
         } else if (st.state === 'idle') {
           const { outputPath } = await recorderHost.start({
@@ -160,15 +160,36 @@ if (!gotSingleLock) {
       }
     }
 
+    const togglePauseRecord = (): void => {
+      if (!recorderHost) return
+      try {
+        const st = recorderHost.status()
+        if (st.state === 'recording') {
+          recorderHost.pause()
+        } else if (st.state === 'paused') {
+          recorderHost.resume()
+        }
+      } catch (err) {
+        console.error('[recorder] pause/resume failed:', err)
+      } finally {
+        trayManager?.rebuild()
+      }
+    }
+
     windowManager.onSettingsClosed = () => {
       shortcutManager.registerAll(configManager.get().shortcuts)
     }
 
     trayManager = new TrayManager(
-      () => ({
-        launchAtLogin: configManager.get().general.launchAtLogin,
-        recording: recorderHost?.status().state === 'recording'
-      }),
+      () => {
+        const rs = recorderHost?.status().state
+        const recordingState =
+          rs === 'recording' || rs === 'paused' ? rs : ('idle' as const)
+        return {
+          launchAtLogin: configManager.get().general.launchAtLogin,
+          recordingState
+        }
+      },
       {
         showPanel: () => windowManager.showPanel(),
         togglePanel: () => windowManager.togglePanel(),
@@ -177,6 +198,7 @@ if (!gotSingleLock) {
         toggleRecord: () => {
           void toggleScreenRecord()
         },
+        togglePauseRecord,
         toggleLogin: () => {
           const enabled = !configManager.get().general.launchAtLogin
           configManager.update({ general: { launchAtLogin: enabled } })

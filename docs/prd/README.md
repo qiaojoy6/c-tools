@@ -161,8 +161,8 @@
 
 - Rust 录屏内核（`native-rs/recorder-core`）：xcap 捕获屏幕，flexaudio 采集麦克风/系统声环回并可混音，ffmpeg sidecar 编码/混流 MP4
 - napi-rs 插件（`native-rs/recorder-napi`）：编译为平台 `.node`，由 Electron 主进程同进程加载（复用 macOS TCC）
-- 主进程封装：枚举显示器/麦克风/系统输出、开始/停止录制、状态与事件推送；默认输出到 `userData/recordings/`
-- 渲染进程通过 `window.api.recorder` 控制；托盘右键可「开始录屏 / 停止录屏」（默认麦克风+系统声）
+- 主进程封装：枚举显示器/麦克风/系统输出、开始/暂停/继续/停止录制、状态与事件推送；默认输出到 `userData/recordings/`
+- 渲染进程通过 `window.api.recorder` 控制；托盘右键可「开始录屏 / 暂停·继续 / 停止录屏」（默认麦克风+系统声）
 - 系统声：macOS 14.4+ CoreAudio Process Tap（需「系统设置 → 隐私与安全性」中允许音频/系统音频录制）；失败时自动回退到本机虚拟声卡输入（BlackHole / OrayVirtual 等）；麦克风与系统声分轨采集后混音；Windows 为 WASAPI loopback；依赖本机 ffmpeg
 
 ### 相关文件

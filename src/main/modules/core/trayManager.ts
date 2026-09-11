@@ -1,10 +1,12 @@
 import { Menu, nativeImage, Tray, app } from 'electron'
 import { join } from 'path'
 
+export type TrayRecordingState = 'idle' | 'recording' | 'paused'
+
 export interface TrayState {
   launchAtLogin: boolean
-  /** 是否正在录屏 */
-  recording: boolean
+  /** 录屏状态（用于菜单文案） */
+  recordingState: TrayRecordingState
 }
 
 export interface TrayActions {
@@ -16,8 +18,10 @@ export interface TrayActions {
   toggleLogin: () => void
   /** 开始截屏 */
   startScreenshot: () => void
-  /** 开始 / 停止录屏 */
+  /** 空闲时开始录屏；录制/暂停中则停止 */
   toggleRecord: () => void
+  /** 录制中暂停 / 暂停中继续 */
+  togglePauseRecord: () => void
   quit: () => void
 }
 
@@ -67,7 +71,8 @@ export class TrayManager {
 
   private buildMenu(): Menu {
     const state = this.getState()
-    return Menu.buildFromTemplate([
+    const rs = state.recordingState
+    const items: Electron.MenuItemConstructorOptions[] = [
       {
         label: '显示/隐藏面板',
         click: () => this.actions.togglePanel()
@@ -75,11 +80,26 @@ export class TrayManager {
       {
         label: '截屏',
         click: () => this.actions.startScreenshot()
-      },
-      {
-        label: state.recording ? '停止录屏' : '开始录屏',
+      }
+    ]
+
+    if (rs === 'idle') {
+      items.push({
+        label: '开始录屏',
         click: () => this.actions.toggleRecord()
-      },
+      })
+    } else {
+      items.push({
+        label: rs === 'paused' ? '继续录屏' : '暂停录屏',
+        click: () => this.actions.togglePauseRecord()
+      })
+      items.push({
+        label: '停止录屏',
+        click: () => this.actions.toggleRecord()
+      })
+    }
+
+    items.push(
       { type: 'separator' },
       {
         label: '开机自启',
@@ -96,6 +116,8 @@ export class TrayManager {
         label: '退出',
         click: () => this.actions.quit()
       }
-    ])
+    )
+
+    return Menu.buildFromTemplate(items)
   }
 }

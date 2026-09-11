@@ -12,6 +12,8 @@ import type { RecorderHost } from './host'
  * | recorder:mics     | 枚举麦克风 |
  * | recorder:systemOutputs | 枚举系统声输出 |
  * | recorder:start    | 开始录制（默认可含麦克风+系统声） |
+ * | recorder:pause    | 软暂停 |
+ * | recorder:resume   | 继续录制 |
  * | recorder:stop     | 停止录制 |
  * | recorder:event    | 主→渲 推送事件 |
  */
@@ -53,6 +55,24 @@ export function registerRecorderIpc(host: RecorderHost): void {
   ipcMain.handle('recorder:start', async (_e, opts?: RecorderStartOptions) => {
     try {
       return await host.start(opts && typeof opts === 'object' ? opts : {})
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : String(err))
+    }
+  })
+
+  ipcMain.handle('recorder:pause', () => {
+    try {
+      host.pause()
+      return true
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : String(err))
+    }
+  })
+
+  ipcMain.handle('recorder:resume', () => {
+    try {
+      host.resume()
+      return true
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : String(err))
     }

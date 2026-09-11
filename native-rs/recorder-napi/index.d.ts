@@ -33,5 +33,9 @@ export declare function onEvent(callback: (...args: any[]) => any): void
 export declare function startRecord(config: RecordConfigJs): void
 /** 停止录制 */
 export declare function stopRecord(): void
+/** 软暂停 */
+export declare function pauseRecord(): void
+/** 继续录制 */
+export declare function resumeRecord(): void
 /** 当前状态 */
 export declare function getState(): string

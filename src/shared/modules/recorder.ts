@@ -26,7 +26,7 @@ export interface RecorderStartOptions {
   outputPath?: string
 }
 
-export type RecorderState = 'idle' | 'recording' | 'stopping' | 'unavailable'
+export type RecorderState = 'idle' | 'recording' | 'paused' | 'stopping' | 'unavailable'
 
 export type RecorderNativeEvent =
   | { type: 'stateChanged'; state: Exclude<RecorderState, 'unavailable'> }

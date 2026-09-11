@@ -160,12 +160,29 @@ pub fn stop_record() -> Result<()> {
         .map_err(|e| Error::from_reason(e.to_string()))
 }
 
+/// 软暂停
+#[napi(js_name = "pauseRecord")]
+pub fn pause_record() -> Result<()> {
+    recorder()
+        .pause()
+        .map_err(|e| Error::from_reason(e.to_string()))
+}
+
+/// 继续录制
+#[napi(js_name = "resumeRecord")]
+pub fn resume_record() -> Result<()> {
+    recorder()
+        .resume()
+        .map_err(|e| Error::from_reason(e.to_string()))
+}
+
 /// 当前状态
 #[napi(js_name = "getState")]
 pub fn get_state() -> String {
     match recorder().state() {
         RecorderState::Idle => "idle".into(),
         RecorderState::Recording => "recording".into(),
+        RecorderState::Paused => "paused".into(),
         RecorderState::Stopping => "stopping".into(),
     }
 }

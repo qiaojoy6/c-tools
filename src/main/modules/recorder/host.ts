@@ -26,6 +26,8 @@ interface NativeRecorder {
     ffmpegPath?: string
   }) => void
   stopRecord: () => void
+  pauseRecord: () => void
+  resumeRecord: () => void
   getState: () => string
   onEvent: (cb: (event: RecorderNativeEvent) => void) => void
 }
@@ -72,7 +74,9 @@ export class RecorderHost {
     }
     const raw = this.native.getState()
     const state: RecorderState =
-      raw === 'recording' || raw === 'stopping' || raw === 'idle' ? raw : 'idle'
+      raw === 'recording' || raw === 'paused' || raw === 'stopping' || raw === 'idle'
+        ? raw
+        : 'idle'
     return {
       state,
       available: true,
@@ -137,6 +141,18 @@ export class RecorderHost {
     this.native!.stopRecord()
   }
 
+  /** 软暂停 */
+  pause(): void {
+    this.ensureLoaded()
+    this.native!.pauseRecord()
+  }
+
+  /** 继续录制 */
+  resume(): void {
+    this.ensureLoaded()
+    this.native!.resumeRecord()
+  }
+
   /** 订阅原生事件（返回取消函数） */
   onEvent(listener: EventListener): () => void {
     this.listeners.add(listener)
@@ -147,7 +163,8 @@ export class RecorderHost {
   dispose(): void {
     if (!this.native) return
     try {
-      if (this.native.getState() === 'recording') {
+      const s = this.native.getState()
+      if (s === 'recording' || s === 'paused') {
         this.native.stopRecord()
       }
     } catch (err) {

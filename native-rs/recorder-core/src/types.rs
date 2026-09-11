@@ -64,6 +64,8 @@ impl Default for RecordConfig {
 pub enum RecorderState {
     Idle,
     Recording,
+    /// 软暂停：音画都不写入，时间轴不推进
+    Paused,
     Stopping,
 }
 

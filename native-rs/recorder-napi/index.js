@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { listScreens, listMics, listSystemOutputs, onEvent, startRecord, stopRecord, getState } = nativeBinding
+const { listScreens, listMics, listSystemOutputs, onEvent, startRecord, stopRecord, pauseRecord, resumeRecord, getState } = nativeBinding
 
 module.exports.listScreens = listScreens
 module.exports.listMics = listMics
@@ -318,4 +318,6 @@ module.exports.listSystemOutputs = listSystemOutputs
 module.exports.onEvent = onEvent
 module.exports.startRecord = startRecord
 module.exports.stopRecord = stopRecord
+module.exports.pauseRecord = pauseRecord
+module.exports.resumeRecord = resumeRecord
 module.exports.getState = getState

@@ -17,6 +17,8 @@ export const recorderApi = {
     ipcRenderer.invoke('recorder:systemOutputs'),
   start: (opts?: RecorderStartOptions): Promise<{ outputPath: string }> =>
     ipcRenderer.invoke('recorder:start', opts),
+  pause: (): Promise<boolean> => ipcRenderer.invoke('recorder:pause'),
+  resume: (): Promise<boolean> => ipcRenderer.invoke('recorder:resume'),
   stop: (): Promise<boolean> => ipcRenderer.invoke('recorder:stop'),
   onEvent: (callback: (event: RecorderNativeEvent) => void): (() => void) => {
     const listener = (_e: Electron.IpcRendererEvent, event: RecorderNativeEvent): void =>
