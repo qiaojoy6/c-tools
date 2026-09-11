@@ -13,7 +13,7 @@
 - 面板左侧图标轨道切换模块（可扩展；当前：剪贴板、项目）；底部打开设置
 - 独立设置窗口
 - 应用菜单保留 Edit（系统复制/粘贴依赖）与 View；无 File / Window；View 可开关「点击空白区域隐藏窗口」（作用于独立剪贴板浮层）；刷新 / DevTools 仅开发环境（未打包）提供
-- 托盘常驻（关窗口不退出）；右键菜单含「截屏」入口
+- 托盘常驻（关窗口不退出）；右键菜单含「截屏 / 区域录屏 / 全屏录屏」等入口；已配置的全局快捷键会显示在对应菜单项旁
 - 配置本地持久化
 - 开机自启（设置与托盘共用配置；变更后同步系统登录项，并推送 `config:updated` 刷新设置窗）
 - 单实例（二次启动唤起功能面板；程序坞 / Cmd+Tab 切回立刻置顶且不异步采焦）
@@ -188,7 +188,8 @@
 - `src/renderer/recorder-border.html` — 区域录制选区外框（仅描边）
 - `src/renderer/recorder-float.html` — 录制悬浮条（区域/全屏共用；固定尺寸；标识常驻；计时与系统声/麦克风/暂停/停止交叉淡化；自由拖放）
 - `src/preload/modules/recorder.ts`
-- `src/shared/modules/recorder.ts` — 类型与默认录屏快捷键
+- `src/shared/modules/recorder.ts` — 录屏类型
+- `src/shared/shortcuts.ts` — 区域/全屏默认快捷键
 - 入口耦接：`src/main/index.ts`、`src/main/modules/core/trayManager.ts`（托盘 + 快捷键）
 - 路由：`src/renderer/src/router/index.ts`（`/recorder-select` / `/recorder-fullscreen`）
 
@@ -220,10 +221,11 @@
 - `src/main/modules/core/theme.ts` — 主进程 nativeTheme 同步
 - `src/main/modules/core/windows/settingsWindow.ts`
 - `src/main/modules/core/appUpdater.ts` / `updaterIpc.ts`
-- `src/shared/config.ts` — `ShortcutConfig`（含录屏快捷键）、`DEFAULT_TOGGLE_PANEL_SHORTCUT`、`general.theme`
+- `src/shared/config.ts` — `AppConfig` / `general.theme` 等
+- `src/shared/shortcuts.ts` — 全局快捷键类型与各平台默认值（`DEFAULT_SHORTCUTS`）
 - `src/shared/modules/updater.ts`
 - `src/shared/modules/screenshot.ts` — 截屏配置类型
-- `src/shared/modules/recorder.ts` — 默认录屏快捷键
+- `src/shared/modules/recorder.ts` — 录屏配置类型
 ---
 
 ## 本地持久化文件

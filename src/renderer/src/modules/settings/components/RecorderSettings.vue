@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import type { AppConfig, ConfigPatch } from '@shared/types'
-import {
-  defaultRecorderFullscreenShortcut,
-  defaultRecorderRegionShortcut
-} from '@shared/modules/recorder'
+import { defaultShortcut } from '@shared/shortcuts'
 import { computed } from 'vue'
 import { Button } from '@renderer/components/ui/button'
 import HotkeyInput from './HotkeyInput.vue'
@@ -16,8 +13,8 @@ const emit = defineEmits<{
   (e: 'apply', patch: ConfigPatch): void
 }>()
 
-const defaultRegion = defaultRecorderRegionShortcut()
-const defaultFullscreen = defaultRecorderFullscreenShortcut()
+const defaultRegion = defaultShortcut('recorderRegion')
+const defaultFullscreen = defaultShortcut('recorderFullscreen')
 
 const isDefaultRegion = computed(() => props.config.shortcuts.recorderRegion === defaultRegion)
 const isDefaultFullscreen = computed(

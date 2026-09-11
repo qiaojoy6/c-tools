@@ -1,5 +1,6 @@
 import { Menu, nativeImage, Tray, app } from 'electron'
 import { join } from 'path'
+import type { ShortcutConfig } from '@shared/types'
 
 export type TrayRecordingState = 'idle' | 'recording' | 'paused'
 
@@ -7,6 +8,8 @@ export interface TrayState {
   launchAtLogin: boolean
   /** 录屏状态（用于菜单文案） */
   recordingState: TrayRecordingState
+  /** 当前快捷键（空字符串则菜单不显示加速键） */
+  shortcuts: ShortcutConfig
 }
 
 export interface TrayActions {
@@ -80,38 +83,35 @@ export class TrayManager {
     this.tray = null
   }
 
+  /** 有快捷键时带上 accelerator，供托盘菜单右侧展示 */
+  private item(
+    label: string,
+    click: () => void,
+    accelerator?: string
+  ): Electron.MenuItemConstructorOptions {
+    const accel = accelerator?.trim()
+    return accel ? { label, accelerator: accel, click } : { label, click }
+  }
+
   private buildMenu(): Menu {
     const state = this.getState()
     const rs = state.recordingState
+    const sc = state.shortcuts
     const items: Electron.MenuItemConstructorOptions[] = [
-      {
-        label: '显示/隐藏面板',
-        click: () => this.actions.togglePanel()
-      },
-      {
-        label: '截屏',
-        click: () => this.actions.startScreenshot()
-      }
+      this.item('显隐面板', () => this.actions.togglePanel()),
+      this.item('截屏', () => this.actions.startScreenshot(), sc.screenshot)
     ]
 
     if (rs === 'idle') {
-      items.push({
-        label: '区域录屏',
-        click: () => this.actions.startRegionRecord()
-      })
-      items.push({
-        label: '全屏录屏',
-        click: () => this.actions.startFullscreenRecord()
-      })
+      items.push(this.item('区域录屏', () => this.actions.startRegionRecord(), sc.recorderRegion))
+      items.push(
+        this.item('全屏录屏', () => this.actions.startFullscreenRecord(), sc.recorderFullscreen)
+      )
     } else {
-      items.push({
-        label: rs === 'paused' ? '继续录屏' : '暂停录屏',
-        click: () => this.actions.togglePauseRecord()
-      })
-      items.push({
-        label: '停止录屏',
-        click: () => this.actions.stopRecord()
-      })
+      items.push(
+        this.item(rs === 'paused' ? '继续录屏' : '暂停录屏', () => this.actions.togglePauseRecord())
+      )
+      items.push(this.item('停止录屏', () => this.actions.stopRecord()))
     }
 
     items.push(

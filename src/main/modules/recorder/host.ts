@@ -8,7 +8,7 @@ import type {
   RecorderStartOptions,
   RecorderState,
   RecorderStatus
-} from '../../../shared/modules/recorder'
+} from '@shared/modules/recorder'
 
 /** napi 插件导出的最小面 */
 interface NativeRecorder {

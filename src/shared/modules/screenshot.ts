@@ -1,32 +1,18 @@
 /** ============ 截屏模块共享类型 ============ */
 
+import { defaultShortcut, isDarwinPlatform } from '../shortcuts'
+
+export { isDarwinPlatform }
+
 /** 截屏相关配置 */
 export interface ScreenshotConfig {
   /** 进入截屏前是否隐藏本应用窗口（默认 true） */
   hideAppWindows: boolean
 }
 
-/** 默认截屏快捷键（与 defaults 保持一致） */
-export const DEFAULT_SCREENSHOT_SHORTCUT_DARWIN = 'Command+Shift+A'
-export const DEFAULT_SCREENSHOT_SHORTCUT_WIN = 'Alt+A'
-
-/** 主进程 / 渲染进程均可安全判断是否 macOS */
-export function isDarwinPlatform(platform?: string): boolean {
-  if (platform) return platform === 'darwin'
-  if (typeof process !== 'undefined' && typeof process.platform === 'string') {
-    return process.platform === 'darwin'
-  }
-  if (typeof navigator !== 'undefined') {
-    return /Mac|iPhone|iPod|iPad/i.test(navigator.platform || navigator.userAgent)
-  }
-  return false
-}
-
-/** 按平台取默认截屏快捷键（渲染进程勿直接读 process） */
+/** 按平台取默认截屏快捷键（定义见 `@shared/shortcuts`） */
 export function defaultScreenshotShortcut(platform?: string): string {
-  return isDarwinPlatform(platform)
-    ? DEFAULT_SCREENSHOT_SHORTCUT_DARWIN
-    : DEFAULT_SCREENSHOT_SHORTCUT_WIN
+  return defaultShortcut('screenshot', platform)
 }
 
 /** 屏幕坐标系下的矩形（物理像素或 DIP，与会话约定一致） */

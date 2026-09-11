@@ -1,14 +1,10 @@
 import type { AppConfig } from '@shared/types'
-import { DEFAULT_TOGGLE_PANEL_SHORTCUT } from '@shared/config'
-import {
-  defaultRecorderFullscreenShortcut,
-  defaultRecorderRegionShortcut
-} from '@shared/modules/recorder'
-import { defaultScreenshotShortcut } from '@shared/modules/screenshot'
+import { defaultShortcuts } from '@shared/shortcuts'
 
 /**
  * 默认配置（Source of Truth）
  * 用户配置存储于 userData/settings.json，与本默认值深度合并后生效。
+ * 快捷键默认值见 `@shared/shortcuts` 的 `DEFAULT_SHORTCUTS`。
  */
 export const DEFAULT_CONFIG: AppConfig = {
   window: {
@@ -24,12 +20,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     topOffset: 72,
     hideOnBlur: true
   },
-  shortcuts: {
-    togglePanel: DEFAULT_TOGGLE_PANEL_SHORTCUT,
-    screenshot: defaultScreenshotShortcut(),
-    recorderRegion: defaultRecorderRegionShortcut(),
-    recorderFullscreen: defaultRecorderFullscreenShortcut()
-  },
+  shortcuts: defaultShortcuts(),
   clipboard: {
     pollIntervalMs: 500,
     maxRecords: 100,

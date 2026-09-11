@@ -107,7 +107,7 @@ if (!gotSingleLock) {
     }
 
     shortcutManager = new ShortcutManager({
-      togglePanel: () => {
+      toggleClipboard: () => {
         if (screenshotSession?.isActive) return
         if (recorderSelectSession?.isActive) return
         if (!windowManager.clipboard.isVisible()) {
@@ -129,13 +129,13 @@ if (!gotSingleLock) {
 
     // 规范化并注册全部快捷键
     const nextShortcuts = {
-      togglePanel: normalizeAccelerator(cfg.shortcuts.togglePanel),
+      toggleClipboard: normalizeAccelerator(cfg.shortcuts.toggleClipboard),
       screenshot: normalizeAccelerator(cfg.shortcuts.screenshot),
       recorderRegion: normalizeAccelerator(cfg.shortcuts.recorderRegion ?? ''),
       recorderFullscreen: normalizeAccelerator(cfg.shortcuts.recorderFullscreen ?? '')
     }
     if (
-      nextShortcuts.togglePanel !== cfg.shortcuts.togglePanel ||
+      nextShortcuts.toggleClipboard !== cfg.shortcuts.toggleClipboard ||
       nextShortcuts.screenshot !== cfg.shortcuts.screenshot ||
       nextShortcuts.recorderRegion !== (cfg.shortcuts.recorderRegion ?? '') ||
       nextShortcuts.recorderFullscreen !== (cfg.shortcuts.recorderFullscreen ?? '')
@@ -257,9 +257,11 @@ if (!gotSingleLock) {
         const rs = recorderHost?.status().state
         const recordingState =
           rs === 'recording' || rs === 'paused' ? rs : ('idle' as const)
+        const cfg = configManager.get()
         return {
-          launchAtLogin: configManager.get().general.launchAtLogin,
-          recordingState
+          launchAtLogin: cfg.general.launchAtLogin,
+          recordingState,
+          shortcuts: cfg.shortcuts
         }
       },
       {

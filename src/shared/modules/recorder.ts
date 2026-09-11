@@ -1,7 +1,5 @@
 /** ============ 录屏模块共享类型（与 recorder-napi 对齐） ============ */
 
-import { isDarwinPlatform } from './screenshot'
-
 /** 视频清晰度：原画 / 超清 / 流畅（只影响画面，音质不降） */
 export type RecorderVideoQuality = 'original' | 'ultra' | 'smooth'
 
@@ -146,26 +144,4 @@ export interface RecorderConfig {
   micDeviceId: string | null
   /** 视频清晰度 */
   quality: RecorderVideoQuality
-}
-
-/** 默认区域录屏快捷键 */
-export const DEFAULT_RECORDER_REGION_SHORTCUT_DARWIN = 'Command+Shift+R'
-export const DEFAULT_RECORDER_REGION_SHORTCUT_WIN = 'Alt+R'
-
-/** 默认全屏录屏快捷键 */
-export const DEFAULT_RECORDER_FULLSCREEN_SHORTCUT_DARWIN = 'Command+Shift+F'
-export const DEFAULT_RECORDER_FULLSCREEN_SHORTCUT_WIN = 'Alt+Shift+F'
-
-/** 按平台取默认区域录屏快捷键 */
-export function defaultRecorderRegionShortcut(platform?: string): string {
-  return isDarwinPlatform(platform)
-    ? DEFAULT_RECORDER_REGION_SHORTCUT_DARWIN
-    : DEFAULT_RECORDER_REGION_SHORTCUT_WIN
-}
-
-/** 按平台取默认全屏录屏快捷键 */
-export function defaultRecorderFullscreenShortcut(platform?: string): string {
-  return isDarwinPlatform(platform)
-    ? DEFAULT_RECORDER_FULLSCREEN_SHORTCUT_DARWIN
-    : DEFAULT_RECORDER_FULLSCREEN_SHORTCUT_WIN
 }

@@ -3,7 +3,7 @@ import type {
   RecorderSelectConfirm,
   RecorderStartOptions,
   RecorderVideoQuality
-} from '../../../shared/modules/recorder'
+} from '@shared/modules/recorder'
 import type { RecorderHost } from './host'
 import type { RecorderSelectSession } from './session'
 

@@ -1,4 +1,5 @@
 export * from './config'
+export * from './shortcuts'
 export * from './modules/clipboard'
 export * from './modules/projects'
 export * from './modules/screenshot'

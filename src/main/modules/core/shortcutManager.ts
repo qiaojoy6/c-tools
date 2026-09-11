@@ -21,7 +21,7 @@ function isUsableAccelerator(accelerator: string): boolean {
 }
 
 export type ShortcutHandlers = {
-  togglePanel: () => void
+  toggleClipboard: () => void
   screenshot: () => void
   recorderRegion: () => void
   recorderFullscreen: () => void
@@ -46,7 +46,7 @@ export class ShortcutManager {
     const used = new Set<string>()
 
     const entries: Array<[keyof ShortcutConfig, () => void]> = [
-      ['togglePanel', this.handlers.togglePanel],
+      ['toggleClipboard', this.handlers.toggleClipboard],
       ['screenshot', this.handlers.screenshot],
       ['recorderRegion', this.handlers.recorderRegion],
       ['recorderFullscreen', this.handlers.recorderFullscreen]
