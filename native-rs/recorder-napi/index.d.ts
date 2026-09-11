@@ -11,6 +11,12 @@ export interface DeviceInfoJs {
   height: number
   isPrimary: boolean
 }
+export interface RecordRegionJs {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 export interface RecordConfigJs {
   screenId?: string
   enableMic?: boolean
@@ -18,8 +24,12 @@ export interface RecordConfigJs {
   micDeviceId?: string
   systemDeviceId?: string
   fps?: number
+  /** 视频清晰度：original | ultra | smooth；省略则原画 */
+  quality?: string
   outputPath: string
   ffmpegPath?: string
+  /** 相对目标显示器的裁剪区域（物理像素）；省略则整屏 */
+  region?: RecordRegionJs
 }
 /** 枚举显示器 */
 export declare function listScreens(): Array<DeviceInfoJs>
@@ -37,5 +47,9 @@ export declare function stopRecord(): void
 export declare function pauseRecord(): void
 /** 继续录制 */
 export declare function resumeRecord(): void
+/** 录制中实时开关麦克风 */
+export declare function setMicEnabled(enabled: boolean): void
+/** 录制中实时开关系统声 */
+export declare function setSystemAudioEnabled(enabled: boolean): void
 /** 当前状态 */
 export declare function getState(): string

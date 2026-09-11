@@ -1,12 +1,14 @@
 //! 录制生命周期：启停、软暂停/继续、采集线程、事件回调
 
 use crate::audio::{AudioCaptureOpts, AudioSession};
+use crate::crop::crop_rgba;
 use crate::encoder::{
     finalize_video_only, mux_video_audio, resolve_ffmpeg, sibling_temp, FfmpegEncoder,
 };
 use crate::screen::resolve_monitor;
-use crate::types::{RecordConfig, RecorderEvent, RecorderState};
+use crate::types::{RecordConfig, RecordRegion, RecorderEvent, RecorderState, VideoQuality};
 use crate::RecorderError;
+use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -24,6 +26,10 @@ struct RecorderInner {
     state: RecorderState,
     stop_flag: Option<Arc<AtomicBool>>,
     pause_flag: Option<Arc<AtomicBool>>,
+    /// true = 写静音；开录时按 enable_mic 取反
+    mic_mute_flag: Option<Arc<AtomicBool>>,
+    /// true = 写静音；开录时按 enable_system_audio 取反
+    sys_mute_flag: Option<Arc<AtomicBool>>,
     join: Option<JoinHandle<()>>,
     on_event: Option<EventCallback>,
 }
@@ -41,6 +47,8 @@ impl Recorder {
                 state: RecorderState::Idle,
                 stop_flag: None,
                 pause_flag: None,
+                mic_mute_flag: None,
+                sys_mute_flag: None,
                 join: None,
                 on_event: None,
             }),
@@ -78,15 +86,20 @@ impl Recorder {
         let monitor = resolve_monitor(config.screen_id.as_deref())?;
         let ffmpeg_bin = resolve_ffmpeg(config.ffmpeg_path.as_deref())?;
         let output = PathBuf::from(&config.output_path);
-        let enable_mic = config.enable_mic;
-        let enable_system_audio = config.enable_system_audio;
         let mic_device_id = config.mic_device_id.clone();
         let system_device_id = config.system_device_id.clone();
+        let region = config.region.filter(|r| r.width >= 2 && r.height >= 2);
+        let quality = config.quality;
 
         let stop_flag = Arc::new(AtomicBool::new(false));
         let pause_flag = Arc::new(AtomicBool::new(false));
+        // 两路都开采集，初始静音 = 用户关了该源；录制中可再打开
+        let mic_mute_flag = Arc::new(AtomicBool::new(!config.enable_mic));
+        let sys_mute_flag = Arc::new(AtomicBool::new(!config.enable_system_audio));
         let stop_flag_t = Arc::clone(&stop_flag);
         let pause_flag_t = Arc::clone(&pause_flag);
+        let mic_mute_t = Arc::clone(&mic_mute_flag);
+        let sys_mute_t = Arc::clone(&sys_mute_flag);
         let on_event = g.on_event.clone();
 
         emit(
@@ -102,14 +115,16 @@ impl Recorder {
                 if let Err(e) = capture_loop(
                     monitor,
                     fps,
-                    enable_mic,
-                    enable_system_audio,
+                    quality,
                     mic_device_id,
                     system_device_id,
+                    region,
                     &ffmpeg_bin,
                     &output,
                     stop_flag_t,
                     pause_flag_t,
+                    mic_mute_t,
+                    sys_mute_t,
                     on_event.clone(),
                 ) {
                     emit(
@@ -125,6 +140,8 @@ impl Recorder {
         g.state = RecorderState::Recording;
         g.stop_flag = Some(stop_flag);
         g.pause_flag = Some(pause_flag);
+        g.mic_mute_flag = Some(mic_mute_flag);
+        g.sys_mute_flag = Some(sys_mute_flag);
         g.join = Some(join);
         Ok(())
     }
@@ -179,6 +196,36 @@ impl Recorder {
         }
     }
 
+    /// 录制中实时开关麦克风（关=写静音，开=写真实采样）
+    pub fn set_mic_enabled(&self, enabled: bool) -> Result<(), RecorderError> {
+        let g = self
+            .inner
+            .lock()
+            .map_err(|_| RecorderError::Internal("lock poisoned".into()))?;
+        if g.state != RecorderState::Recording && g.state != RecorderState::Paused {
+            return Err(RecorderError::NotRecording);
+        }
+        if let Some(flag) = &g.mic_mute_flag {
+            flag.store(!enabled, Ordering::SeqCst);
+        }
+        Ok(())
+    }
+
+    /// 录制中实时开关系统声（关=写静音，开=写真实采样）
+    pub fn set_system_audio_enabled(&self, enabled: bool) -> Result<(), RecorderError> {
+        let g = self
+            .inner
+            .lock()
+            .map_err(|_| RecorderError::Internal("lock poisoned".into()))?;
+        if g.state != RecorderState::Recording && g.state != RecorderState::Paused {
+            return Err(RecorderError::NotRecording);
+        }
+        if let Some(flag) = &g.sys_mute_flag {
+            flag.store(!enabled, Ordering::SeqCst);
+        }
+        Ok(())
+    }
+
     /// 停止录制并等待采集线程退出（录制中或暂停中均可）
     pub fn stop(&self) -> Result<(), RecorderError> {
         let (flag, pause, join, on_event) = {
@@ -219,6 +266,8 @@ impl Recorder {
             g.state = RecorderState::Idle;
             g.stop_flag = None;
             g.pause_flag = None;
+            g.mic_mute_flag = None;
+            g.sys_mute_flag = None;
             g.join = None;
         }
         emit(
@@ -237,19 +286,58 @@ fn emit(cb: &Option<EventCallback>, event: RecorderEvent) {
     }
 }
 
-/// 画面 + 可选麦克风/系统声；先写临时视频/音频，停录后再混流
+/// 整屏或按 region 裁剪；整屏偶数边可零拷贝借用
+fn frame_pixels<'a>(
+    width: u32,
+    height: u32,
+    rgba: &'a [u8],
+    region: Option<RecordRegion>,
+) -> Option<(u32, u32, Cow<'a, [u8]>)> {
+    if let Some(r) = region {
+        let (w, h, buf) = crop_rgba(rgba, width, height, r)?;
+        return Some((w, h, Cow::Owned(buf)));
+    }
+    let w = width & !1;
+    let h = height & !1;
+    if w < 2 || h < 2 {
+        return None;
+    }
+    let need = (w as usize).saturating_mul(h as usize).saturating_mul(4);
+    if rgba.len() < (width as usize).saturating_mul(height as usize).saturating_mul(4) {
+        return None;
+    }
+    if w == width && h == height {
+        return Some((w, h, Cow::Borrowed(&rgba[..need])));
+    }
+    let (cw, ch, buf) = crop_rgba(
+        rgba,
+        width,
+        height,
+        RecordRegion {
+            x: 0,
+            y: 0,
+            width: w,
+            height: h,
+        },
+    )?;
+    Some((cw, ch, Cow::Owned(buf)))
+}
+
+/// 画面 + 麦克风/系统声（两路都开，静音标志控制是否写真实采样）；先写临时视频/音频，停录后再混流
 #[allow(clippy::too_many_arguments)]
 fn capture_loop(
     monitor: xcap::Monitor,
     fps: u32,
-    enable_mic: bool,
-    enable_system_audio: bool,
+    quality: VideoQuality,
     mic_device_id: Option<String>,
     system_device_id: Option<String>,
+    region: Option<RecordRegion>,
     ffmpeg_bin: &str,
     output: &PathBuf,
     stop_flag: Arc<AtomicBool>,
     pause_flag: Arc<AtomicBool>,
+    mic_mute_flag: Arc<AtomicBool>,
+    sys_mute_flag: Arc<AtomicBool>,
     on_event: Option<EventCallback>,
 ) -> Result<(), RecorderError> {
     let video_tmp = sibling_temp(output, "video.tmp.mp4");
@@ -257,32 +345,30 @@ fn capture_loop(
     let _ = std::fs::remove_file(&video_tmp);
     let _ = std::fs::remove_file(&audio_tmp);
 
-    // 音频失败不阻断录屏，仅无声
-    let mut audio = if enable_mic || enable_system_audio {
-        match AudioSession::start(
-            &audio_tmp,
-            AudioCaptureOpts {
-                enable_mic,
-                enable_system_audio,
-                mic_device_id,
-                system_device_id,
-                ffmpeg_bin: ffmpeg_bin.to_string(),
-                pause_flag: Arc::clone(&pause_flag),
-            },
-        ) {
-            Ok(s) => Some(s),
-            Err(e) => {
-                emit(
-                    &on_event,
-                    RecorderEvent::Error {
-                        message: format!("audio unavailable, continue without sound: {e}"),
-                    },
-                );
-                None
-            }
+    // 两路都尝试开启，失败不阻断录屏；静音标志支持录制中开关
+    let mut audio = match AudioSession::start(
+        &audio_tmp,
+        AudioCaptureOpts {
+            enable_mic: true,
+            enable_system_audio: true,
+            mic_device_id,
+            system_device_id,
+            ffmpeg_bin: ffmpeg_bin.to_string(),
+            pause_flag: Arc::clone(&pause_flag),
+            mic_mute_flag,
+            sys_mute_flag,
+        },
+    ) {
+        Ok(s) => Some(s),
+        Err(e) => {
+            emit(
+                &on_event,
+                RecorderEvent::Error {
+                    message: format!("audio unavailable, continue without sound: {e}"),
+                },
+            );
+            None
         }
-    } else {
-        None
     };
 
     let mut clock = ActiveClock::new();
@@ -329,17 +415,23 @@ fn capture_loop(
                                 next_frame_at = now + frame_interval;
                             }
 
+                            let Some((fw, fh, pixels)) =
+                                frame_pixels(frame.width, frame.height, &frame.raw, region)
+                            else {
+                                continue;
+                            };
                             if encoder.is_none() {
                                 encoder = Some(FfmpegEncoder::start(
                                     ffmpeg_bin,
                                     &video_tmp,
-                                    frame.width,
-                                    frame.height,
+                                    fw,
+                                    fh,
                                     fps,
+                                    quality,
                                 )?);
                             }
                             if let Some(enc) = encoder.as_mut() {
-                                enc.write_rgba(frame.width, frame.height, &frame.raw)?;
+                                enc.write_rgba(fw, fh, &pixels)?;
                                 frames_written += 1;
                             }
                             maybe_progress(&on_event, &clock, &mut last_progress);
@@ -388,11 +480,21 @@ fn capture_loop(
                 .map_err(|e| RecorderError::Capture(e.to_string()))?;
             let w = image.width();
             let h = image.height();
+            let Some((fw, fh, pixels)) = frame_pixels(w, h, image.as_raw(), region) else {
+                continue;
+            };
             if encoder.is_none() {
-                encoder = Some(FfmpegEncoder::start(ffmpeg_bin, &video_tmp, w, h, fps)?);
+                encoder = Some(FfmpegEncoder::start(
+                    ffmpeg_bin,
+                    &video_tmp,
+                    fw,
+                    fh,
+                    fps,
+                    quality,
+                )?);
             }
             if let Some(enc) = encoder.as_mut() {
-                enc.write_rgba(w, h, image.as_raw())?;
+                enc.write_rgba(fw, fh, &pixels)?;
             }
             maybe_progress(&on_event, &clock, &mut last_progress);
         }

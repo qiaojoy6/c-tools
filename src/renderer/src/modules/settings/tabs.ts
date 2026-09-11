@@ -1,5 +1,5 @@
 import type { Component } from 'vue'
-import { ClipboardList, FolderKanban, Scan, Settings2 } from 'lucide-vue-next'
+import { ClipboardList, FolderKanban, Scan, Settings2, Video } from 'lucide-vue-next'
 
 /** 设置侧边模块：后续新功能在此注册即可 */
 export interface SettingsModuleTab {
@@ -27,6 +27,12 @@ export const SETTINGS_MODULES: SettingsModuleTab[] = [
     label: '截屏',
     description: '截屏快捷键与隐藏本应用',
     icon: Scan
+  },
+  {
+    id: 'recorder',
+    label: '录屏',
+    description: '区域与全屏录屏快捷键',
+    icon: Video
   },
   {
     id: 'projects',

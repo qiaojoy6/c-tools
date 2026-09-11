@@ -126,6 +126,15 @@
   }
 }
 
+/* 无边框窗：拖拽区域 / 可点击子区域（Electron -webkit-app-region） */
+.app-drag {
+  user-select: none;
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 /* 细滚动条 */
 ::-webkit-scrollbar {
   width: 5px;

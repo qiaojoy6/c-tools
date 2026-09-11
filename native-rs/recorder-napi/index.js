@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { listScreens, listMics, listSystemOutputs, onEvent, startRecord, stopRecord, pauseRecord, resumeRecord, getState } = nativeBinding
+const { listScreens, listMics, listSystemOutputs, onEvent, startRecord, stopRecord, pauseRecord, resumeRecord, setMicEnabled, setSystemAudioEnabled, getState } = nativeBinding
 
 module.exports.listScreens = listScreens
 module.exports.listMics = listMics
@@ -320,4 +320,6 @@ module.exports.startRecord = startRecord
 module.exports.stopRecord = stopRecord
 module.exports.pauseRecord = pauseRecord
 module.exports.resumeRecord = resumeRecord
+module.exports.setMicEnabled = setMicEnabled
+module.exports.setSystemAudioEnabled = setSystemAudioEnabled
 module.exports.getState = getState

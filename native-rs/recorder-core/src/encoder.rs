@@ -14,13 +14,14 @@ pub struct FfmpegEncoder {
 }
 
 impl FfmpegEncoder {
-    /// 启动 ffmpeg：从 stdin 读 rawvideo rgba，输出 H.264 MP4（无音轨）
+    /// 启动 ffmpeg：从 stdin 读 rawvideo rgba，按清晰度档位缩放/CRF 输出 H.264 MP4（无音轨）
     pub fn start(
         ffmpeg_bin: &str,
         output: &Path,
         width: u32,
         height: u32,
         fps: u32,
+        quality: crate::VideoQuality,
     ) -> Result<Self, RecorderError> {
         if width == 0 || height == 0 {
             return Err(RecorderError::InvalidConfig("screen size is zero".into()));
@@ -33,38 +34,58 @@ impl FfmpegEncoder {
         let h = height & !1;
         let size = format!("{w}x{h}");
         let fps_s = fps.max(1).to_string();
+        let (scale, crf) = quality.encode_params();
+        let crf_s = crf.to_string();
 
-        let mut child = Command::new(ffmpeg_bin)
-            .args([
-                "-y",
-                "-f",
-                "rawvideo",
-                "-pix_fmt",
-                "rgba",
-                "-s",
-                &size,
-                "-r",
-                &fps_s,
-                "-i",
-                "pipe:0",
-                "-an",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "veryfast",
-                "-pix_fmt",
-                "yuv420p",
-                "-movflags",
-                "+faststart",
-            ])
-            .arg(output.as_os_str())
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                RecorderError::Encoder(format!("spawn ffmpeg failed ({ffmpeg_bin}): {e}"))
-            })?;
+        // 非原画时用 scale 降分辨率；stdin 仍按捕获帧原始尺寸写入
+        let scale_filter = if (scale - 1.0).abs() < f32::EPSILON {
+            None
+        } else {
+            let tw = ((w as f32) * scale).round() as u32 & !1;
+            let th = ((h as f32) * scale).round() as u32 & !1;
+            let tw = tw.max(2);
+            let th = th.max(2);
+            Some(format!("scale={tw}:{th}"))
+        };
+
+        let mut cmd = Command::new(ffmpeg_bin);
+        cmd.args([
+            "-y",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgba",
+            "-s",
+            &size,
+            "-r",
+            &fps_s,
+            "-i",
+            "pipe:0",
+            "-an",
+        ]);
+        if let Some(ref vf) = scale_filter {
+            cmd.args(["-vf", vf]);
+        }
+        cmd.args([
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            &crf_s,
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+        ])
+        .arg(output.as_os_str())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+        let mut child = cmd.spawn().map_err(|e| {
+            RecorderError::Encoder(format!("spawn ffmpeg failed ({ffmpeg_bin}): {e}"))
+        })?;
 
         let stdin = child
             .stdin

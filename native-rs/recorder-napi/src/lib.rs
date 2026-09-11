@@ -6,8 +6,8 @@ use napi::bindgen_prelude::*;
 use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 use recorder_core::{
-    list_mics, list_screens, list_system_outputs, DeviceInfo, DeviceType, RecordConfig, Recorder,
-    RecorderEvent, RecorderState,
+    list_mics, list_screens, list_system_outputs, DeviceInfo, DeviceType, RecordConfig, RecordRegion,
+    Recorder, RecorderEvent, RecorderState, VideoQuality,
 };
 use serde::Serialize;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -72,6 +72,14 @@ impl From<DeviceInfo> for DeviceInfoJs {
 }
 
 #[napi(object)]
+pub struct RecordRegionJs {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[napi(object)]
 pub struct RecordConfigJs {
     #[napi(js_name = "screenId")]
     pub screen_id: Option<String>,
@@ -84,10 +92,14 @@ pub struct RecordConfigJs {
     #[napi(js_name = "systemDeviceId")]
     pub system_device_id: Option<String>,
     pub fps: Option<u32>,
+    /// 视频清晰度：original | ultra | smooth；省略则原画
+    pub quality: Option<String>,
     #[napi(js_name = "outputPath")]
     pub output_path: String,
     #[napi(js_name = "ffmpegPath")]
     pub ffmpeg_path: Option<String>,
+    /// 相对目标显示器的裁剪区域（物理像素）；省略则整屏
+    pub region: Option<RecordRegionJs>,
 }
 
 /// 枚举显示器
@@ -137,6 +149,18 @@ pub fn on_event(callback: JsFunction) -> Result<()> {
 /// 开始录制
 #[napi(js_name = "startRecord")]
 pub fn start_record(config: RecordConfigJs) -> Result<()> {
+    let region = config.region.and_then(|r| {
+        if r.width < 2 || r.height < 2 {
+            None
+        } else {
+            Some(RecordRegion {
+                x: r.x,
+                y: r.y,
+                width: r.width,
+                height: r.height,
+            })
+        }
+    });
     let cfg = RecordConfig {
         screen_id: config.screen_id,
         enable_mic: config.enable_mic.unwrap_or(true),
@@ -144,12 +168,24 @@ pub fn start_record(config: RecordConfigJs) -> Result<()> {
         mic_device_id: config.mic_device_id,
         system_device_id: config.system_device_id,
         fps: config.fps.unwrap_or(30),
+        quality: parse_quality(config.quality.as_deref()),
         output_path: config.output_path,
         ffmpeg_path: config.ffmpeg_path,
+        region,
     };
     recorder()
         .start(cfg)
         .map_err(|e| Error::from_reason(e.to_string()))
+}
+
+/// original / ultra / smooth；非法或空则原画
+fn parse_quality(raw: Option<&str>) -> VideoQuality {
+    match raw.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
+        Some("ultra") => VideoQuality::Ultra,
+        Some("smooth") => VideoQuality::Smooth,
+        Some("original") | None | Some("") => VideoQuality::Original,
+        _ => VideoQuality::Original,
+    }
 }
 
 /// 停止录制
@@ -173,6 +209,22 @@ pub fn pause_record() -> Result<()> {
 pub fn resume_record() -> Result<()> {
     recorder()
         .resume()
+        .map_err(|e| Error::from_reason(e.to_string()))
+}
+
+/// 录制中实时开关麦克风
+#[napi(js_name = "setMicEnabled")]
+pub fn set_mic_enabled(enabled: bool) -> Result<()> {
+    recorder()
+        .set_mic_enabled(enabled)
+        .map_err(|e| Error::from_reason(e.to_string()))
+}
+
+/// 录制中实时开关系统声
+#[napi(js_name = "setSystemAudioEnabled")]
+pub fn set_system_audio_enabled(enabled: bool) -> Result<()> {
+    recorder()
+        .set_system_audio_enabled(enabled)
         .map_err(|e| Error::from_reason(e.to_string()))
 }
 

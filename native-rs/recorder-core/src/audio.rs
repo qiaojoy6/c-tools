@@ -96,8 +96,13 @@ pub struct AudioCaptureOpts {
     pub ffmpeg_bin: String,
     /// 软暂停：为 true 时丢弃采样不写盘
     pub pause_flag: Arc<AtomicBool>,
+    /// 麦克风静音：抽干队列但写 0，保持与画面时间轴对齐
+    pub mic_mute_flag: Arc<AtomicBool>,
+    /// 系统声静音：同上
+    pub sys_mute_flag: Arc<AtomicBool>,
 }
 
+/// 麦克风 / 系统声可各自失败；两路都开不了才返回 Err
 impl AudioSession {
     /// 按选项开采集；两者都关则报错。麦/系统分轨写入临时 WAV。
     pub fn start(final_wav: &Path, opts: AudioCaptureOpts) -> Result<Self, RecorderError> {
@@ -113,12 +118,12 @@ impl AudioSession {
         let sys_used_virt = Arc::new(AtomicBool::new(false));
         let mut joins = Vec::new();
 
-        let mic_path = if opts.enable_mic {
+        let mut mic_path = if opts.enable_mic {
             Some(sibling(final_wav, "mic.tmp.wav"))
         } else {
             None
         };
-        let sys_path = if opts.enable_system_audio {
+        let mut sys_path = if opts.enable_system_audio {
             Some(sibling(final_wav, "sys.tmp.wav"))
         } else {
             None
@@ -131,6 +136,8 @@ impl AudioSession {
         );
 
         let pause_flag = Arc::clone(&opts.pause_flag);
+        let mic_mute_flag = Arc::clone(&opts.mic_mute_flag);
+        let sys_mute_flag = Arc::clone(&opts.sys_mute_flag);
 
         if let Some(path) = &mic_path {
             let _ = std::fs::remove_file(path);
@@ -146,18 +153,27 @@ impl AudioSession {
                 },
                 ..Default::default()
             };
-            let stream = open(cfg).map_err(|e| RecorderError::Audio(format!("open mic: {e}")))?;
-            joins.push(spawn_writer(
-                "recorder-mic",
-                stream,
-                path.clone(),
-                TARGET_RATE,
-                Arc::clone(&stop),
-                Arc::clone(&pause_flag),
-                Arc::clone(&samples_written),
-                None,
-                None,
-            )?);
+            match open(cfg) {
+                Ok(stream) => {
+                    joins.push(spawn_writer(
+                        "recorder-mic",
+                        stream,
+                        path.clone(),
+                        TARGET_RATE,
+                        Arc::clone(&stop),
+                        Arc::clone(&pause_flag),
+                        Arc::clone(&mic_mute_flag),
+                        Arc::clone(&samples_written),
+                        None,
+                        None,
+                    )?);
+                }
+                Err(e) => {
+                    eprintln!("[recorder-audio] open mic failed, skip mic track: {e}");
+                    let _ = std::fs::remove_file(path);
+                    mic_path = None;
+                }
+            }
         }
 
         if let Some(path) = &sys_path {
@@ -167,7 +183,7 @@ impl AudioSession {
                 .as_deref()
                 .and_then(|id| id.strip_prefix("virt:").map(|s| s.to_string()));
 
-            let (stream, mode) = if let Some(vid) = want_virt {
+            let opened: Result<(Stream, &str), String> = if let Some(vid) = want_virt {
                 sys_used_virt.store(true, Ordering::SeqCst);
                 let cfg = StreamConfig {
                     kind: SourceKind::Mic,
@@ -178,8 +194,9 @@ impl AudioSession {
                     },
                     ..Default::default()
                 };
-                let s = open(cfg).map_err(|e| RecorderError::Audio(format!("open virt: {e}")))?;
-                (s, "virtual-explicit")
+                open(cfg)
+                    .map(|s| (s, "virtual-explicit"))
+                    .map_err(|e| e.to_string())
             } else {
                 let cfg = StreamConfig {
                     kind: SourceKind::SystemLoopback,
@@ -195,48 +212,65 @@ impl AudioSession {
                     ..Default::default()
                 };
                 match open(cfg) {
-                    Ok(s) => (s, "system"),
+                    Ok(s) => Ok((s, "system")),
                     Err(e) => {
                         eprintln!("[recorder-audio] system open failed: {e}");
-                        let vid = resolve_virtual_loopback_mic_id(None).ok_or_else(|| {
-                            RecorderError::Audio(format!(
+                        match resolve_virtual_loopback_mic_id(None) {
+                            Some(vid) => {
+                                sys_used_virt.store(true, Ordering::SeqCst);
+                                let cfg = StreamConfig {
+                                    kind: SourceKind::Mic,
+                                    device_id: Some(vid),
+                                    output: OutputFormat {
+                                        sample_rate: TARGET_RATE,
+                                        channels: TARGET_CH,
+                                    },
+                                    ..Default::default()
+                                };
+                                open(cfg)
+                                    .map(|s| (s, "virtual-fallback"))
+                                    .map_err(|e2| {
+                                        format!("virtual fallback open: {e2} (primary: {e})")
+                                    })
+                            }
+                            None => Err(format!(
                                 "system audio open failed ({e}) and no virtual loopback"
-                            ))
-                        })?;
-                        sys_used_virt.store(true, Ordering::SeqCst);
-                        let cfg = StreamConfig {
-                            kind: SourceKind::Mic,
-                            device_id: Some(vid),
-                            output: OutputFormat {
-                                sample_rate: TARGET_RATE,
-                                channels: TARGET_CH,
-                            },
-                            ..Default::default()
-                        };
-                        let s = open(cfg).map_err(|e2| {
-                            RecorderError::Audio(format!(
-                                "virtual fallback open: {e2} (primary: {e})"
-                            ))
-                        })?;
-                        (s, "virtual-fallback")
+                            )),
+                        }
                     }
                 }
             };
-            eprintln!("[recorder-audio] system mode={mode}");
 
-            // WAV 头仍写 48k（与 flexaudio 输出声明一致）；停录后用 asetrate 按 HW 率校正音高
-            let virt_id = resolve_virtual_loopback_mic_id(opts.system_device_id.as_deref());
-            joins.push(spawn_writer(
-                "recorder-sys",
-                stream,
-                path.clone(),
-                TARGET_RATE,
-                Arc::clone(&stop),
-                Arc::clone(&pause_flag),
-                Arc::clone(&samples_written),
-                Some(virt_id),
-                Some(Arc::clone(&sys_used_virt)),
-            )?);
+            match opened {
+                Ok((stream, mode)) => {
+                    eprintln!("[recorder-audio] system mode={mode}");
+                    // WAV 头仍写 48k（与 flexaudio 输出声明一致）；停录后用 asetrate 按 HW 率校正音高
+                    let virt_id = resolve_virtual_loopback_mic_id(opts.system_device_id.as_deref());
+                    joins.push(spawn_writer(
+                        "recorder-sys",
+                        stream,
+                        path.clone(),
+                        TARGET_RATE,
+                        Arc::clone(&stop),
+                        Arc::clone(&pause_flag),
+                        Arc::clone(&sys_mute_flag),
+                        Arc::clone(&samples_written),
+                        Some(virt_id),
+                        Some(Arc::clone(&sys_used_virt)),
+                    )?);
+                }
+                Err(e) => {
+                    eprintln!("[recorder-audio] open system failed, skip sys track: {e}");
+                    let _ = std::fs::remove_file(path);
+                    sys_path = None;
+                }
+            }
+        }
+
+        if joins.is_empty() {
+            return Err(RecorderError::Audio(
+                "no audio track could be opened".into(),
+            ));
         }
 
         Ok(Self {
@@ -326,6 +360,7 @@ fn spawn_writer(
     header_rate: u32,
     stop: Arc<AtomicBool>,
     pause: Arc<AtomicBool>,
+    mute: Arc<AtomicBool>,
     samples_written: Arc<AtomicU64>,
     virt_fallback_id: Option<Option<String>>,
     used_virt_flag: Option<Arc<AtomicBool>>,
@@ -358,6 +393,7 @@ fn spawn_writer(
 
             while !stop.load(Ordering::SeqCst) {
                 let paused = pause.load(Ordering::SeqCst);
+                let muted = mute.load(Ordering::SeqCst);
                 let mut got = false;
                 while let Some(chunk) = stream.poll_chunk() {
                     got = true;
@@ -371,6 +407,15 @@ fn spawn_writer(
                     }
                     samples_written.fetch_add(chunk.data.len() as u64, Ordering::Relaxed);
                     track_samples.fetch_add(chunk.data.len() as u64, Ordering::Relaxed);
+                    // 静音：写 0 保持轨长与画面对齐，可随时再打开
+                    if muted {
+                        for _ in 0..chunk.data.len() {
+                            writer
+                                .write_sample(0i16)
+                                .map_err(|e| RecorderError::Audio(format!("write: {e}")))?;
+                        }
+                        continue;
+                    }
                     for &s in &chunk.data {
                         // 轻微 headroom，避免无谓压低导致发闷、偏小
                         let s = s.clamp(-1.0, 1.0);

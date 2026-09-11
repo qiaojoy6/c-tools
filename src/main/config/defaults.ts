@@ -1,5 +1,9 @@
 import type { AppConfig } from '@shared/types'
 import { DEFAULT_TOGGLE_PANEL_SHORTCUT } from '@shared/config'
+import {
+  defaultRecorderFullscreenShortcut,
+  defaultRecorderRegionShortcut
+} from '@shared/modules/recorder'
 import { defaultScreenshotShortcut } from '@shared/modules/screenshot'
 
 /**
@@ -22,7 +26,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   shortcuts: {
     togglePanel: DEFAULT_TOGGLE_PANEL_SHORTCUT,
-    screenshot: defaultScreenshotShortcut()
+    screenshot: defaultScreenshotShortcut(),
+    recorderRegion: defaultRecorderRegionShortcut(),
+    recorderFullscreen: defaultRecorderFullscreenShortcut()
   },
   clipboard: {
     pollIntervalMs: 500,
@@ -43,5 +49,12 @@ export const DEFAULT_CONFIG: AppConfig = {
   general: {
     launchAtLogin: false,
     theme: 'system'
+  },
+  recorder: {
+    fullscreenFloatPos: null,
+    enableMic: true,
+    enableSystemAudio: true,
+    micDeviceId: null,
+    quality: 'original'
   }
 }

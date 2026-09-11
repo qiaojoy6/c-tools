@@ -18,15 +18,19 @@ export interface TrayActions {
   toggleLogin: () => void
   /** 开始截屏 */
   startScreenshot: () => void
-  /** 空闲时开始录屏；录制/暂停中则停止 */
-  toggleRecord: () => void
+  /** 区域录屏（框选 / 点选应用窗） */
+  startRegionRecord: () => void
+  /** 全屏录屏（弹窗选屏，列表来自 Rust xcap） */
+  startFullscreenRecord: () => void
+  /** 录制/暂停中则停止 */
+  stopRecord: () => void
   /** 录制中暂停 / 暂停中继续 */
   togglePauseRecord: () => void
   quit: () => void
 }
 
 /**
- * 托盘管理
+ * 托盘管理。录制中菜单可暂停/停止（全屏主交互为悬浮球）。
  */
 export class TrayManager {
   private tray: Tray | null = null
@@ -48,8 +52,14 @@ export class TrayManager {
     this.tray.setToolTip('c-tools')
 
     if (process.platform === 'darwin') {
-      // macOS：左键显示/置顶面板，右键菜单
-      this.tray.on('click', () => this.actions.showPanel())
+      // 录制中左键弹出控制菜单；空闲时显示面板
+      this.tray.on('click', () => {
+        if (this.getState().recordingState !== 'idle') {
+          this.tray?.popUpContextMenu(this.buildMenu())
+          return
+        }
+        this.actions.showPanel()
+      })
       this.tray.on('right-click', () => this.tray?.popUpContextMenu(this.buildMenu()))
     } else {
       this.tray.setContextMenu(this.buildMenu())
@@ -59,9 +69,10 @@ export class TrayManager {
 
   rebuild(): void {
     if (!this.tray) return
-    // Windows / Linux：常驻 contextMenu 需重建；macOS 右键时现建菜单，这里无操作
-    if (process.platform === 'darwin') return
-    this.tray.setContextMenu(this.buildMenu())
+    // Windows / Linux：常驻 contextMenu 需重建；macOS 右键时现建菜单
+    if (process.platform !== 'darwin') {
+      this.tray.setContextMenu(this.buildMenu())
+    }
   }
 
   destroy(): void {
@@ -85,8 +96,12 @@ export class TrayManager {
 
     if (rs === 'idle') {
       items.push({
-        label: '开始录屏',
-        click: () => this.actions.toggleRecord()
+        label: '区域录屏',
+        click: () => this.actions.startRegionRecord()
+      })
+      items.push({
+        label: '全屏录屏',
+        click: () => this.actions.startFullscreenRecord()
       })
     } else {
       items.push({
@@ -95,7 +110,7 @@ export class TrayManager {
       })
       items.push({
         label: '停止录屏',
-        click: () => this.actions.toggleRecord()
+        click: () => this.actions.stopRecord()
       })
     }
 

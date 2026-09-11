@@ -2,53 +2,118 @@
 
 c-tools 是一款基于 Electron + Vue 的桌面效率工具，目前以剪贴板管理为核心。
 
-它会在后台监听系统剪贴板（文本、图片），保存历史并支持收藏；可通过快捷键呼出独立浮层，或从托盘打开功能面板，搜索、筛选后粘贴回原应用。另有设置（快捷键、条数上限、过期清理、开机自启等），托盘常驻，关窗不退出
+它会在后台监听系统剪贴板（文本、图片），保存历史并支持收藏；可通过快捷键呼出独立浮层，或从托盘打开功能面板，搜索、筛选后粘贴回原应用。另有设置（快捷键、条数上限、过期清理、开机自启等），托盘常驻，关窗不退出。录屏能力由 Rust 原生插件（napi `.node`）提供。
 
-icon
-
+## icon
 
 | mac       | 尺寸(实际的内容大小占原图的80.5%左右) | 说明            |
 | --------- | ---------------------- | ------------- |
 | icon.icns | 512、256、128、64、32      | 包含程序坞、文件列表中的、 |
 
 
-## Project Setup
+## 新电脑：从零编译与打包
 
-### Install
+在一台装好 Node 的新机器上，克隆本仓库后按下面做即可开发和打包。
 
-```bash
-$ npm install
-```
+### 1. 环境依赖
 
-### Development
+| 依赖 | 用途 | 说明 |
+|------|------|------|
+| **Node.js** | 前端 / Electron | 建议 **18+**（推荐 LTS），已装则可跳过 |
+| **npm** | 包管理 | 随 Node 安装 |
+| **Rust** | 编译录屏 `.node` | [rustup](https://rustup.rs/) 安装；仓库含 `rust-toolchain.toml`，进入项目后会自动对齐工具链 |
+| **ffmpeg** | 录屏编码 / 混流 | 需在 `PATH` 中可执行 `ffmpeg`（macOS：`brew install ffmpeg`） |
 
-```bash
-$ npm run dev
-```
+可选但推荐：
 
-### Build
+- **macOS**：Xcode Command Line Tools（`xcode-select --install`）
+- **Windows**：Visual Studio Build Tools（MSVC，编 Windows `.node` / Electron 原生依赖时需要）
 
-```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
-```
-
-### 原生录屏插件（Rust）
+校验：
 
 ```bash
-# 需本机 Rust + ffmpeg；产物写入 native/*.node
-$ npm run build:native
+node -v
+npm -v
+rustc --version
+cargo --version
+ffmpeg -version
 ```
 
-开发前若尚未编译过插件，先执行一次 `npm run build:native`。托盘右键可「开始录屏 / 停止录屏」，文件默认写入应用 `userData/recordings/`。
+### 2. 克隆与安装
 
-### 发版与自动更新
+```bash
+git clone <本仓库地址>
+cd c-tools
+npm install
+```
+
+`postinstall` 会执行 `electron-builder install-app-deps`，并尝试给开发态 Electron 写入 macOS 麦克风/系统音频权限文案（`scripts/patch-electron-plist.sh`）。
+
+### 3. 编译录屏原生插件（必做一次）
+
+`.node` **不进 Git**，新机器必须本地编：
+
+```bash
+npm run build:native
+```
+
+脚本会：
+
+1. 在 `native-rs/recorder-napi` 用 napi-rs 编译**当前平台**的 `.node`
+2. 拷贝到项目根目录 `native/`（开发加载与打包 `extraResources` 都用这里）
+
+产物示例：
+
+- Apple Silicon Mac → `native/recorder.darwin-arm64.node`
+- Intel Mac → `native/recorder.darwin-x64.node`
+- Windows x64 → `native/recorder.win32-x64-msvc.node`
+
+说明：
+
+- `native-rs/recorder-napi/index.js` 里列出多平台只是**运行时加载模板**，不会在一台机器上自动编出全部平台。
+- **Windows 的 `.node` 必须在 Windows（或 Windows CI）上编译**，不能在 Mac 上直接产出。
+- 改了 `native-rs/` 下 Rust 代码后，需再跑一次 `npm run build:native`，并**完全重启** `npm run dev`（原生模块会被进程缓存）。
+
+### 4. 开发运行
+
+```bash
+npm run build:native   # 若尚未编译过插件
+npm run dev
+```
+
+录屏：托盘右键 → 开始 / 暂停·继续 / 停止；默认麦克风 + 系统声；文件默认在应用 `userData/recordings/`。
+
+其它常用命令：
+
+```bash
+npm run typecheck      # TypeScript / Vue 类型检查
+npm run lint
+npm run format
+```
+
+### 5. 打包安装包
+
+先确保当前平台的 `.node` 已在 `native/` 中，再打包（`electron-builder` 会把 `native/*.node` 打进 `extraResources`）：
+
+```bash
+# macOS（dmg + zip，产物在 dist/）
+npm run build:mac
+
+# Windows（需在 Windows 上，且已有 win 的 .node）
+npm run build:win
+
+# Linux
+npm run build:linux
+
+# 仅解包目录、不打安装包（调试用）
+npm run build:unpack
+```
+
+`build:mac` / `build:win` / `build:linux` 内部会先跑 `npm run build`（typecheck + electron-vite 构建），再调用 electron-builder。
+
+跨平台发版时：在对应系统（或 CI）分别执行 `build:native` + 对应 `build:*`，汇总各平台安装包。
+
+### 6. 发版与自动更新（可选）
 
 1. 改 `package.json` 的 `version`（如 `1.0.0` → `1.0.1`）
 2. 打包：`npm run build:mac` / `build:win`（产物在 `dist/`，含 `latest-mac.yml` / `latest.yml`）
@@ -60,6 +125,16 @@ $ npm run build:native
 更新源地址见 `electron-builder.yml` 的 `publish.url`（须能直接 HTTP 下载到上述 yml/安装包）。
 
 **注意**：macOS 自动更新需要代码签名；未签名时检查/安装可能失败（设置页会显示错误信息）。
+
+### 7. 常见问题
+
+| 现象 | 处理 |
+|------|------|
+| 录屏不可用 / 找不到 `.node` | 执行 `npm run build:native`，确认 `native/` 下有当前平台文件 |
+| `ffmpeg not found` | 安装 ffmpeg 并保证在 PATH 中 |
+| 改了 Rust 但行为没变 | 重新 `build:native` 后**整进程重启** `npm run dev` |
+| macOS 无系统声 | 系统设置 → 隐私与安全性，允许麦克风及「音频 / 屏幕与系统音频录制」；开发态依赖 Electron.app 的 plist 文案（`postinstall` / `build:native` 会尝试写入） |
+| Windows 编不过原生模块 | 安装 VS Build Tools（MSVC），在 **Windows** 上执行 `npm run build:native` |
 
 ## 主进程 ↔ 渲染进程通讯
 

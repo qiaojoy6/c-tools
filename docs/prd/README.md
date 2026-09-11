@@ -159,10 +159,15 @@
 
 ### 功能
 
-- Rust 录屏内核（`native-rs/recorder-core`）：xcap 捕获屏幕，flexaudio 采集麦克风/系统声环回并可混音，ffmpeg sidecar 编码/混流 MP4
+- Rust 录屏内核（`native-rs/recorder-core`）：xcap 捕获屏幕，支持可选区域裁剪；flexaudio 采集麦克风/系统声环回并可混音；录制中可实时开关麦/系统声（关则写静音保音画对齐）；ffmpeg sidecar 编码/混流 MP4；视频清晰度三档（流畅 / 超清 / 原画，只改画面缩放与 CRF，音质不降）
 - napi-rs 插件（`native-rs/recorder-napi`）：编译为平台 `.node`，由 Electron 主进程同进程加载（复用 macOS TCC）
-- 主进程封装：枚举显示器/麦克风/系统输出、开始/暂停/继续/停止录制、状态与事件推送；默认输出到 `userData/recordings/`
-- 渲染进程通过 `window.api.recorder` 控制；托盘右键可「开始录屏 / 暂停·继续 / 停止录屏」（默认麦克风+系统声）
+- 主进程封装：枚举显示器/麦克风/系统输出、开始/暂停/继续/停止录制、录制中 `setMicEnabled` / `setSystemAudioEnabled`、状态与事件推送；`start` 可传 `region`（相对显示器物理像素）与 `quality`；默认先写到 `userData/recordings/`，停止后弹系统「另存为」可自定义路径（取消则删除成片不保存）
+- 框选遮罩：托盘或全局快捷键「区域录屏」进入多屏透明框选；悬停高亮应用窗、单击锁定窗尺寸（与截屏同源窗口枚举），或拖拽框选；工具条可切换系统声/麦克风、选择麦克风设备（列表来自 Rust `listMics`）与清晰度（流畅 / 超清 / 原画，固定 MP4，写入 `settings.json` 持久化）；确认后关遮罩开录；Esc / 右键 /「退出录制」/ 再按区域快捷键取消
+- 全屏录屏：托盘或全局快捷键「全屏录屏」弹出选屏 Dialog（屏幕列表由 Rust 内核 `listScreens` 提供）；可切换系统声/麦克风、选择麦克风设备与清晰度（与区域共用持久化配置）；确认后整屏开录（不传 `region`）
+- 快捷键：设置中可配置区域 / 全屏录屏全局快捷键（可恢复默认、清空关闭）；录制中或截屏进行中忽略启动；托盘入口仍可用
+- 全屏录制中：悬浮条（默认 REC/暂停标识 + 计时；移入后同尺寸交叉淡化为标识 + 系统声/麦克风/暂停/停止；可自由拖放，位置写入 `settings.json` 下次全屏录制复用）；托盘「停止」同样弹保存路径；托盘菜单仍可暂停·继续 / 停止
+- 区域录制中：选区外侧显示点击穿透的蓝色范围框；录制控制统一用悬浮条（与全屏相同 UI；落点优先选区下/上，不够则左/右，再不行用全屏记住的位置；可拖放；悬停可开关系统声/麦克风、暂停·停止；尽量 `setContentProtection`）；停止后弹自定义保存路径；结束后自动收起
+- 渲染进程通过 `window.api.recorder` 控制（含 `setMicEnabled` / `setSystemAudioEnabled`）；录制悬浮条已接通实时音源开关；托盘右键可「区域录屏 / 全屏录屏 / 暂停·继续 / 停止录屏」
 - 系统声：macOS 14.4+ CoreAudio Process Tap（需「系统设置 → 隐私与安全性」中允许音频/系统音频录制）；失败时自动回退到本机虚拟声卡输入（BlackHole / OrayVirtual 等）；麦克风与系统声分轨采集后混音；Windows 为 WASAPI loopback；依赖本机 ffmpeg
 
 ### 相关文件
@@ -171,10 +176,21 @@
 - `native-rs/recorder-napi/` — napi 胶水与 `.node` 构建
 - `native/` — 编译产物 `.node`（开发与打包资源）
 - `scripts/build-native.sh` — `npm run build:native`
-- `src/main/modules/recorder/` — 主进程加载插件与 IPC
+- `src/main/modules/recorder/` — 主进程加载插件、框选遮罩会话、全屏选屏弹窗、区域外框与全屏悬浮条 IPC、停录另存为
+- `src/main/modules/recorder/saveRecording.ts` — 停录后系统保存对话框与挪文件
+- `src/main/modules/core/trayManager.ts` — 托盘；录制中暂停/停止入口
+- `src/main/modules/core/shortcutManager.ts` — 全局快捷键（含区域/全屏录屏）
+- `src/renderer/src/pages/RecorderSelectPage.vue` — 录屏框选遮罩页
+- `src/renderer/src/pages/RecorderFullscreenPage.vue` — 全屏录屏选屏 Dialog
+- `src/renderer/src/modules/recorder/composables/useRecorderPrefs.ts` — 麦/系统声/麦设备/清晰度读写 `settings.json`
+- `src/renderer/src/modules/recorder/components/RecorderOptionsBar.vue` — 录制选项条（系统声/麦克风开关与设备选择/清晰度；区域与全屏共用）
+- `src/renderer/src/modules/settings/components/RecorderSettings.vue` — 录屏快捷键设置
+- `src/renderer/recorder-border.html` — 区域录制选区外框（仅描边）
+- `src/renderer/recorder-float.html` — 录制悬浮条（区域/全屏共用；固定尺寸；标识常驻；计时与系统声/麦克风/暂停/停止交叉淡化；自由拖放）
 - `src/preload/modules/recorder.ts`
-- `src/shared/modules/recorder.ts`
-- 入口耦接：`src/main/index.ts`、`src/main/modules/core/trayManager.ts`
+- `src/shared/modules/recorder.ts` — 类型与默认录屏快捷键
+- 入口耦接：`src/main/index.ts`、`src/main/modules/core/trayManager.ts`（托盘 + 快捷键）
+- 路由：`src/renderer/src/router/index.ts`（`/recorder-select` / `/recorder-fullscreen`）
 
 ---
 
@@ -182,9 +198,10 @@
 
 ### 功能
 
-- 独立设置窗口，左侧按模块 Tab 切换（通用 / 剪贴板 / 截屏 / 项目，可扩展）
+- 独立设置窗口，左侧按模块 Tab 切换（通用 / 剪贴板 / 截屏 / 录屏 / 项目，可扩展）
 - 自定义呼出剪贴板快捷键（可恢复默认；可清空关闭）
 - 截屏：快捷键（可恢复默认；可清空关闭）、截屏时是否隐藏本应用窗口
+- 录屏：区域录屏 / 全屏录屏全局快捷键（可恢复默认；可清空关闭）
 - 项目：清除全部预览浏览数据（整分区，不按地址；可选缓存 / Cookie / Local Storage 等）
 - 最大保存条数
 - 过期自动清理周期
@@ -198,15 +215,15 @@
 
 - `src/renderer/src/pages/SettingsPage.vue`
 - `src/renderer/src/modules/settings/tabs.ts` — 模块 Tab 注册
-- `src/renderer/src/modules/settings/components/` — GeneralSettings / ClipboardSettings / ScreenshotSettings / ProjectSettings / HotkeyInput
+- `src/renderer/src/modules/settings/components/` — GeneralSettings / ClipboardSettings / ScreenshotSettings / RecorderSettings / ProjectSettings / HotkeyInput
 - `src/renderer/src/composables/useTheme.ts` — 渲染进程应用 `.dark`
 - `src/main/modules/core/theme.ts` — 主进程 nativeTheme 同步
 - `src/main/modules/core/windows/settingsWindow.ts`
 - `src/main/modules/core/appUpdater.ts` / `updaterIpc.ts`
-- `src/shared/config.ts` — `DEFAULT_TOGGLE_PANEL_SHORTCUT`、截屏默认快捷键、`general.theme`
+- `src/shared/config.ts` — `ShortcutConfig`（含录屏快捷键）、`DEFAULT_TOGGLE_PANEL_SHORTCUT`、`general.theme`
 - `src/shared/modules/updater.ts`
 - `src/shared/modules/screenshot.ts` — 截屏配置类型
-
+- `src/shared/modules/recorder.ts` — 默认录屏快捷键
 ---
 
 ## 本地持久化文件
@@ -217,7 +234,7 @@
 
 | 文件 | 功能 |
 |------|------|
-| `settings.json` | 应用配置：窗口、快捷键（含截屏）、截屏选项、剪贴板上限/清理、项目工作区与 overrides、隐私、开机自启、界面主题（浅/深/跟随系统）等 |
+| `settings.json` | 应用配置：窗口、快捷键（含截屏与录屏）、截屏选项、剪贴板上限/清理、项目工作区与 overrides、隐私、开机自启、界面主题（浅/深/跟随系统）、录屏（全屏悬浮条位置、麦/系统声开关、清晰度）等 |
 | `clipboard-history.json` | 剪贴板历史记录（文本 / 图片元数据） |
 | `clipboard-favorites.json` | 剪贴板收藏（与历史独立；删历史不影响收藏） |
 | `clipboard-images/` | 剪贴板图片二进制（按内容 hash 命名；无引用时删除） |

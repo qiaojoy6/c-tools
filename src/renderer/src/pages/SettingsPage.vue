@@ -5,6 +5,7 @@ import { SETTINGS_MODULES } from '@renderer/modules/settings/tabs'
 import GeneralSettings from '@renderer/modules/settings/components/GeneralSettings.vue'
 import ClipboardSettings from '@renderer/modules/settings/components/ClipboardSettings.vue'
 import ScreenshotSettings from '@renderer/modules/settings/components/ScreenshotSettings.vue'
+import RecorderSettings from '@renderer/modules/settings/components/RecorderSettings.vue'
 import ProjectSettings from '@renderer/modules/settings/components/ProjectSettings.vue'
 
 const config = ref<AppConfig | null>(null)
@@ -92,6 +93,11 @@ onUnmounted(() => {
         />
         <ScreenshotSettings
           v-else-if="activeModule === 'screenshot'"
+          :config="config"
+          @apply="apply"
+        />
+        <RecorderSettings
+          v-else-if="activeModule === 'recorder'"
           :config="config"
           @apply="apply"
         />

@@ -22,12 +22,16 @@ interface NativeRecorder {
     micDeviceId?: string
     systemDeviceId?: string
     fps?: number
+    quality?: string
     outputPath: string
     ffmpegPath?: string
+    region?: { x: number; y: number; width: number; height: number }
   }) => void
   stopRecord: () => void
   pauseRecord: () => void
   resumeRecord: () => void
+  setMicEnabled: (enabled: boolean) => void
+  setSystemAudioEnabled: (enabled: boolean) => void
   getState: () => string
   onEvent: (cb: (event: RecorderNativeEvent) => void) => void
 }
@@ -104,9 +108,8 @@ export class RecorderHost {
     this.ensureLoaded()
     const enableMic = opts.enableMic !== false
     const enableSystemAudio = opts.enableSystemAudio !== false
-    if (enableMic) {
-      await ensureMicPermission()
-    }
+    // 两路都会开采集（关则静音），故始终要麦权限以便录中再打开
+    await ensureMicPermission()
 
     const outputPath = opts.outputPath?.trim() || this.defaultOutputPath()
     this.elapsedMs = 0
@@ -119,11 +122,14 @@ export class RecorderHost {
       micDeviceId?: string
       systemDeviceId?: string
       fps?: number
+      quality?: string
       outputPath: string
+      region?: { x: number; y: number; width: number; height: number }
     } = {
       enableMic,
       enableSystemAudio,
       fps: opts.fps ?? 30,
+      quality: normalizeQuality(opts.quality),
       outputPath
     }
     const screenId = opts.screenId?.trim()
@@ -132,6 +138,8 @@ export class RecorderHost {
     if (micDeviceId) config.micDeviceId = micDeviceId
     const systemDeviceId = opts.systemDeviceId?.trim()
     if (systemDeviceId) config.systemDeviceId = systemDeviceId
+    const region = normalizeRegion(opts.region)
+    if (region) config.region = region
     this.native!.startRecord(config)
     return { outputPath }
   }
@@ -151,6 +159,18 @@ export class RecorderHost {
   resume(): void {
     this.ensureLoaded()
     this.native!.resumeRecord()
+  }
+
+  /** 录制中实时开关麦克风 */
+  setMicEnabled(enabled: boolean): void {
+    this.ensureLoaded()
+    this.native!.setMicEnabled(enabled)
+  }
+
+  /** 录制中实时开关系统声 */
+  setSystemAudioEnabled(enabled: boolean): void {
+    this.ensureLoaded()
+    this.native!.setSystemAudioEnabled(enabled)
   }
 
   /** 订阅原生事件（返回取消函数） */
@@ -231,6 +251,25 @@ function nodeFileName(): string {
   if (platform === 'darwin' && arch === 'x64') return 'recorder.darwin-x64.node'
   if (platform === 'win32' && arch === 'x64') return 'recorder.win32-x64-msvc.node'
   throw new Error(`unsupported platform for recorder: ${platform}-${arch}`)
+}
+
+/** 校验并取整区域；宽高过小则视为未传 */
+function normalizeRegion(
+  region: RecorderStartOptions['region']
+): { x: number; y: number; width: number; height: number } | undefined {
+  if (!region) return undefined
+  const x = Math.max(0, Math.floor(Number(region.x) || 0))
+  const y = Math.max(0, Math.floor(Number(region.y) || 0))
+  const width = Math.max(0, Math.floor(Number(region.width) || 0))
+  const height = Math.max(0, Math.floor(Number(region.height) || 0))
+  if (width < 2 || height < 2) return undefined
+  return { x, y, width, height }
+}
+
+/** 清晰度归一：非法则原画 */
+function normalizeQuality(q: RecorderStartOptions['quality']): 'original' | 'ultra' | 'smooth' {
+  if (q === 'ultra' || q === 'smooth' || q === 'original') return q
+  return 'original'
 }
 
 /** macOS：申请麦克风权限（失败仍可无麦录屏） */

@@ -31,6 +31,15 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/renderer/index.html'),
+          'recorder-border': resolve('src/renderer/recorder-border.html'),
+          'recorder-float': resolve('src/renderer/recorder-float.html')
+        }
+      }
+    },
     plugins: [
       tailwindcss(),
       vue({

@@ -1,5 +1,6 @@
 import type { ClipboardConfig } from './modules/clipboard'
 import type { ProjectsConfig } from './modules/projects'
+import type { RecorderConfig } from './modules/recorder'
 import type { ScreenshotConfig } from './modules/screenshot'
 
 /** ============ 应用全局配置类型 ============ */
@@ -31,6 +32,10 @@ export interface ShortcutConfig {
   togglePanel: string
   /** 进入截屏；空则不用快捷键截屏（仍可用托盘等入口） */
   screenshot: string
+  /** 进入区域录屏；空则关闭（仍可用托盘） */
+  recorderRegion: string
+  /** 进入全屏录屏；空则关闭（仍可用托盘） */
+  recorderFullscreen: string
 }
 
 /** 默认呼出快捷键（与 DEFAULT_CONFIG 保持一致） */
@@ -61,6 +66,7 @@ export interface AppConfig {
   projects: ProjectsConfig
   privacy: PrivacyConfig
   general: GeneralConfig
+  recorder: RecorderConfig
 }
 
 /** 配置局部更新（递归 Partial） */

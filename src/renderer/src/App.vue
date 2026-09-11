@@ -7,10 +7,11 @@ const route = useRoute()
 
 useTheme()
 
-/** 独立剪贴板用毛玻璃浮层壳；截屏遮罩无壳；功能面板 / 设置为普通窗 */
+/** 独立剪贴板用毛玻璃浮层壳；截屏/录屏框选遮罩无壳；全屏选屏 Dialog 白底；功能面板 / 设置为普通窗 */
 const shellMode = computed(() => {
   if (route.name === 'clipboard') return 'overlay'
-  if (route.name === 'screenshot') return 'shot'
+  if (route.name === 'screenshot' || route.name === 'recorder-select') return 'shot'
+  if (route.name === 'recorder-fullscreen') return 'dialog'
   return 'app'
 })
 </script>
@@ -20,7 +21,8 @@ const shellMode = computed(() => {
     :class="{
       'app-shell': shellMode === 'app',
       'app-shell app-shell--overlay': shellMode === 'overlay',
-      'app-shell app-shell--shot': shellMode === 'shot'
+      'app-shell app-shell--shot': shellMode === 'shot',
+      'app-shell app-shell--dialog': shellMode === 'dialog'
     }"
   >
     <router-view />
@@ -51,5 +53,10 @@ const shellMode = computed(() => {
   overflow: hidden;
   background: transparent;
   color: inherit;
+}
+
+.app-shell--dialog {
+  background: #fff;
+  color: #1f2937;
 }
 </style>

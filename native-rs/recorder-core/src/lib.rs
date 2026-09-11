@@ -1,6 +1,7 @@
 //! recorder-core：纯 Rust 录屏内核（无 UI / 无 napi）
 
 mod audio;
+mod crop;
 mod encoder;
 mod pipeline;
 mod screen;
@@ -9,7 +10,9 @@ mod types;
 pub use audio::{list_mics, list_system_outputs};
 pub use pipeline::{EventCallback, Recorder};
 pub use screen::list_screens;
-pub use types::{DeviceInfo, DeviceType, RecordConfig, RecorderEvent, RecorderState};
+pub use types::{
+    DeviceInfo, DeviceType, RecordConfig, RecordRegion, RecorderEvent, RecorderState, VideoQuality,
+};
 
 use thiserror::Error;
 

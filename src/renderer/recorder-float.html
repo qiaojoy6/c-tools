@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+    />
+    <title>recorder-float</title>
+    <style>
+      :root {
+        --fg: #0f172a;
+        --rec: #dc2626;
+        --rec-soft: #fef2f2;
+        --pause: #d97706;
+        --pause-soft: #fffbeb;
+        --on: #2563eb;
+        --on-soft: #eff6ff;
+        --bg: rgba(255, 255, 255, 0.94);
+        --border: rgba(15, 23, 42, 0.1);
+        --hover: #f1f5f9;
+        --shadow: 0 4px 12px -6px rgba(15, 23, 42, 0.4);
+        /* 固定条宽：展开为系统声/麦/暂停/停止，切换只淡入淡出 */
+        --bar-w: 164px;
+        --bar-h: 28px;
+        --slot-w: 116px;
+        --dur: 280ms;
+        --ease: cubic-bezier(0.33, 1, 0.68, 1);
+      }
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+        font-family:
+          'PingFang SC',
+          'Segoe UI',
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        user-select: none;
+      }
+      #ball {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        width: var(--bar-w);
+        height: var(--bar-h);
+        padding: 2px 4px;
+        box-sizing: border-box;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        cursor: grab;
+        flex-shrink: 0;
+      }
+      #ball:active {
+        cursor: grabbing;
+      }
+      /* 录制标识：固定宽度，REC / 暂停切换不顶宽 */
+      .status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        width: 36px;
+        height: 22px;
+        border-radius: 5px;
+        background: var(--rec-soft);
+        color: var(--rec);
+        flex-shrink: 0;
+        box-sizing: border-box;
+      }
+      .status.is-paused {
+        background: var(--pause-soft);
+        color: var(--pause);
+      }
+      .dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 99px;
+        flex-shrink: 0;
+        background: currentColor;
+      }
+      .status:not(.is-paused) .dot {
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+      .status-text {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        line-height: 1;
+      }
+      /* 时间与操作同槽叠放，尺寸不变，仅柔和交叉淡化 */
+      .swap {
+        position: relative;
+        width: var(--slot-w);
+        height: 24px;
+        flex-shrink: 0;
+      }
+      .time,
+      .actions {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          opacity var(--dur) var(--ease),
+          transform var(--dur) var(--ease);
+        will-change: opacity, transform;
+      }
+      .time {
+        opacity: 1;
+        transform: translateY(0);
+        font-size: 11px;
+        font-weight: 650;
+        font-variant-numeric: tabular-nums;
+        color: var(--fg);
+        letter-spacing: 0.01em;
+        pointer-events: none;
+      }
+      .actions {
+        gap: 4px;
+        opacity: 0;
+        transform: translateY(3px);
+        pointer-events: none;
+      }
+      #ball.expanded .time {
+        opacity: 0;
+        transform: translateY(-3px);
+      }
+      #ball.expanded .actions {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+      .ico-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        border-radius: 5px;
+        background: #ffffff;
+        color: #334155;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition:
+          background 180ms ease,
+          color 180ms ease,
+          transform 100ms ease;
+      }
+      .ico-btn:hover,
+      .ico-btn:focus-visible {
+        background: #e2e8f0;
+        color: #0f172a;
+        outline: none;
+      }
+      .ico-btn:active {
+        transform: scale(0.94);
+      }
+      .ico-btn.on {
+        background: var(--on-soft);
+        color: var(--on);
+      }
+      .ico-btn.on:hover,
+      .ico-btn.on:focus-visible {
+        background: #dbeafe;
+        color: #1d4ed8;
+      }
+      .ico-btn.stop {
+        background: #ffffff;
+        color: #dc2626;
+      }
+      .ico-btn.stop:hover,
+      .ico-btn.stop:focus-visible {
+        background: #fecaca;
+        color: #b91c1c;
+      }
+      .ico-btn svg {
+        width: 14px;
+        height: 14px;
+        display: block;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .status:not(.is-paused) .dot {
+          animation: none;
+        }
+        .time,
+        .actions,
+        .ico-btn {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 固定尺寸：默认标识+时间；移入标识+系统声/麦/暂停/停止；交叉淡化，不改变窗宽 -->
+    <div id="ball" title="拖动可移动" role="toolbar" aria-label="录制控制">
+      <span class="status" id="status" aria-live="polite">
+        <span class="dot" id="dot" aria-hidden="true"></span>
+        <span class="status-text" id="statusText">REC</span>
+      </span>
+      <div class="swap">
+        <span class="time" id="time">00:00</span>
+        <div class="actions" id="actions">
+          <button type="button" class="ico-btn on" id="sys" title="系统声音：开" aria-label="关闭系统声音" aria-pressed="true">
+            <svg id="sysOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" />
+              <path d="M16 9a5 5 0 0 1 0 6" />
+              <path d="M19.364 18.364a9 9 0 0 0 0-12.728" />
+            </svg>
+            <svg id="sysOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: none">
+              <path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" />
+              <line x1="22" x2="16" y1="9" y2="15" />
+              <line x1="16" x2="22" y1="9" y2="15" />
+            </svg>
+          </button>
+          <button type="button" class="ico-btn on" id="mic" title="麦克风：开" aria-label="关闭麦克风" aria-pressed="true">
+            <svg id="micOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 19v3" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <rect x="9" y="2" width="6" height="13" rx="3" />
+            </svg>
+            <svg id="micOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: none">
+              <path d="M12 19v3" />
+              <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33" />
+              <path d="M16.95 16.95A7 7 0 0 1 5 12v-2" />
+              <path d="M18.89 13.23A7 7 0 0 0 19 12v-2" />
+              <path d="m2 2 20 20" />
+              <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
+            </svg>
+          </button>
+          <button type="button" class="ico-btn" id="pause" title="暂停" aria-label="暂停">
+            <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="5" width="4" height="14" rx="1" />
+              <rect x="14" y="5" width="4" height="14" rx="1" />
+            </svg>
+            <svg
+              id="playIcon"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+              style="display: none"
+            >
+              <path
+                d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z"
+              />
+            </svg>
+          </button>
+          <button type="button" class="ico-btn stop" id="stop" title="停止" aria-label="停止">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" rx="2" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <script>
+      ;(function () {
+        const api = window.api && window.api.recorder
+        if (!api) return
+
+        const ball = document.getElementById('ball')
+        const actions = document.getElementById('actions')
+        const timeEl = document.getElementById('time')
+        const pauseEl = document.getElementById('pause')
+        const stopEl = document.getElementById('stop')
+        const sysEl = document.getElementById('sys')
+        const micEl = document.getElementById('mic')
+        const sysOn = document.getElementById('sysOn')
+        const sysOff = document.getElementById('sysOff')
+        const micOn = document.getElementById('micOn')
+        const micOff = document.getElementById('micOff')
+        const statusEl = document.getElementById('status')
+        const statusText = document.getElementById('statusText')
+        const pauseIcon = document.getElementById('pauseIcon')
+        const playIcon = document.getElementById('playIcon')
+
+        let paused = false
+        let enableMic = true
+        let enableSystemAudio = true
+        let audioInited = false
+        let expanded = false
+        let dragging = false
+        let dragMoved = false
+        let pointerId = null
+        let startX = 0
+        let startY = 0
+        let originX = 0
+        let originY = 0
+        let leaveTimer = null
+
+        function fmt(ms) {
+          const s = Math.floor(Math.max(0, ms) / 1000)
+          const m = Math.floor(s / 60)
+          const h = Math.floor(m / 60)
+          const ss = String(s % 60).padStart(2, '0')
+          const mm = String(m % 60).padStart(2, '0')
+          return h > 0 ? h + ':' + mm + ':' + ss : mm + ':' + ss
+        }
+
+        function applyPaused(p) {
+          const next = !!p
+          if (paused === next && statusText.textContent === (next ? '暂停' : 'REC')) return
+          paused = next
+          pauseIcon.style.display = paused ? 'none' : 'block'
+          playIcon.style.display = paused ? 'block' : 'none'
+          pauseEl.title = paused ? '继续' : '暂停'
+          pauseEl.setAttribute('aria-label', paused ? '继续' : '暂停')
+          statusEl.classList.toggle('is-paused', paused)
+          statusText.textContent = paused ? '暂停' : 'REC'
+        }
+
+        function applyMic(on) {
+          enableMic = !!on
+          micEl.classList.toggle('on', enableMic)
+          micEl.setAttribute('aria-pressed', enableMic ? 'true' : 'false')
+          micEl.title = enableMic ? '麦克风：开' : '麦克风：关'
+          micEl.setAttribute('aria-label', enableMic ? '关闭麦克风' : '开启麦克风')
+          micOn.style.display = enableMic ? 'block' : 'none'
+          micOff.style.display = enableMic ? 'none' : 'block'
+        }
+
+        function applySys(on) {
+          enableSystemAudio = !!on
+          sysEl.classList.toggle('on', enableSystemAudio)
+          sysEl.setAttribute('aria-pressed', enableSystemAudio ? 'true' : 'false')
+          sysEl.title = enableSystemAudio ? '系统声音：开' : '系统声音：关'
+          sysEl.setAttribute('aria-label', enableSystemAudio ? '关闭系统声音' : '开启系统声音')
+          sysOn.style.display = enableSystemAudio ? 'block' : 'none'
+          sysOff.style.display = enableSystemAudio ? 'none' : 'block'
+        }
+
+        function setExpanded(on) {
+          const next = !!on
+          if (expanded === next) return
+          expanded = next
+          ball.classList.toggle('expanded', expanded)
+        }
+
+        function clearLeaveTimer() {
+          if (leaveTimer) {
+            clearTimeout(leaveTimer)
+            leaveTimer = null
+          }
+        }
+
+        sysEl.onclick = function (e) {
+          e.stopPropagation()
+          const next = !enableSystemAudio
+          applySys(next)
+          if (api.setSystemAudioEnabled) api.setSystemAudioEnabled(next)
+        }
+        micEl.onclick = function (e) {
+          e.stopPropagation()
+          const next = !enableMic
+          applyMic(next)
+          if (api.setMicEnabled) api.setMicEnabled(next)
+        }
+        pauseEl.onclick = function (e) {
+          e.stopPropagation()
+          if (paused) api.borderResume()
+          else api.borderPause()
+        }
+        stopEl.onclick = function (e) {
+          e.stopPropagation()
+          api.borderStop()
+        }
+
+        api.onBorderTick(function (payload) {
+          if (payload && typeof payload.elapsedMs === 'number') {
+            timeEl.textContent = fmt(payload.elapsedMs)
+          }
+          if (payload && typeof payload.paused === 'boolean') applyPaused(payload.paused)
+        })
+        api.onBorderState(function (payload) {
+          if (!payload) return
+          if (typeof payload.paused === 'boolean') applyPaused(payload.paused)
+          // 音源初值只吃一次，之后由条内开关本地维护
+          if (!audioInited) {
+            if (typeof payload.enableMic === 'boolean') applyMic(payload.enableMic)
+            if (typeof payload.enableSystemAudio === 'boolean') applySys(payload.enableSystemAudio)
+            if (
+              typeof payload.enableMic === 'boolean' ||
+              typeof payload.enableSystemAudio === 'boolean'
+            ) {
+              audioInited = true
+            }
+          }
+        })
+
+        function onEnter() {
+          clearLeaveTimer()
+          if (api.setChromeIgnoreMouse) api.setChromeIgnoreMouse(false)
+          if (!dragging) setExpanded(true)
+        }
+
+        function onLeave() {
+          if (dragging) return
+          clearLeaveTimer()
+          leaveTimer = setTimeout(function () {
+            setExpanded(false)
+            if (api.setChromeIgnoreMouse) api.setChromeIgnoreMouse(true)
+          }, 200)
+        }
+
+        ball.addEventListener('mouseenter', onEnter)
+        ball.addEventListener('mouseleave', onLeave)
+
+        ball.addEventListener('pointerdown', function (e) {
+          if (e.button !== 0) return
+          if (e.target.closest && e.target.closest('.ico-btn')) return
+          dragging = true
+          dragMoved = false
+          pointerId = e.pointerId
+          startX = e.screenX
+          startY = e.screenY
+          originX = window.screenX
+          originY = window.screenY
+          try {
+            ball.setPointerCapture(e.pointerId)
+          } catch (_) {}
+          if (api.setChromeIgnoreMouse) api.setChromeIgnoreMouse(false)
+        })
+
+        ball.addEventListener('pointermove', function (e) {
+          if (!dragging || e.pointerId !== pointerId) return
+          const dx = e.screenX - startX
+          const dy = e.screenY - startY
+          if (!dragMoved && Math.hypot(dx, dy) < 4) return
+          dragMoved = true
+          if (api.moveFloat) {
+            api.moveFloat({ x: Math.round(originX + dx), y: Math.round(originY + dy) })
+          }
+        })
+
+        function endDrag(e) {
+          if (!dragging || (e && e.pointerId !== pointerId)) return
+          dragging = false
+          pointerId = null
+          try {
+            if (e) ball.releasePointerCapture(e.pointerId)
+          } catch (_) {}
+          // 松手停在当前位置，不再贴边
+          dragMoved = false
+        }
+
+        ball.addEventListener('pointerup', endDrag)
+        ball.addEventListener('pointercancel', endDrag)
+
+        actions.addEventListener('pointerdown', function (e) {
+          e.stopPropagation()
+        })
+
+        setExpanded(false)
+      })()
+    </script>
+  </body>
+</html>

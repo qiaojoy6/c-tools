@@ -1,2 +1,6 @@
 export { RecorderHost } from './host'
 export { registerRecorderIpc } from './ipc'
+export type { RecorderIpcDeps } from './ipc'
+export { RecorderSelectSession } from './session'
+export type { RecorderSelectSessionDeps } from './session'
+export { RecorderFullscreenHost } from './fullscreenHost'
