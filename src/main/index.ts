@@ -36,6 +36,7 @@ import {
   installScreenshotImageProtocol,
   registerScreenshotIpc
 } from './modules/screenshot'
+import { RecorderHost, registerRecorderIpc } from './modules/recorder'
 import { resolve } from 'path'
 
 // 自定义协议须在 ready 前一次性注册（不可分两次调用）
@@ -52,6 +53,7 @@ let trayManager: TrayManager
 let clipboardWatcher: ClipboardWatcher
 let projectsRuntime: ProjectsRuntime
 let screenshotSession: ScreenshotSession
+let recorderHost: RecorderHost
 
 const gotSingleLock = app.requestSingleInstanceLock()
 
@@ -130,17 +132,51 @@ if (!gotSingleLock) {
       windowManager.showSettings()
     }
 
+    // 录屏宿主尽早创建，托盘菜单可读状态
+    recorderHost = new RecorderHost()
+    recorderHost.load()
+
+    const toggleScreenRecord = async (): Promise<void> => {
+      if (!recorderHost) return
+      try {
+        const st = recorderHost.status()
+        if (!st.available) {
+          console.error('[recorder] unavailable:', st.reason)
+          return
+        }
+        if (st.state === 'recording') {
+          recorderHost.stop()
+        } else if (st.state === 'idle') {
+          const { outputPath } = await recorderHost.start({
+            enableMic: true,
+            enableSystemAudio: true
+          })
+          console.info('[recorder] started:', outputPath)
+        }
+      } catch (err) {
+        console.error('[recorder] toggle failed:', err)
+      } finally {
+        trayManager?.rebuild()
+      }
+    }
+
     windowManager.onSettingsClosed = () => {
       shortcutManager.registerAll(configManager.get().shortcuts)
     }
 
     trayManager = new TrayManager(
-      () => ({ launchAtLogin: configManager.get().general.launchAtLogin }),
+      () => ({
+        launchAtLogin: configManager.get().general.launchAtLogin,
+        recording: recorderHost?.status().state === 'recording'
+      }),
       {
         showPanel: () => windowManager.showPanel(),
         togglePanel: () => windowManager.togglePanel(),
         openSettings,
         startScreenshot,
+        toggleRecord: () => {
+          void toggleScreenRecord()
+        },
         toggleLogin: () => {
           const enabled = !configManager.get().general.launchAtLogin
           configManager.update({ general: { launchAtLogin: enabled } })
@@ -149,6 +185,7 @@ if (!gotSingleLock) {
       }
     )
     trayManager.create()
+    recorderHost.onEvent(() => trayManager?.rebuild())
 
     configManager.onChanged = (next, prev) => {
       if (next.general.launchAtLogin !== prev.general.launchAtLogin) {
@@ -245,6 +282,7 @@ if (!gotSingleLock) {
       windows: windowManager
     })
     registerScreenshotIpc(screenshotSession)
+    registerRecorderIpc(recorderHost)
 
     applyLoginItem(cfg.general.launchAtLogin)
     applyNativeThemeSource(cfg.general.theme)
@@ -286,6 +324,7 @@ function prepareQuit(): void {
   if (quitting) return
   quitting = true
   screenshotSession?.cancel()
+  recorderHost?.dispose()
 
   const cfg = configManager?.get()
   if (cfg?.privacy.clearOnQuit) historyManager?.clear()

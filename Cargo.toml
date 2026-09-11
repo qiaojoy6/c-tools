@@ -1,0 +1,21 @@
+[workspace]
+members = [
+  "native-rs/recorder-core",
+  "native-rs/recorder-napi",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+xcap = "0.9"
+flexaudio = "0.2"
+hound = "3.5"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+napi = { version = "2", default-features = false, features = ["napi8"] }
+napi-derive = "2"

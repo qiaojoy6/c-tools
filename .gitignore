@@ -1,8 +1,12 @@
 node_modules
 dist
 out
+target
 .DS_Store
 .eslintcache
 *.log*
 .electron-data
 .electron-home
+native/*.node
+native-rs/recorder-napi/*.node
+native-rs/recorder-napi/node_modules

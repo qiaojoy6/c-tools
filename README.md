@@ -39,6 +39,15 @@ $ npm run build:mac
 $ npm run build:linux
 ```
 
+### 原生录屏插件（Rust）
+
+```bash
+# 需本机 Rust + ffmpeg；产物写入 native/*.node
+$ npm run build:native
+```
+
+开发前若尚未编译过插件，先执行一次 `npm run build:native`。托盘右键可「开始录屏 / 停止录屏」，文件默认写入应用 `userData/recordings/`。
+
 ### 发版与自动更新
 
 1. 改 `package.json` 的 `version`（如 `1.0.0` → `1.0.1`）

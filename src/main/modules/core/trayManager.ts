@@ -3,6 +3,8 @@ import { join } from 'path'
 
 export interface TrayState {
   launchAtLogin: boolean
+  /** 是否正在录屏 */
+  recording: boolean
 }
 
 export interface TrayActions {
@@ -14,6 +16,8 @@ export interface TrayActions {
   toggleLogin: () => void
   /** 开始截屏 */
   startScreenshot: () => void
+  /** 开始 / 停止录屏 */
+  toggleRecord: () => void
   quit: () => void
 }
 
@@ -71,6 +75,10 @@ export class TrayManager {
       {
         label: '截屏',
         click: () => this.actions.startScreenshot()
+      },
+      {
+        label: state.recording ? '停止录屏' : '开始录屏',
+        click: () => this.actions.toggleRecord()
       },
       { type: 'separator' },
       {
