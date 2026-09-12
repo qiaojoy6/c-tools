@@ -145,3 +145,18 @@ export interface RecorderConfig {
   /** 视频清晰度 */
   quality: RecorderVideoQuality
 }
+
+/** 麦 / 系统声权限快照（选项条与录中开关共用） */
+export type RecorderMediaAccessStatus =
+  | 'not-determined'
+  | 'granted'
+  | 'denied'
+  | 'restricted'
+  | 'unknown'
+
+export interface RecorderAudioPermissions {
+  mic: RecorderMediaAccessStatus
+  micGranted: boolean
+  /** macOS 依赖屏幕录制；Windows 一般为 true */
+  systemAudioGranted: boolean
+}

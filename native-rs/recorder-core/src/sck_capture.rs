@@ -267,9 +267,13 @@ impl SCStreamOutputTrait for OutputHandler {
     ) {
         match of_type {
             SCStreamOutputType::Screen => {
+                // Idle = 画面未变，系统仍可能带缓冲；Blank/Suspended 等无有效像素则跳过。
+                // 丢弃 Idle 会导致静止时段不成帧，成片按 frames/fps 变短、系统声被裁切。
                 if let Ok(info) = SCStreamFrameInfo::from_sample_buffer(&sample_buffer) {
                     match info.status() {
-                        SCFrameStatus::Complete | SCFrameStatus::Started => {}
+                        SCFrameStatus::Complete
+                        | SCFrameStatus::Started
+                        | SCFrameStatus::Idle => {}
                         _ => return,
                     }
                 }

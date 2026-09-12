@@ -1,6 +1,7 @@
 import type { AppConfig } from '@shared/types'
 import { app } from 'electron'
 import { delay } from './loadRoute'
+import { bindDockIconToPanel } from './macDockIcon'
 import { ClipboardWindow } from './clipboardWindow'
 import { PanelWindow, type PanelShowOptions } from './panelWindow'
 import { SettingsWindow } from './settingsWindow'
@@ -79,6 +80,8 @@ export class WindowManager {
   createPanel(): void {
     this.clipboard.create()
     this.panel.create()
+    // macOS：默认不进程序坞；唤起面板后展示；最小化仍保留
+    bindDockIconToPanel(() => this.panel.shouldShowDockIcon())
   }
 
   /**

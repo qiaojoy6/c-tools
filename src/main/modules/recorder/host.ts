@@ -1,4 +1,4 @@
-import { app, systemPreferences } from 'electron'
+import { app } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { arch, platform } from 'process'
@@ -106,10 +106,21 @@ export class RecorderHost {
 
   async start(opts: RecorderStartOptions = {}): Promise<{ outputPath: string }> {
     this.ensureLoaded()
-    const enableMic = opts.enableMic !== false
-    const enableSystemAudio = opts.enableSystemAudio !== false
-    // 两路都会开采集（关则静音），故始终要麦权限以便录中再打开
-    await ensureMicPermission()
+    let enableMic = opts.enableMic !== false
+    let enableSystemAudio = opts.enableSystemAudio !== false
+
+    // 无权限则强制关闭对应音源，不允许「选开」
+    if (enableMic) {
+      const { requestMicPermission, hasMicPermission } = await import('./permission')
+      if (!hasMicPermission()) {
+        const ok = await requestMicPermission()
+        if (!ok) enableMic = false
+      }
+    }
+    if (enableSystemAudio) {
+      const { hasSystemAudioPermission } = await import('./permission')
+      if (!hasSystemAudioPermission()) enableSystemAudio = false
+    }
 
     const outputPath = opts.outputPath?.trim() || this.defaultOutputPath()
     this.elapsedMs = 0
@@ -297,16 +308,4 @@ function normalizeRegion(
 function normalizeQuality(q: RecorderStartOptions['quality']): 'original' | 'ultra' | 'smooth' {
   if (q === 'ultra' || q === 'smooth' || q === 'original') return q
   return 'original'
-}
-
-/** macOS：申请麦克风权限（失败仍可无麦录屏） */
-async function ensureMicPermission(): Promise<void> {
-  if (platform !== 'darwin') return
-  try {
-    const status = systemPreferences.getMediaAccessStatus('microphone')
-    if (status === 'granted') return
-    await systemPreferences.askForMediaAccess('microphone')
-  } catch (err) {
-    console.warn('[recorder] mic permission request failed:', err)
-  }
 }

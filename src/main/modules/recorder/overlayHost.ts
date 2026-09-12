@@ -2,9 +2,10 @@ import { join } from 'path'
 import { BrowserWindow, ipcMain, screen } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { delay, loadRoute } from '../core/windows/loadRoute'
+import { syncMacDockIcon } from '../core/windows/macDockIcon'
 import type { RecorderOverlayInit } from '@shared/modules/recorder'
 import type { ShotWindowInfo } from '@shared/modules/screenshot'
-import { delay, loadRoute } from '../core/windows/loadRoute'
 import { windowsOnDisplay } from '../screenshot/windowHit'
 
 const execFileAsync = promisify(execFile)
@@ -232,6 +233,8 @@ export class RecorderOverlayHost {
     if (process.platform === 'darwin' && this.macChromeHidden) {
       await setMacChromeHidden(false)
       this.macChromeHidden = false
+      // HideDock 恢复后按面板显隐重同步程序坞图标
+      syncMacDockIcon()
       await delay(32)
     }
   }
@@ -250,6 +253,7 @@ export class RecorderOverlayHost {
     if (process.platform === 'darwin' && this.macChromeHidden) {
       await setMacChromeHidden(false)
       this.macChromeHidden = false
+      syncMacDockIcon()
     }
   }
 

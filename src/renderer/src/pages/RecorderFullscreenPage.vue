@@ -18,7 +18,11 @@ const {
   quality,
   micDeviceId,
   mics,
-  load: loadPrefs
+  micGranted,
+  systemAudioGranted,
+  load: loadPrefs,
+  tryEnableMic,
+  tryEnableSystemAudio
 } = useRecorderPrefs()
 const starting = ref(false)
 
@@ -151,8 +155,12 @@ onUnmounted(() => {
       v-model:quality="quality"
       v-model:mic-device-id="micDeviceId"
       :mic-options="micOptions"
+      :mic-granted="micGranted"
+      :system-audio-granted="systemAudioGranted"
       class="fs-opts app-no-drag"
       :disabled="starting"
+      @request-mic="tryEnableMic"
+      @request-system-audio="tryEnableSystemAudio"
     />
 
     <footer class="fs-foot app-no-drag">

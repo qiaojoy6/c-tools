@@ -457,11 +457,54 @@ fn capture_loop_sck(
     let mut was_paused = false;
     let mut frames_written: u64 = 0;
     let mut first_video_at: Option<Instant> = None;
-    // SCK 已按 minimumFrameInterval 限帧；仍做轻度墙钟门控防积压
+    // 最新一帧画面（静止时 SCK 可能长时间无 Complete；按墙钟 CFR 继续写，避免成片短于音频）
+    let mut latest: Option<(u32, u32, Vec<u8>)> = None;
     let frame_interval = Duration::from_secs_f64(1.0 / f64::from(fps.max(1)));
     let mut next_frame_at = Instant::now();
 
     let capture_result = (|| -> Result<(), RecorderError> {
+        // 按墙钟把最新画面写到 next_frame_at，静止时段也推进 CFR / progress
+        let flush_cfr = |encoder: &mut Option<FfmpegEncoder>,
+                         latest: &Option<(u32, u32, Vec<u8>)>,
+                         next_frame_at: &mut Instant,
+                         frames_written: &mut u64,
+                         first_video_at: &mut Option<Instant>|
+         -> Result<(), RecorderError> {
+            let Some((fw, fh, pixels)) = latest.as_ref() else {
+                return Ok(());
+            };
+            let now = Instant::now();
+            // 单次最多补约 1s，避免停录瞬间积压过多
+            let max_catchup = fps.max(1) as u32;
+            let mut n = 0u32;
+            while now >= *next_frame_at && n < max_catchup {
+                if encoder.is_none() {
+                    *encoder = Some(FfmpegEncoder::start(
+                        ffmpeg_bin,
+                        &video_tmp,
+                        *fw,
+                        *fh,
+                        fps,
+                        quality,
+                    )?);
+                }
+                if let Some(enc) = encoder.as_mut() {
+                    enc.write_rgba(*fw, *fh, pixels)?;
+                    if first_video_at.is_none() {
+                        *first_video_at = Some(Instant::now());
+                    }
+                    *frames_written += 1;
+                }
+                *next_frame_at += frame_interval;
+                n += 1;
+            }
+            // 仍严重落后则对齐墙钟，避免死循环；少写的时长由后续正常节奏消化
+            if *next_frame_at + frame_interval < now {
+                *next_frame_at = now;
+            }
+            Ok(())
+        };
+
         while !stop_flag.load(Ordering::SeqCst) {
             let paused = pause_flag.load(Ordering::SeqCst);
             if paused {
@@ -479,62 +522,60 @@ fn capture_loop_sck(
                 was_paused = false;
             }
 
-            match sck.video_rx().recv_timeout(Duration::from_millis(100)) {
+            match sck.video_rx().recv_timeout(Duration::from_millis(50)) {
                 Ok(frame) => {
-                    let now = Instant::now();
-                    if now < next_frame_at {
-                        continue;
-                    }
-                    next_frame_at += frame_interval;
-                    if next_frame_at + frame_interval < now {
-                        next_frame_at = now + frame_interval;
-                    }
-
                     let fw = frame.width & !1;
                     let fh = frame.height & !1;
-                    if fw < 2 || fh < 2 {
-                        continue;
-                    }
-                    // region 已在 SCK sourceRect 裁过；偶发奇数边再裁
-                    let pixels = if fw == frame.width && fh == frame.height {
-                        frame.rgba
-                    } else {
-                        let Some((_, _, buf)) = frame_pixels(
-                            frame.width,
-                            frame.height,
-                            &frame.rgba,
-                            Some(RecordRegion {
-                                x: 0,
-                                y: 0,
-                                width: fw,
-                                height: fh,
-                            }),
-                        ) else {
-                            continue;
+                    if fw >= 2 && fh >= 2 {
+                        // region 已在 SCK sourceRect 裁过；偶发奇数边再裁
+                        let pixels = if fw == frame.width && fh == frame.height {
+                            frame.rgba
+                        } else {
+                            let Some((_, _, buf)) = frame_pixels(
+                                frame.width,
+                                frame.height,
+                                &frame.rgba,
+                                Some(RecordRegion {
+                                    x: 0,
+                                    y: 0,
+                                    width: fw,
+                                    height: fh,
+                                }),
+                            ) else {
+                                flush_cfr(
+                                    &mut encoder,
+                                    &latest,
+                                    &mut next_frame_at,
+                                    &mut frames_written,
+                                    &mut first_video_at,
+                                )?;
+                                maybe_progress(&on_event, &clock, &mut last_progress);
+                                continue;
+                            };
+                            buf.into_owned()
                         };
-                        buf.into_owned()
-                    };
-
-                    if encoder.is_none() {
-                        encoder = Some(FfmpegEncoder::start(
-                            ffmpeg_bin,
-                            &video_tmp,
-                            fw,
-                            fh,
-                            fps,
-                            quality,
-                        )?);
+                        latest = Some((fw, fh, pixels));
                     }
-                    if let Some(enc) = encoder.as_mut() {
-                        enc.write_rgba(fw, fh, &pixels)?;
-                        if first_video_at.is_none() {
-                            first_video_at = Some(Instant::now());
-                        }
-                        frames_written += 1;
-                    }
+                    flush_cfr(
+                        &mut encoder,
+                        &latest,
+                        &mut next_frame_at,
+                        &mut frames_written,
+                        &mut first_video_at,
+                    )?;
                     maybe_progress(&on_event, &clock, &mut last_progress);
                 }
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    // 无新脏帧（含仅有背景音乐的静止画面）：继续按 CFR 写当前画面 + 推 progress
+                    flush_cfr(
+                        &mut encoder,
+                        &latest,
+                        &mut next_frame_at,
+                        &mut frames_written,
+                        &mut first_video_at,
+                    )?;
+                    maybe_progress(&on_event, &clock, &mut last_progress);
+                }
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
             }
         }

@@ -1,5 +1,6 @@
 import { ipcRenderer } from 'electron'
 import type {
+  RecorderAudioPermissions,
   RecorderDeviceInfo,
   RecorderFullscreenConfirm,
   RecorderFullscreenInit,
@@ -20,14 +21,23 @@ export const recorderApi = {
   listMics: (): Promise<RecorderDeviceInfo[]> => ipcRenderer.invoke('recorder:mics'),
   listSystemOutputs: (): Promise<RecorderDeviceInfo[]> =>
     ipcRenderer.invoke('recorder:systemOutputs'),
+  /** 麦 / 系统声权限快照 */
+  getAudioPermissions: (): Promise<RecorderAudioPermissions> =>
+    ipcRenderer.invoke('recorder:audio-permissions'),
+  /** 申请麦克风；已拒绝则不会弹窗 */
+  requestMicPermission: (): Promise<RecorderAudioPermissions & { granted: boolean }> =>
+    ipcRenderer.invoke('recorder:request-mic-permission'),
+  openMicSettings: (): Promise<boolean> => ipcRenderer.invoke('recorder:open-mic-settings'),
+  openSystemAudioSettings: (): Promise<boolean> =>
+    ipcRenderer.invoke('recorder:open-system-audio-settings'),
   start: (opts?: RecorderStartOptions): Promise<{ outputPath: string }> =>
     ipcRenderer.invoke('recorder:start', opts),
   pause: (): Promise<boolean> => ipcRenderer.invoke('recorder:pause'),
   resume: (): Promise<boolean> => ipcRenderer.invoke('recorder:resume'),
-  /** 录制中实时开关麦克风 */
+  /** 录制中实时开关麦克风（开时校验权限，失败返回 false） */
   setMicEnabled: (enabled: boolean): Promise<boolean> =>
     ipcRenderer.invoke('recorder:set-mic-enabled', enabled),
-  /** 录制中实时开关系统声 */
+  /** 录制中实时开关系统声（开时校验权限，失败返回 false） */
   setSystemAudioEnabled: (enabled: boolean): Promise<boolean> =>
     ipcRenderer.invoke('recorder:set-system-audio-enabled', enabled),
   stop: (): Promise<boolean> => ipcRenderer.invoke('recorder:stop'),

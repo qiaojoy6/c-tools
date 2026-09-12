@@ -23,12 +23,61 @@ const props = defineProps<{
   disabled?: boolean
   /** Rust listMics 结果，供设备下拉 */
   micOptions?: SelectOption[]
+  /** 麦克风系统权限已授予 */
+  micGranted?: boolean
+  /** 系统声权限已授予（macOS 依赖屏幕录制） */
+  systemAudioGranted?: boolean
+}>()
+
+const emit = defineEmits<{
+  /** 用户尝试打开麦克风（无权限时由父级申请/跳设置） */
+  requestMic: []
+  /** 用户尝试打开系统声（无权限时由父级跳设置） */
+  requestSystemAudio: []
 }>()
 
 const slots = useSlots()
 
 const micSelectOptions = computed(() => props.micOptions ?? [])
 const showMicSelect = computed(() => micSelectOptions.value.length > 0)
+const micOk = computed(() => props.micGranted !== false)
+const sysOk = computed(() => props.systemAudioGranted !== false)
+
+function onToggleSys(): void {
+  if (props.disabled) return
+  if (enableSystemAudio.value) {
+    enableSystemAudio.value = false
+    return
+  }
+  if (!sysOk.value) {
+    emit('requestSystemAudio')
+    return
+  }
+  enableSystemAudio.value = true
+}
+
+function onToggleMic(): void {
+  if (props.disabled) return
+  if (enableMic.value) {
+    enableMic.value = false
+    return
+  }
+  if (!micOk.value) {
+    emit('requestMic')
+    return
+  }
+  enableMic.value = true
+}
+
+  const sysTitle = computed(() => {
+  if (!sysOk.value) return '系统声音：需要屏幕录制权限（点击打开设置）'
+  return enableSystemAudio.value ? '系统声音：开' : '系统声音：关'
+})
+
+const micTitle = computed(() => {
+  if (!micOk.value) return '麦克风：需要麦克风权限（点击申请或打开设置）'
+  return enableMic.value ? '麦克风：开' : '麦克风：关'
+})
 </script>
 
 <template>
@@ -38,17 +87,17 @@ const showMicSelect = computed(() => micSelectOptions.value.length > 0)
       size="icon-sm"
       variant="ghost"
       :class="
-        enableSystemAudio
+        enableSystemAudio && sysOk
           ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700'
           : 'bg-muted text-muted-foreground hover:bg-muted/80'
       "
-      :aria-pressed="enableSystemAudio"
-      :title="enableSystemAudio ? '系统声音：开' : '系统声音：关'"
-      :aria-label="enableSystemAudio ? '关闭系统声音' : '开启系统声音'"
+      :aria-pressed="enableSystemAudio && sysOk"
+      :title="sysTitle"
+      :aria-label="sysTitle"
       :disabled="disabled"
-      @click="enableSystemAudio = !enableSystemAudio"
+      @click="onToggleSys"
     >
-      <Volume2 v-if="enableSystemAudio" class="size-4" />
+      <Volume2 v-if="enableSystemAudio && sysOk" class="size-4" />
       <VolumeX v-else class="size-4" />
     </Button>
     <Button
@@ -56,24 +105,24 @@ const showMicSelect = computed(() => micSelectOptions.value.length > 0)
       size="icon-sm"
       variant="ghost"
       :class="
-        enableMic
+        enableMic && micOk
           ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700'
           : 'bg-muted text-muted-foreground hover:bg-muted/80'
       "
-      :aria-pressed="enableMic"
-      :title="enableMic ? '麦克风：开' : '麦克风：关'"
-      :aria-label="enableMic ? '关闭麦克风' : '开启麦克风'"
+      :aria-pressed="enableMic && micOk"
+      :title="micTitle"
+      :aria-label="micTitle"
       :disabled="disabled"
-      @click="enableMic = !enableMic"
+      @click="onToggleMic"
     >
-      <Mic v-if="enableMic" class="size-4" />
+      <Mic v-if="enableMic && micOk" class="size-4" />
       <MicOff v-else class="size-4" />
     </Button>
 
     <div
       v-if="showMicSelect"
       class="rob-mic"
-      :class="{ 'is-off': !enableMic }"
+      :class="{ 'is-off': !enableMic || !micOk }"
       title="麦克风设备"
     >
       <Select
@@ -130,6 +179,7 @@ const showMicSelect = computed(() => micSelectOptions.value.length > 0)
 }
 .rob-mic.is-off {
   opacity: 0.55;
+  pointer-events: none;
 }
 .rob-mic :deep(.rob-mic-trigger) {
   color: var(--foreground);

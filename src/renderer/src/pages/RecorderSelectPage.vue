@@ -41,7 +41,11 @@ const {
   quality,
   micDeviceId,
   mics,
-  load: loadPrefs
+  micGranted,
+  systemAudioGranted,
+  load: loadPrefs,
+  tryEnableMic,
+  tryEnableSystemAudio
 } = useRecorderPrefs()
 const starting = ref(false)
 
@@ -423,7 +427,6 @@ onUnmounted(() => {
       ref="dockRef"
       class="rec-dock"
       :style="toolbarStyle"
-      @pointerdown.stop
     >
       <RecorderOptionsBar
         v-model:enable-mic="enableMic"
@@ -431,7 +434,11 @@ onUnmounted(() => {
         v-model:quality="quality"
         v-model:mic-device-id="micDeviceId"
         :mic-options="micOptions"
+        :mic-granted="micGranted"
+        :system-audio-granted="systemAudioGranted"
         :disabled="starting"
+        @request-mic="tryEnableMic"
+        @request-system-audio="tryEnableSystemAudio"
       >
         <template #actions>
           <Button type="button" variant="outline" size="sm" :disabled="starting" @click="onCancel">

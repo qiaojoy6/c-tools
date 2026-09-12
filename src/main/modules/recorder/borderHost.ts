@@ -1,13 +1,25 @@
 import { join } from 'path'
 import { pathToFileURL } from 'url'
-import { app, BrowserWindow, ipcMain, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, session } from 'electron'
 
 const BORDER_PX = 3
 
-/** 悬浮条固定尺寸（展开含系统声/麦/暂停/停止四键，窗体不随展开伸缩） */
+/** 悬浮条固定尺寸（展开含系统声/麦/暂停/停止四键） */
 const FLOAT_SIZE = { w: 168, h: 34 }
 const FLOAT_MARGIN = 10
 
+let mediaPermissionHooked = false
+
+/** 允许悬浮条 getUserMedia 做麦音量表（系统 TCC 仍由 askForMediaAccess 管） */
+function ensureMediaPermissionForMeter(): void {
+  if (mediaPermissionHooked) return
+  mediaPermissionHooked = true
+  const ses = session.defaultSession
+  ses.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'media')
+  })
+  ses.setPermissionCheckHandler((_wc, permission) => permission === 'media')
+}
 export interface RecorderBorderRect {
   /** 屏幕坐标 DIP：选区左上角 */
   x: number
@@ -319,6 +331,7 @@ export class RecorderBorderHost {
     htmlPath: string,
     query: string
   ): BrowserWindow {
+    if (query.includes('mode=float')) ensureMediaPermissionForMeter()
     const win = new BrowserWindow({
       ...place,
       frame: false,

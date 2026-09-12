@@ -176,14 +176,50 @@
       .ico-btn:active {
         transform: scale(0.94);
       }
+      .ico-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .ico-btn:disabled:hover,
+      .ico-btn:disabled:focus-visible {
+        background: #ffffff;
+        color: #334155;
+      }
+      .ico-btn.on:disabled,
+      .ico-btn.on:disabled:hover,
+      .ico-btn.on:disabled:focus-visible {
+        background: var(--on-soft);
+        color: var(--on);
+      }
       .ico-btn.on {
         background: var(--on-soft);
         color: var(--on);
+      }
+      /* 开麦时：底部填充高度随音量起伏（--mic-level 0~100%） */
+      .ico-btn.mic-btn.on {
+        --mic-level: 0%;
+        background: linear-gradient(
+          to top,
+          #93c5fd var(--mic-level),
+          var(--on-soft) var(--mic-level)
+        );
+        transition:
+          color 180ms ease,
+          transform 100ms ease;
       }
       .ico-btn.on:hover,
       .ico-btn.on:focus-visible {
         background: #dbeafe;
         color: #1d4ed8;
+      }
+      .ico-btn.mic-btn.on:hover,
+      .ico-btn.mic-btn.on:focus-visible {
+        background: linear-gradient(
+          to top,
+          #60a5fa var(--mic-level),
+          #dbeafe var(--mic-level)
+        );
       }
       .ico-btn.stop {
         background: #ffffff;
@@ -198,6 +234,8 @@
         width: 14px;
         height: 14px;
         display: block;
+        position: relative;
+        z-index: 1;
       }
       @media (prefers-reduced-motion: reduce) {
         .status:not(.is-paused) .dot {
@@ -233,7 +271,7 @@
               <line x1="16" x2="22" y1="9" y2="15" />
             </svg>
           </button>
-          <button type="button" class="ico-btn on" id="mic" title="麦克风：开" aria-label="关闭麦克风" aria-pressed="true">
+          <button type="button" class="ico-btn mic-btn on" id="mic" title="麦克风：开" aria-label="关闭麦克风" aria-pressed="true">
             <svg id="micOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 19v3" />
               <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
@@ -308,6 +346,15 @@
         let originY = 0
         let leaveTimer = null
 
+        // 麦音量表：独立 getUserMedia，驱动按钮底部填充高度
+        let meterCtx = null
+        let meterAnalyser = null
+        let meterStream = null
+        let meterRaf = 0
+        let meterData = null
+        let meterSmooth = 0
+        let meterStarting = false
+
         function fmt(ms) {
           const s = Math.floor(Math.max(0, ms) / 1000)
           const m = Math.floor(s / 60)
@@ -315,6 +362,98 @@
           const ss = String(s % 60).padStart(2, '0')
           const mm = String(m % 60).padStart(2, '0')
           return h > 0 ? h + ':' + mm + ':' + ss : mm + ':' + ss
+        }
+
+        function setMicLevel(level) {
+          const t = Math.max(0, Math.min(1, level))
+          micEl.style.setProperty('--mic-level', Math.round(t * 100) + '%')
+        }
+
+        function stopMicMeter() {
+          if (meterRaf) {
+            cancelAnimationFrame(meterRaf)
+            meterRaf = 0
+          }
+          if (meterStream) {
+            meterStream.getTracks().forEach(function (tr) {
+              tr.stop()
+            })
+            meterStream = null
+          }
+          if (meterCtx) {
+            try {
+              meterCtx.close()
+            } catch (_) {}
+            meterCtx = null
+          }
+          meterAnalyser = null
+          meterData = null
+          meterSmooth = 0
+          meterStarting = false
+          setMicLevel(0)
+        }
+
+        function tickMicMeter() {
+          meterRaf = requestAnimationFrame(tickMicMeter)
+          if (!meterAnalyser || !meterData || !enableMic || paused) {
+            meterSmooth *= 0.85
+            setMicLevel(meterSmooth)
+            return
+          }
+          meterAnalyser.getByteTimeDomainData(meterData)
+          let sum = 0
+          for (let i = 0; i < meterData.length; i++) {
+            const v = (meterData[i] - 128) / 128
+            sum += v * v
+          }
+          const rms = Math.sqrt(sum / meterData.length)
+          const level = Math.min(1, rms * 5.5)
+          meterSmooth = meterSmooth * 0.55 + level * 0.45
+          setMicLevel(meterSmooth)
+        }
+
+        function startMicMeter() {
+          if (!enableMic || paused || meterStream || meterStarting) return
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return
+          meterStarting = true
+          navigator.mediaDevices
+            .getUserMedia({
+              audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false
+              },
+              video: false
+            })
+            .then(function (stream) {
+              meterStarting = false
+              if (!enableMic || paused) {
+                stream.getTracks().forEach(function (tr) {
+                  tr.stop()
+                })
+                return
+              }
+              meterStream = stream
+              const AC = window.AudioContext || window.webkitAudioContext
+              meterCtx = new AC()
+              const src = meterCtx.createMediaStreamSource(stream)
+              meterAnalyser = meterCtx.createAnalyser()
+              meterAnalyser.fftSize = 256
+              meterAnalyser.smoothingTimeConstant = 0.7
+              src.connect(meterAnalyser)
+              meterData = new Uint8Array(meterAnalyser.fftSize)
+              tickMicMeter()
+            })
+            .catch(function (err) {
+              meterStarting = false
+              console.warn('[recorder-float] mic meter unavailable:', err)
+              setMicLevel(0)
+            })
+        }
+
+        function syncMicMeter() {
+          if (enableMic && !paused) startMicMeter()
+          else stopMicMeter()
         }
 
         function applyPaused(p) {
@@ -327,26 +466,69 @@
           pauseEl.setAttribute('aria-label', paused ? '继续' : '暂停')
           statusEl.classList.toggle('is-paused', paused)
           statusText.textContent = paused ? '暂停' : 'REC'
+          syncMicMeter()
+        }
+
+        let micGranted = true
+        let systemAudioGranted = true
+
+        function syncAudioDisabled() {
+          micEl.disabled = !micGranted
+          sysEl.disabled = !systemAudioGranted
         }
 
         function applyMic(on) {
-          enableMic = !!on
+          enableMic = !!on && micGranted
           micEl.classList.toggle('on', enableMic)
           micEl.setAttribute('aria-pressed', enableMic ? 'true' : 'false')
-          micEl.title = enableMic ? '麦克风：开' : '麦克风：关'
-          micEl.setAttribute('aria-label', enableMic ? '关闭麦克风' : '开启麦克风')
+          if (!micGranted) {
+            micEl.title = '麦克风：无权限'
+            micEl.setAttribute('aria-label', '麦克风：无权限')
+          } else {
+            micEl.title = enableMic ? '麦克风：开' : '麦克风：关'
+            micEl.setAttribute('aria-label', enableMic ? '关闭麦克风' : '开启麦克风')
+          }
           micOn.style.display = enableMic ? 'block' : 'none'
           micOff.style.display = enableMic ? 'none' : 'block'
+          syncAudioDisabled()
+          syncMicMeter()
         }
 
         function applySys(on) {
-          enableSystemAudio = !!on
+          enableSystemAudio = !!on && systemAudioGranted
           sysEl.classList.toggle('on', enableSystemAudio)
           sysEl.setAttribute('aria-pressed', enableSystemAudio ? 'true' : 'false')
-          sysEl.title = enableSystemAudio ? '系统声音：开' : '系统声音：关'
-          sysEl.setAttribute('aria-label', enableSystemAudio ? '关闭系统声音' : '开启系统声音')
+          if (!systemAudioGranted) {
+            sysEl.title = '系统声音：无权限'
+            sysEl.setAttribute('aria-label', '系统声音：无权限')
+          } else {
+            sysEl.title = enableSystemAudio ? '系统声音：开' : '系统声音：关'
+            sysEl.setAttribute(
+              'aria-label',
+              enableSystemAudio ? '关闭系统声音' : '开启系统声音'
+            )
+          }
           sysOn.style.display = enableSystemAudio ? 'block' : 'none'
           sysOff.style.display = enableSystemAudio ? 'none' : 'block'
+          syncAudioDisabled()
+        }
+
+        function loadAudioPermissions() {
+          if (!api.getAudioPermissions) return Promise.resolve()
+          return api
+            .getAudioPermissions()
+            .then(function (p) {
+              if (!p) return
+              micGranted = !!p.micGranted
+              systemAudioGranted = !!p.systemAudioGranted
+              if (!micGranted) applyMic(false)
+              else applyMic(enableMic)
+              if (!systemAudioGranted) applySys(false)
+              else applySys(enableSystemAudio)
+            })
+            .catch(function (err) {
+              console.warn('[recorder-float] audio permissions failed:', err)
+            })
         }
 
         function setExpanded(on) {
@@ -365,15 +547,31 @@
 
         sysEl.onclick = function (e) {
           e.stopPropagation()
+          if (!systemAudioGranted || sysEl.disabled) return
           const next = !enableSystemAudio
           applySys(next)
-          if (api.setSystemAudioEnabled) api.setSystemAudioEnabled(next)
+          if (api.setSystemAudioEnabled) {
+            Promise.resolve(api.setSystemAudioEnabled(next)).then(function (ok) {
+              if (next && ok === false) {
+                applySys(false)
+                loadAudioPermissions()
+              }
+            })
+          }
         }
         micEl.onclick = function (e) {
           e.stopPropagation()
+          if (!micGranted || micEl.disabled) return
           const next = !enableMic
           applyMic(next)
-          if (api.setMicEnabled) api.setMicEnabled(next)
+          if (api.setMicEnabled) {
+            Promise.resolve(api.setMicEnabled(next)).then(function (ok) {
+              if (next && ok === false) {
+                applyMic(false)
+                loadAudioPermissions()
+              }
+            })
+          }
         }
         pauseEl.onclick = function (e) {
           e.stopPropagation()
@@ -382,6 +580,7 @@
         }
         stopEl.onclick = function (e) {
           e.stopPropagation()
+          stopMicMeter()
           api.borderStop()
         }
 
@@ -404,6 +603,8 @@
             ) {
               audioInited = true
             }
+          } else if (typeof payload.paused === 'boolean') {
+            syncMicMeter()
           }
         })
 
@@ -470,7 +671,13 @@
           e.stopPropagation()
         })
 
+        window.addEventListener('pagehide', stopMicMeter)
         setExpanded(false)
+        loadAudioPermissions().then(function () {
+          setTimeout(function () {
+            if (enableMic && !paused) startMicMeter()
+          }, 400)
+        })
       })()
     </script>
   </body>

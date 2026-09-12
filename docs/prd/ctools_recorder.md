@@ -134,7 +134,7 @@ Electron UI / 悬浮条 / 框选遮罩
 | 分辨率 | 缓冲用 `CGDisplayModeGetPixelWidth/Height`（物理像素）；**不用** `CGDisplayPixelsWide`（Retina 下可能仍是逻辑点 → 画面挤角+黑边） |
 | 区域 | 上层 `region` = 物理像素；`sourceRect` = 逻辑点；`scales_to_fit(false)` |
 | 色彩 | 强制 sRGB 色彩空间，再进 bt709 / yuv420p 编码 |
-| 限帧 | `minimumFrameInterval` + 轻度墙钟门控防积压 |
+| 限帧 | `minimumFrameInterval` + 墙钟 CFR：无脏帧/Idle 时仍按 fps 写入当前画面，进度按墙钟推进（避免静止时段成片短于系统声/麦） |
 | 麦克风 | 仍走 **flexaudio** Mic（与 SCK 系统声分轨） |
 | 失败 | 回退 **xcap + flexaudio Process Tap / 虚拟声卡** |
 

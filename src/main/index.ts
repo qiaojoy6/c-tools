@@ -68,10 +68,8 @@ if (!gotSingleLock) {
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.ctools.app')
 
-    // macOS：托盘 + 程序坞并存（activate / Cmd+Tab 依赖 Dock 图标）
-    if (process.platform === 'darwin') {
-      app.dock?.show()
-    }
+    // macOS：托盘常驻；程序坞图标随功能面板显隐（见 bindDockIconToPanel）
+    // 勿在此无条件 dock.show()，否则录制中仅 skipTaskbar 窗时行为与面板脱节
 
     // 开发环境加载远程URL，生产环境加载本地HTML文件
     if (is.dev) {

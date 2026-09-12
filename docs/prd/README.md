@@ -10,6 +10,7 @@
 
 - 独立剪贴板窗口（`/clipboard`）：无边框置顶浮层、在鼠标所在屏顶部居中、ESC 关闭；仅快捷键呼出；失焦隐藏由 `window.hideOnBlur` 控制（View 菜单可开关）；macOS 为 `type: 'panel'`（show/focus 不激活整个应用，不抬起功能面板）
 - 功能面板窗口（`/panel`）：`titleBarStyle: hidden` + 原生窗控（macOS 交通灯 / Win·Linux `titleBarOverlay`），通栏自定义表头；托盘左键始终显示/置顶、右键可切换显隐；程序坞 / Cmd+Tab 切回置顶（不关闭）；ESC / 失焦不关闭
+- macOS 程序坞图标：默认不展示；唤起功能面板后展示；最小化仍留在程序坞；面板 hide/关窗后隐藏（托盘仍可唤起）
 - 面板左侧图标轨道切换模块（可扩展；当前：剪贴板、项目）；底部打开设置
 - 独立设置窗口
 - 应用菜单保留 Edit（系统复制/粘贴依赖）与 View；无 File / Window；View 可开关「点击空白区域隐藏窗口」（作用于独立剪贴板浮层）；刷新 / DevTools 仅开发环境（未打包）提供
@@ -29,7 +30,7 @@
 
 ### 相关文件
 
-- `src/main/modules/core/windows/` — ClipboardWindow / PanelWindow / SettingsWindow / WindowManager / focusHandoff（粘贴与截屏共用还焦）
+- `src/main/modules/core/windows/` — ClipboardWindow / PanelWindow / SettingsWindow / WindowManager / focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）
 - `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac` osascript；`win` koffi+user32）
 - `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu / logIpc / crashGuard / appUpdater / updaterIpc
 - `src/main/config/` — 默认配置与读写
@@ -159,15 +160,15 @@
 
 ### 功能
 
-- Rust 录屏内核（`native-rs/recorder-core`）：macOS 优先 **ScreenCaptureKit** 同源采集画面+系统声（`sck_capture.rs`，MIT `screencapturekit`）；失败回退 xcap + flexaudio Process Tap；Windows 为 xcap + WASAPI（事件驱动）+ `CaptureClock` 首帧锚定音画；flexaudio 采集麦克风；录制中可实时开关麦/系统声；写入侧补静音 + 停录片头裁切/CFR 时长对齐；ffmpeg sidecar 编码/混流 MP4；视频清晰度三档（流畅 / 超清 / 原画）
+- Rust 录屏内核（`native-rs/recorder-core`）：macOS 优先 **ScreenCaptureKit** 同源采集画面+系统声（`sck_capture.rs`，MIT `screencapturekit`）；画面静止（无脏帧/Idle）时仍按目标 fps 推进视频时间轴与 UI 计时，避免成片短于系统声/麦；失败回退 xcap + flexaudio Process Tap；Windows 为 xcap + WASAPI（事件驱动）+ `CaptureClock` 首帧锚定音画；flexaudio 采集麦克风；录制中可实时开关麦/系统声；写入侧补静音 + 停录片头裁切/CFR 时长对齐；ffmpeg sidecar 编码/混流 MP4；视频清晰度三档（流畅 / 超清 / 原画）
 - napi-rs 插件（`native-rs/recorder-napi`）：编译为平台 `.node`，由 Electron 主进程同进程加载（复用 macOS TCC）
 - 主进程封装：枚举显示器/麦克风/系统输出、开始/暂停/继续/停止录制、录制中 `setMicEnabled` / `setSystemAudioEnabled`、状态与事件推送；`start` 可传 `region`（相对显示器物理像素）与 `quality`；默认先写到 `userData/recordings/`，停止后弹系统「另存为」可自定义路径（取消则删除成片不保存）
-- 框选遮罩：托盘或全局快捷键「区域录屏」进入多屏透明框选；悬停高亮应用窗、单击锁定窗尺寸（与截屏同源窗口枚举），或拖拽框选；工具条可切换系统声/麦克风、选择麦克风设备（列表来自 Rust `listMics`）与清晰度（流畅 / 超清 / 原画，固定 MP4，写入 `settings.json` 持久化）；确认后关遮罩开录；Esc / 右键 /「退出录制」/ 再按区域快捷键取消
-- 全屏录屏：托盘或全局快捷键「全屏录屏」弹出选屏 Dialog（屏幕列表由 Rust 内核 `listScreens` 提供）；可切换系统声/麦克风、选择麦克风设备与清晰度（与区域共用持久化配置）；确认后整屏开录（不传 `region`）
+- 框选遮罩：托盘或全局快捷键「区域录屏」进入多屏透明框选；悬停高亮应用窗、单击锁定窗尺寸（与截屏同源窗口枚举），或拖拽框选；工具条可切换系统声/麦克风、选择麦克风设备（列表来自 Rust `listMics`）与清晰度（流畅 / 超清 / 原画，固定 MP4，写入 `settings.json` 持久化）；无麦克风/系统声权限时不可选开（点击后关框选并直接跳转系统设置）；确认后关遮罩开录；Esc / 右键 /「退出录制」/ 再按区域快捷键取消
+- 全屏录屏：托盘或全局快捷键「全屏录屏」弹出选屏 Dialog（屏幕列表由 Rust 内核 `listScreens` 提供）；可切换系统声/麦克风、选择麦克风设备与清晰度（与区域共用持久化配置）；无对应权限时不可选开；确认后整屏开录（不传 `region`）
 - 快捷键：设置中可配置区域 / 全屏录屏全局快捷键（可恢复默认、清空关闭）；录制中或截屏进行中忽略启动；托盘入口仍可用
-- 全屏录制中：悬浮条（默认 REC/暂停标识 + 计时；移入后同尺寸交叉淡化为标识 + 系统声/麦克风/暂停/停止；可自由拖放，位置写入 `settings.json` 下次全屏录制复用）；托盘「停止」同样弹保存路径；托盘菜单仍可暂停·继续 / 停止
+- 全屏录制中：悬浮条（默认 REC/暂停标识 + 计时；移入后同尺寸交叉淡化为标识 + 系统声/麦克风（按钮底色随说话音量起伏）/暂停/停止；可自由拖放，位置写入 `settings.json` 下次全屏录制复用）；托盘「停止」同样弹保存路径；托盘菜单仍可暂停·继续 / 停止
 - 区域录制中：选区外侧显示点击穿透的蓝色范围框；录制控制统一用悬浮条（与全屏相同 UI；落点优先选区下/上，不够则左/右，再不行用全屏记住的位置；可拖放；悬停可开关系统声/麦克风、暂停·停止；尽量 `setContentProtection`）；停止后弹自定义保存路径；结束后自动收起
-- 渲染进程通过 `window.api.recorder` 控制（含 `setMicEnabled` / `setSystemAudioEnabled`）；录制悬浮条已接通实时音源开关；托盘右键可「区域录屏 / 全屏录屏 / 暂停·继续 / 停止录屏」
+- 渲染进程通过 `window.api.recorder` 控制（含 `setMicEnabled` / `setSystemAudioEnabled`）；录制悬浮条已接通实时音源开关与麦克风音量底色；托盘右键可「区域录屏 / 全屏录屏 / 暂停·继续 / 停止录屏」
 - 系统声：macOS 14.4+ CoreAudio Process Tap（需「系统设置 → 隐私与安全性」中允许音频/系统音频录制）；失败时自动回退到本机虚拟声卡输入（BlackHole / OrayVirtual 等）；麦克风与系统声分轨采集后混音；Windows 为 WASAPI loopback
 - 麦+系统声同时开：停录混音前对麦轨做简易 AEC（以系统声为参考消外放漏音；耳机等无明显漏音时自动跳过）；麦克风列表排除虚拟环回设备
 - 打包内置 ffmpeg sidecar（`ffmpeg-static` → `Resources/bin`）；开发态优先用同包二进制，否则回退 PATH；终端用户无需本机安装 ffmpeg
@@ -179,7 +180,7 @@
 - `native/` — 编译产物 `.node`（开发与打包资源）
 - `electron-builder.yml` — `extraResources` 拷贝 `native/*.node` 与 `ffmpeg-static` 可执行文件到 `bin/`
 - `scripts/build-native.sh` — `npm run build:native`
-- `src/main/modules/recorder/` — 主进程加载插件、框选遮罩会话、全屏选屏弹窗、区域外框与全屏悬浮条 IPC、停录另存为
+- `src/main/modules/recorder/` — 主进程加载插件、框选遮罩会话、全屏选屏弹窗、区域外框与全屏悬浮条 IPC、停录另存为、麦/系统声权限（`permission.ts`）
 - `src/main/modules/recorder/saveRecording.ts` — 停录后系统保存对话框与挪文件
 - `src/main/modules/core/trayManager.ts` — 托盘；录制中暂停/停止入口
 - `src/main/modules/core/shortcutManager.ts` — 全局快捷键（含区域/全屏录屏）
@@ -189,7 +190,7 @@
 - `src/renderer/src/modules/recorder/components/RecorderOptionsBar.vue` — 录制选项条（系统声/麦克风开关与设备选择/清晰度；区域与全屏共用）
 - `src/renderer/src/modules/settings/components/RecorderSettings.vue` — 录屏快捷键设置
 - `src/renderer/recorder-border.html` — 区域录制选区外框（仅描边）
-- `src/renderer/recorder-float.html` — 录制悬浮条（区域/全屏共用；固定尺寸；标识常驻；计时与系统声/麦克风/暂停/停止交叉淡化；自由拖放）
+- `src/renderer/recorder-float.html` — 录制悬浮条（区域/全屏共用；固定尺寸；标识常驻；计时与系统声/麦克风音量底色/暂停/停止交叉淡化；自由拖放）
 - `src/preload/modules/recorder.ts`
 - `src/shared/modules/recorder.ts` — 录屏类型
 - `src/shared/shortcuts.ts` — 区域/全屏默认快捷键

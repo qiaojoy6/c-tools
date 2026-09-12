@@ -14,6 +14,7 @@ import {
 } from '../screenshot/permission'
 import { listAppWindows } from '../screenshot/windowHit'
 import type { RecorderHost } from './host'
+import { hasMicPermission, hasSystemAudioPermission } from './permission'
 import { RecorderOverlayHost } from './overlayHost'
 import { RecorderBorderHost } from './borderHost'
 import { RecorderFullscreenHost } from './fullscreenHost'
@@ -261,8 +262,9 @@ export class RecorderSelectSession {
       return
     }
 
-    const enableMic = confirmed.enableMic !== false
-    const enableSystemAudio = confirmed.enableSystemAudio !== false
+    const enableMic = confirmed.enableMic !== false && hasMicPermission()
+    const enableSystemAudio =
+      confirmed.enableSystemAudio !== false && hasSystemAudioPermission()
     const fps = clampFps(confirmed.fps)
     const quality = clampQuality(confirmed.quality)
     const micDeviceId = confirmed.micDeviceId?.trim() || undefined
@@ -355,8 +357,9 @@ export class RecorderSelectSession {
     }
 
     const screenId = payload.screenId?.trim() || undefined
-    const enableMic = payload.enableMic !== false
-    const enableSystemAudio = payload.enableSystemAudio !== false
+    const enableMic = payload.enableMic !== false && hasMicPermission()
+    const enableSystemAudio =
+      payload.enableSystemAudio !== false && hasSystemAudioPermission()
     const fps = clampFps(payload.fps)
     const quality = clampQuality(payload.quality)
     const micDeviceId = payload.micDeviceId?.trim() || undefined
