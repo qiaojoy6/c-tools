@@ -68,10 +68,11 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-# 更新源：该 URL 下需能直接访问 latest.yml / latest-mac.yml 及安装包
-# 推荐在 Gitee 建长期 Release（tag=updater），每次发版覆盖上传产物
+# 更新源：GitHub Releases（electron-updater 走 GitHub API 取最新版）
+# 仓库建议公开；私有仓客户端无法匿名检查更新
 publish:
-  provider: generic
-  url: https://gitee.com/qiaoyue66/c-tools/releases/download/updater
+  provider: github
+  owner: qiaojoy6
+  repo: c-tools
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

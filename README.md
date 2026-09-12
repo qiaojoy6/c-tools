@@ -114,16 +114,42 @@ npm run build:unpack
 
 跨平台发版时：在对应系统（或 CI）分别执行 `build:native` + 对应 `build:*`，汇总各平台安装包。
 
-### 6. 发版与自动更新（可选）
+### 5.1 GitHub Actions 打包 + 自动更新
 
-1. 改 `package.json` 的 `version`（如 `1.0.0` → `1.0.1`）
-2. 打包：`npm run build:mac` / `build:win`（产物在 `dist/`，含 `latest-mac.yml` / `latest.yml`）
-3. 在 Gitee 建长期 Release，**tag 固定为 `updater`**，把下列文件上传到该 Release（覆盖旧文件）：
-   - mac：`latest-mac.yml` + `*.zip`（自动更新用）+ 可选 `.dmg`（给人装）
-   - win：`latest.yml` + `*-setup.exe`
-4. 用户端：打包版启动约 5 秒后自动检查；设置 → 通用 →「检查更新」；下载完可「重启安装」
+更新源已改为 **GitHub Releases**（`electron-builder.yml` → `provider: github`，仓库 `qiaojoy6/c-tools`）。客户端用 `electron-updater` 查最新 Release。
 
-更新源地址见 `electron-builder.yml` 的 `publish.url`（须能直接 HTTP 下载到上述 yml/安装包）。
+**前置条件**
+
+- 代码在 GitHub：`origin2` → `qiaojoy6/c-tools`
+- 仓库建议 **Public**（私有仓客户端无法匿名拉更新，除非另做 token 方案）
+- CI 默认不签名：win 更新一般可用；mac 自动更新仍需代码签名 / 公证
+
+**日常试打包（不发版）**
+
+1. 推代码到 GitHub
+2. Actions → **Build** → **Run workflow** → 选 `all` / `mac` / `win`
+3. 在 Artifacts 下载安装包自测
+
+**正式发版（自动更新）**
+
+1. 改好功能并推到 GitHub（`package.json` 的 version 可先不改：CI 会按 tag 同步）
+2. 打 tag 并推送（会触发 mac + win 打包，并发布到同名 GitHub Release）：
+
+```bash
+git tag v1.0.1
+git push origin2 v1.0.1
+```
+
+3. 到 GitHub → **Releases** 确认该 tag 下已有：
+   - win：`*-setup.exe`、`latest.yml`（及 blockmap）
+   - mac：`*.zip`（更新用）、可选 `*.dmg`、`latest-mac.yml`
+4. 用户端：已安装的打包版启动约 5 秒后自动检查；设置 → 通用 →「检查更新」；下载完可「重启安装」
+
+注意：用户必须先装上「更新源已指向 GitHub」的新包，之后才会从 GitHub 检查更新（旧 Gitee 包不会自动切过来）。
+
+### 6. 本地发版（可选）
+
+若不用 CI，可本机打包后手动建 GitHub Release，上传与上面相同的文件；`latest.yml` / `latest-mac.yml` 必须在 Release 资源里。
 
 **注意**：macOS 自动更新需要代码签名；未签名时检查/安装可能失败（设置页会显示错误信息）。
 

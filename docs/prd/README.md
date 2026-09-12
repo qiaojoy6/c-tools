@@ -26,7 +26,7 @@
 - Windows 焦点：快捷键瞬间同步采 hwnd；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）
 - 渲染进程日志 `window.logApi` / `import { logApi }`：debug/info/warn/error；先安全序列化再经 `api.logWrite` 打到主进程终端；DevTools 仍打印原始对象
 - 主进程意外退出兜底：`logs/diag.log`（未捕获异常、渲染/子进程崩溃、启停）；正常时同步 mirror 到终端；会话心跳检测上次非正常退出；本地 crashReporter minidump（不上传）；终端断管（EIO/EPIPE）只落盘一次、不刷爆日志
-- 自动更新：打包后启动自动检查；发现新版本静默下载并通知；设置页可手动检查 / 重启安装（macOS 需签名）
+- 自动更新：打包后启动自动检查（源为 GitHub Releases / `qiaojoy6/c-tools`）；发现新版本静默下载并通知；设置页可手动检查 / 重启安装（macOS 需签名）
 
 ### 相关文件
 
@@ -180,6 +180,8 @@
 - `native/` — 编译产物 `.node`（开发与打包资源）
 - `electron-builder.yml` — `extraResources` 拷贝 `native/*.node` 与 `ffmpeg-static` 可执行文件到 `bin/`
 - `scripts/build-native.sh` — `npm run build:native`
+- `.github/workflows/build.yml` — GitHub Actions：mac/win 编 `.node` 并打包；`v*` tag 时发布到 GitHub Release（自动更新）
+- `electron-builder.yml` / `dev-app-update.yml` — 更新源 `provider: github`
 - `src/main/modules/recorder/` — 主进程加载插件、框选遮罩会话、全屏选屏弹窗、区域外框与全屏悬浮条 IPC、停录另存为、麦/系统声权限（`permission.ts`）
 - `src/main/modules/recorder/saveRecording.ts` — 停录后系统保存对话框与挪文件
 - `src/main/modules/core/trayManager.ts` — 托盘；录制中暂停/停止入口
