@@ -159,7 +159,7 @@
 
 ### 功能
 
-- Rust 录屏内核（`native-rs/recorder-core`）：macOS 优先 **ScreenCaptureKit** 同源采集画面+系统声（`sck_capture.rs`，MIT `screencapturekit`）；失败回退 xcap + flexaudio Process Tap；Windows 仍为 xcap + WASAPI；flexaudio 采集麦克风；录制中可实时开关麦/系统声；写入侧补静音 + 停录片头裁切/CFR 时长对齐；ffmpeg sidecar 编码/混流 MP4；视频清晰度三档（流畅 / 超清 / 原画）
+- Rust 录屏内核（`native-rs/recorder-core`）：macOS 优先 **ScreenCaptureKit** 同源采集画面+系统声（`sck_capture.rs`，MIT `screencapturekit`）；失败回退 xcap + flexaudio Process Tap；Windows 为 xcap + WASAPI（事件驱动）+ `CaptureClock` 首帧锚定音画；flexaudio 采集麦克风；录制中可实时开关麦/系统声；写入侧补静音 + 停录片头裁切/CFR 时长对齐；ffmpeg sidecar 编码/混流 MP4；视频清晰度三档（流畅 / 超清 / 原画）
 - napi-rs 插件（`native-rs/recorder-napi`）：编译为平台 `.node`，由 Electron 主进程同进程加载（复用 macOS TCC）
 - 主进程封装：枚举显示器/麦克风/系统输出、开始/暂停/继续/停止录制、录制中 `setMicEnabled` / `setSystemAudioEnabled`、状态与事件推送；`start` 可传 `region`（相对显示器物理像素）与 `quality`；默认先写到 `userData/recordings/`，停止后弹系统「另存为」可自定义路径（取消则删除成片不保存）
 - 框选遮罩：托盘或全局快捷键「区域录屏」进入多屏透明框选；悬停高亮应用窗、单击锁定窗尺寸（与截屏同源窗口枚举），或拖拽框选；工具条可切换系统声/麦克风、选择麦克风设备（列表来自 Rust `listMics`）与清晰度（流畅 / 超清 / 原画，固定 MP4，写入 `settings.json` 持久化）；确认后关遮罩开录；Esc / 右键 /「退出录制」/ 再按区域快捷键取消
@@ -174,7 +174,7 @@
 
 ### 相关文件
 
-- `native-rs/recorder-core/` — 纯 Rust 录屏内核（含 `aec.rs`、`av_sync.rs`、macOS `sck_capture.rs`）
+- `native-rs/recorder-core/` — 纯 Rust 录屏内核（含 `aec.rs`、`av_sync.rs`、`capture_clock.rs`、macOS `sck_capture.rs`）
 - `native-rs/recorder-napi/` — napi 胶水与 `.node` 构建
 - `native/` — 编译产物 `.node`（开发与打包资源）
 - `electron-builder.yml` — `extraResources` 拷贝 `native/*.node` 与 `ffmpeg-static` 可执行文件到 `bin/`

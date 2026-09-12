@@ -3,6 +3,7 @@
 mod aec;
 mod audio;
 mod av_sync;
+mod capture_clock;
 mod crop;
 mod encoder;
 mod pipeline;

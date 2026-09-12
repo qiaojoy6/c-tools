@@ -1,6 +1,7 @@
 //! 录制生命周期：启停、软暂停/继续、采集线程、事件回调
 
 use crate::audio::{AudioCaptureOpts, AudioSession};
+use crate::capture_clock::CaptureClock;
 use crate::crop::crop_rgba;
 use crate::encoder::{
     finalize_video_only, mux_video_audio, resolve_ffmpeg, sibling_temp, FfmpegEncoder,
@@ -422,6 +423,8 @@ fn capture_loop_sck(
             pause_flag: Arc::clone(&pause_flag),
             mic_mute_flag,
             sys_mute_flag: Arc::clone(&sys_mute_flag),
+            // SCK 同源轨自有时间基，不传 CaptureClock，避免改动 mac 同步行为
+            capture_clock: None,
         },
     ) {
         Ok(s) => Some(s),
@@ -676,6 +679,9 @@ fn capture_loop_xcap(
     let _ = std::fs::remove_file(&video_tmp);
     let _ = std::fs::remove_file(&audio_tmp);
 
+    // Windows / xcap 回退：音画共享首帧时钟，写入侧按锚点补欠载
+    let capture_clock = CaptureClock::new();
+
     // 两路都尝试开启，失败不阻断录屏；静音标志支持录制中开关
     let mut audio = match AudioSession::start(
         &audio_tmp,
@@ -688,6 +694,7 @@ fn capture_loop_xcap(
             pause_flag: Arc::clone(&pause_flag),
             mic_mute_flag,
             sys_mute_flag,
+            capture_clock: Some(Arc::clone(&capture_clock)),
         },
     ) {
         Ok(s) => Some(s),
@@ -768,6 +775,7 @@ fn capture_loop_xcap(
                                 enc.write_rgba(fw, fh, &pixels)?;
                                 if first_video_at.is_none() {
                                     first_video_at = Some(Instant::now());
+                                    capture_clock.mark_first_video();
                                 }
                                 frames_written += 1;
                             }
@@ -834,6 +842,7 @@ fn capture_loop_xcap(
                 enc.write_rgba(fw, fh, &pixels)?;
                 if first_video_at.is_none() {
                     first_video_at = Some(Instant::now());
+                    capture_clock.mark_first_video();
                 }
                 frames_written += 1;
             }

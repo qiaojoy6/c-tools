@@ -1,4 +1,6 @@
 //! 音画时长对齐：片头裁切 + 欠载补静音后的最终 WAV 贴合视频 CFR 时长
+//!
+//! Windows / xcap：写入侧已按 CaptureClock 补静音；此处停录再做片头裁切与 CFR 时长校准。
 
 use crate::RecorderError;
 use hound::WavReader;

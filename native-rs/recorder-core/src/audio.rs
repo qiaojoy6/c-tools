@@ -4,6 +4,7 @@
 //! 写入侧按 wall-clock / dropped_before / PTS 空洞补静音；停录后按视频 CFR 时长强制对齐。
 
 use crate::av_sync::align_wav_to_duration;
+use crate::capture_clock::CaptureClock;
 use crate::types::{DeviceInfo, DeviceType};
 use crate::RecorderError;
 use flexaudio::{
@@ -107,6 +108,8 @@ pub struct AudioCaptureOpts {
     pub mic_mute_flag: Arc<AtomicBool>,
     /// 系统声静音：同上
     pub sys_mute_flag: Arc<AtomicBool>,
+    /// xcap 路径共享首帧时钟；SCK 路径保持 None（勿改 mac 同源同步）
+    pub capture_clock: Option<Arc<CaptureClock>>,
 }
 
 /// 麦克风 / 系统声可各自失败；两路都开不了才返回 Err
@@ -169,6 +172,7 @@ impl AudioSession {
                         Arc::clone(&mic_mute_flag),
                         Arc::clone(&samples_written),
                         None,
+                        opts.capture_clock.clone(),
                     )?);
                 }
                 Err(e) => {
@@ -257,6 +261,7 @@ impl AudioSession {
                         Arc::clone(&sys_mute_flag),
                         Arc::clone(&samples_written),
                         Some(virt_id),
+                        opts.capture_clock.clone(),
                     )?);
                 }
                 Err(e) => {
@@ -467,6 +472,7 @@ fn spawn_writer(
     mute: Arc<AtomicBool>,
     samples_written: Arc<AtomicU64>,
     virt_fallback_id: Option<Option<String>>,
+    capture_clock: Option<Arc<CaptureClock>>,
 ) -> Result<JoinHandle<Result<(), RecorderError>>, RecorderError> {
     stream
         .start()
@@ -476,6 +482,8 @@ fn spawn_writer(
     let virt_id = virt_fallback_id.and_then(|x| x);
     let rate = header_rate.max(1);
     let name_owned = name.to_string();
+    // xcap/Windows：有共享时钟时按首视频帧锚定；SCK 不传时钟，保持原 wall-clock 行为
+    let use_video_anchor = capture_clock.is_some();
 
     thread::Builder::new()
         .name(name.into())
@@ -502,6 +510,11 @@ fn spawn_writer(
             let mut last_dropped: u32 = 0;
             let mut last_pts_ns: Option<i64> = None;
             let mut gap_silence_frames: u64 = 0;
+            // 首视频帧锚定后重计暂停，避免开录到首帧之间的暂停污染预期时长
+            let mut video_anchored = false;
+            let mut anchor_at: Option<Instant> = None;
+            // 锚定瞬间已写入帧数；欠载比较用 (have - at_anchor) vs 锚点后墙钟
+            let mut frames_at_anchor: u64 = 0;
 
             // 写若干帧静音（1 帧 = 全部声道各 1 个采样）
             let write_silence_frames =
@@ -524,13 +537,44 @@ fn spawn_writer(
                     Ok(())
                 };
 
-            // 未暂停墙钟应对齐的帧数
-            let expected_frames = |pause_total: Duration, pause_at: Option<Instant>| -> u64 {
-                let mut active = started_at.elapsed().saturating_sub(pause_total);
+            // 未暂停墙钟应对齐的帧数；xcap 首帧未到前返回 None（不补欠载）
+            let expected_frames = |pause_total: Duration,
+                                   pause_at: Option<Instant>,
+                                   video_anchored: bool,
+                                   anchor_at: Option<Instant>|
+             -> Option<u64> {
+                if use_video_anchor && !video_anchored {
+                    return None;
+                }
+                let mut active = if use_video_anchor {
+                    // 优先用共享时钟自首帧起的墙钟（与视频 mark 一致）
+                    if let Some(clock) = capture_clock.as_ref() {
+                        clock.elapsed_since_first_video()?
+                    } else {
+                        anchor_at.unwrap_or(started_at).elapsed()
+                    }
+                    .saturating_sub(pause_total)
+                } else {
+                    started_at.elapsed().saturating_sub(pause_total)
+                };
                 if let Some(at) = pause_at {
                     active = active.saturating_sub(at.elapsed());
                 }
-                (active.as_secs_f64() * f64::from(rate)).round() as u64
+                Some((active.as_secs_f64() * f64::from(rate)).round() as u64)
+            };
+
+            // PTS 空洞补静音（Windows 始终检查；其它平台仅 DISCONTINUITY/RECOVERED）
+            let should_fill_pts_gap = |flags: ChunkFlags| -> bool {
+                #[cfg(windows)]
+                {
+                    let _ = flags;
+                    true
+                }
+                #[cfg(not(windows))]
+                {
+                    flags.contains(ChunkFlags::DISCONTINUITY)
+                        || flags.contains(ChunkFlags::RECOVERED)
+                }
             };
 
             while !stop.load(Ordering::SeqCst) {
@@ -541,6 +585,27 @@ fn spawn_writer(
                     }
                 } else if let Some(at) = pause_at.take() {
                     pause_total += at.elapsed();
+                }
+
+                // 检测首视频帧锚点（xcap 共享时钟）
+                if use_video_anchor && !video_anchored {
+                    if let Some(clock) = capture_clock.as_ref() {
+                        if clock.has_first_video() {
+                            video_anchored = true;
+                            anchor_at = Some(Instant::now());
+                            frames_at_anchor =
+                                track_samples.load(Ordering::Relaxed) / u64::from(TARGET_CH);
+                            pause_total = Duration::ZERO;
+                            pause_at = if paused {
+                                Some(Instant::now())
+                            } else {
+                                None
+                            };
+                            eprintln!(
+                                "[recorder-audio] {name} anchored to first video frame (pre_frames={frames_at_anchor})"
+                            );
+                        }
+                    }
                 }
 
                 let muted = mute.load(Ordering::SeqCst);
@@ -566,23 +631,26 @@ fn spawn_writer(
                         (chunk.data.len() / ch) as u64
                     };
 
-                    // Process Tap 启动空窗 / 首包延迟：按未暂停墙钟在首包前补静音
+                    // 首包前导静音；xcap 锚定模式等首视频后再补
                     if !saw_first_chunk {
                         saw_first_chunk = true;
-                        let lead = expected_frames(pause_total, None);
-                        if lead > frames {
-                            let pad = lead - frames;
-                            write_silence_frames(
-                                &mut writer,
-                                pad,
-                                &samples_written,
-                                &track_samples,
-                            )?;
-                            gap_silence_frames += pad;
-                            eprintln!(
-                                "[recorder-audio] {name} lead silence {pad} frames ({:.0}ms)",
-                                pad as f64 * 1000.0 / f64::from(rate)
-                            );
+                        if let Some(lead) =
+                            expected_frames(pause_total, None, video_anchored, anchor_at)
+                        {
+                            if lead > frames {
+                                let pad = lead - frames;
+                                write_silence_frames(
+                                    &mut writer,
+                                    pad,
+                                    &samples_written,
+                                    &track_samples,
+                                )?;
+                                gap_silence_frames += pad;
+                                eprintln!(
+                                    "[recorder-audio] {name} lead silence {pad} frames ({:.0}ms)",
+                                    pad as f64 * 1000.0 / f64::from(rate)
+                                );
+                            }
                         }
                     }
 
@@ -598,10 +666,8 @@ fn spawn_writer(
                     }
                     last_dropped = chunk.dropped_before;
 
-                    // 断流/恢复标记：用 PTS 空洞补静音（与 dropped 互补，避免双计过大）
-                    if chunk.flags.contains(ChunkFlags::DISCONTINUITY)
-                        || chunk.flags.contains(ChunkFlags::RECOVERED)
-                    {
+                    // 断流/恢复或 Windows 连续块：用 PTS 空洞补静音
+                    if should_fill_pts_gap(chunk.flags) {
                         if let Some(prev) = last_pts_ns {
                             let ns_per_frame = 1_000_000_000i64 / i64::from(rate);
                             let expected_pts = prev + frames as i64 * ns_per_frame;
@@ -653,19 +719,32 @@ fn spawn_writer(
 
                 // 空闲且未暂停：按墙钟补欠载（无 chunk 的静音段 / 消费滞后）
                 if !got && !paused && saw_first_chunk {
-                    let have = track_samples.load(Ordering::Relaxed) / u64::from(TARGET_CH);
-                    let want = expected_frames(pause_total, pause_at);
-                    // 容许约 40ms 抖动，避免忙等刷静音
-                    let slack = u64::from(rate) / 25;
-                    if want > have.saturating_add(slack) {
-                        let pad = want - have;
-                        write_silence_frames(
-                            &mut writer,
-                            pad,
-                            &samples_written,
-                            &track_samples,
-                        )?;
-                        gap_silence_frames += pad;
+                    if let Some(want) =
+                        expected_frames(pause_total, pause_at, video_anchored, anchor_at)
+                    {
+                        let have_total =
+                            track_samples.load(Ordering::Relaxed) / u64::from(TARGET_CH);
+                        // 锚定后只比较锚点之后写入的帧，避免片头采样掩盖欠载
+                        let have = if use_video_anchor && video_anchored {
+                            have_total.saturating_sub(frames_at_anchor)
+                        } else {
+                            have_total
+                        };
+                        // 容许约 40ms 抖动；Windows 略紧（~20ms）
+                        #[cfg(windows)]
+                        let slack = u64::from(rate) / 50;
+                        #[cfg(not(windows))]
+                        let slack = u64::from(rate) / 25;
+                        if want > have.saturating_add(slack) {
+                            let pad = want - have;
+                            write_silence_frames(
+                                &mut writer,
+                                pad,
+                                &samples_written,
+                                &track_samples,
+                            )?;
+                            gap_silence_frames += pad;
+                        }
                     }
                 }
 
@@ -725,12 +804,26 @@ fn spawn_writer(
                 if let Some(at) = pause_at.take() {
                     pause_total += at.elapsed();
                 }
-                let have = track_samples.load(Ordering::Relaxed) / u64::from(TARGET_CH);
-                let want = expected_frames(pause_total, None);
-                if want > have {
-                    let pad = want - have;
-                    write_silence_frames(&mut writer, pad, &samples_written, &track_samples)?;
-                    gap_silence_frames += pad;
+                if let Some(want) =
+                    expected_frames(pause_total, None, video_anchored, anchor_at)
+                {
+                    let have_total =
+                        track_samples.load(Ordering::Relaxed) / u64::from(TARGET_CH);
+                    let have = if use_video_anchor && video_anchored {
+                        have_total.saturating_sub(frames_at_anchor)
+                    } else {
+                        have_total
+                    };
+                    if want > have {
+                        let pad = want - have;
+                        write_silence_frames(
+                            &mut writer,
+                            pad,
+                            &samples_written,
+                            &track_samples,
+                        )?;
+                        gap_silence_frames += pad;
+                    }
                 }
             }
 
