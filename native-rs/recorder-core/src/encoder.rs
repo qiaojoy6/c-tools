@@ -37,16 +37,19 @@ impl FfmpegEncoder {
         let (scale, crf) = quality.encode_params();
         let crf_s = crf.to_string();
 
-        // 非原画时用 scale 降分辨率；stdin 仍按捕获帧原始尺寸写入
-        let scale_filter = if (scale - 1.0).abs() < f32::EPSILON {
-            None
+        // RGB 全范围 → YUV pc + bt709；默认 yuv420p 会压成 tv(白=235) 导致轻微发暗偏色
+        // 原画只做色度抽样（不改分辨率）；非原画 lanczos 降采样
+        // full_chroma_int 减轻文字边缘彩边（yuv420 无法完全消除）
+        let (tw, th, scale_flags) = if (scale - 1.0).abs() < f32::EPSILON {
+            (w, h, "accurate_rnd+full_chroma_int")
         } else {
             let tw = ((w as f32) * scale).round() as u32 & !1;
             let th = ((h as f32) * scale).round() as u32 & !1;
-            let tw = tw.max(2);
-            let th = th.max(2);
-            Some(format!("scale={tw}:{th}"))
+            (tw.max(2), th.max(2), "lanczos+accurate_rnd+full_chroma_int")
         };
+        let vf = format!(
+            "scale={tw}:{th}:flags={scale_flags}:in_range=full:out_range=full:out_color_matrix=bt709,format=yuv420p"
+        );
 
         let mut cmd = Command::new(ffmpeg_bin);
         cmd.args([
@@ -62,11 +65,8 @@ impl FfmpegEncoder {
             "-i",
             "pipe:0",
             "-an",
-        ]);
-        if let Some(ref vf) = scale_filter {
-            cmd.args(["-vf", vf]);
-        }
-        cmd.args([
+            "-vf",
+            &vf,
             "-c:v",
             "libx264",
             "-preset",
@@ -75,6 +75,16 @@ impl FfmpegEncoder {
             &crf_s,
             "-pix_fmt",
             "yuv420p",
+            "-color_range",
+            "pc",
+            "-colorspace",
+            "bt709",
+            "-color_primaries",
+            "bt709",
+            "-color_trc",
+            "bt709",
+            "-x264-params",
+            "colorprim=bt709:transfer=bt709:colormatrix=bt709:fullrange=on",
             "-movflags",
             "+faststart",
         ])
@@ -170,6 +180,7 @@ pub fn mux_video_audio(
         )));
     }
 
+    // 音频已在停录时按视频 CFR 时长对齐，此处不再用 -shortest（避免残留偏差时误裁）
     // s16le WAV → AAC；优先 soxr，失败则回退默认重采样
     let af_candidates = [
         "aresample=resampler=soxr:precision=28:osr=48000",
@@ -196,7 +207,6 @@ pub fn mux_video_audio(
                 "48000",
                 "-ac",
                 "2",
-                "-shortest",
                 "-movflags",
                 "+faststart",
             ])

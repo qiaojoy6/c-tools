@@ -340,6 +340,337 @@ fn capture_loop(
     sys_mute_flag: Arc<AtomicBool>,
     on_event: Option<EventCallback>,
 ) -> Result<(), RecorderError> {
+    // macOS：优先 ScreenCaptureKit 同源画面+系统声；失败再回退 xcap + flexaudio
+    #[cfg(target_os = "macos")]
+    {
+        match capture_loop_sck(
+            &monitor,
+            fps,
+            quality,
+            mic_device_id.clone(),
+            region,
+            ffmpeg_bin,
+            output,
+            Arc::clone(&stop_flag),
+            Arc::clone(&pause_flag),
+            Arc::clone(&mic_mute_flag),
+            Arc::clone(&sys_mute_flag),
+            on_event.clone(),
+        ) {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                eprintln!("[recorder] SCK path failed, fallback to xcap/flexaudio: {e}");
+            }
+        }
+    }
+
+    capture_loop_xcap(
+        monitor,
+        fps,
+        quality,
+        mic_device_id,
+        system_device_id,
+        region,
+        ffmpeg_bin,
+        output,
+        stop_flag,
+        pause_flag,
+        mic_mute_flag,
+        sys_mute_flag,
+        on_event,
+    )
+}
+
+/// macOS ScreenCaptureKit：画面与系统声同一条流；麦仍走 flexaudio
+#[cfg(target_os = "macos")]
+#[allow(clippy::too_many_arguments)]
+fn capture_loop_sck(
+    monitor: &xcap::Monitor,
+    fps: u32,
+    quality: VideoQuality,
+    mic_device_id: Option<String>,
+    region: Option<RecordRegion>,
+    ffmpeg_bin: &str,
+    output: &PathBuf,
+    stop_flag: Arc<AtomicBool>,
+    pause_flag: Arc<AtomicBool>,
+    mic_mute_flag: Arc<AtomicBool>,
+    sys_mute_flag: Arc<AtomicBool>,
+    on_event: Option<EventCallback>,
+) -> Result<(), RecorderError> {
+    use crate::sck_capture::{SckSession, SckStartOpts};
+
+    let display_id = monitor
+        .id()
+        .map_err(|e| RecorderError::Capture(e.to_string()))?;
+    let video_tmp = sibling_temp(output, "video.tmp.mp4");
+    let audio_tmp = sibling_temp(output, "audio.tmp.wav");
+    let sys_tmp = sibling_temp(output, "sys.tmp.wav");
+    let _ = std::fs::remove_file(&video_tmp);
+    let _ = std::fs::remove_file(&audio_tmp);
+    let _ = std::fs::remove_file(&sys_tmp);
+
+    // 系统声由 SCK 提供；flexaudio 只采麦
+    let mut audio = match AudioSession::start(
+        &audio_tmp,
+        AudioCaptureOpts {
+            enable_mic: true,
+            enable_system_audio: false,
+            mic_device_id,
+            system_device_id: None,
+            ffmpeg_bin: ffmpeg_bin.to_string(),
+            pause_flag: Arc::clone(&pause_flag),
+            mic_mute_flag,
+            sys_mute_flag: Arc::clone(&sys_mute_flag),
+        },
+    ) {
+        Ok(s) => Some(s),
+        Err(e) => {
+            emit(
+                &on_event,
+                RecorderEvent::Error {
+                    message: format!("mic unavailable, continue: {e}"),
+                },
+            );
+            None
+        }
+    };
+
+    let sck = SckSession::start(SckStartOpts {
+        display_id,
+        fps,
+        capture_system_audio: true,
+        region,
+        sys_wav_path: sys_tmp.clone(),
+        pause_flag: Arc::clone(&pause_flag),
+        sys_mute_flag,
+    })?;
+    // SCK 音画时间轴起点（用于停录片头裁切；勿用麦会话 started_at）
+    let sck_epoch = Instant::now();
+
+    let mut clock = ActiveClock::new();
+    let mut last_progress = Instant::now();
+    let mut encoder: Option<FfmpegEncoder> = None;
+    let mut was_paused = false;
+    let mut frames_written: u64 = 0;
+    let mut first_video_at: Option<Instant> = None;
+    // SCK 已按 minimumFrameInterval 限帧；仍做轻度墙钟门控防积压
+    let frame_interval = Duration::from_secs_f64(1.0 / f64::from(fps.max(1)));
+    let mut next_frame_at = Instant::now();
+
+    let capture_result = (|| -> Result<(), RecorderError> {
+        while !stop_flag.load(Ordering::SeqCst) {
+            let paused = pause_flag.load(Ordering::SeqCst);
+            if paused {
+                if !was_paused {
+                    clock.on_pause();
+                    was_paused = true;
+                }
+                while sck.video_rx().try_recv().is_ok() {}
+                thread::sleep(Duration::from_millis(20));
+                continue;
+            }
+            if was_paused {
+                clock.on_resume();
+                next_frame_at = Instant::now();
+                was_paused = false;
+            }
+
+            match sck.video_rx().recv_timeout(Duration::from_millis(100)) {
+                Ok(frame) => {
+                    let now = Instant::now();
+                    if now < next_frame_at {
+                        continue;
+                    }
+                    next_frame_at += frame_interval;
+                    if next_frame_at + frame_interval < now {
+                        next_frame_at = now + frame_interval;
+                    }
+
+                    let fw = frame.width & !1;
+                    let fh = frame.height & !1;
+                    if fw < 2 || fh < 2 {
+                        continue;
+                    }
+                    // region 已在 SCK sourceRect 裁过；偶发奇数边再裁
+                    let pixels = if fw == frame.width && fh == frame.height {
+                        frame.rgba
+                    } else {
+                        let Some((_, _, buf)) = frame_pixels(
+                            frame.width,
+                            frame.height,
+                            &frame.rgba,
+                            Some(RecordRegion {
+                                x: 0,
+                                y: 0,
+                                width: fw,
+                                height: fh,
+                            }),
+                        ) else {
+                            continue;
+                        };
+                        buf.into_owned()
+                    };
+
+                    if encoder.is_none() {
+                        encoder = Some(FfmpegEncoder::start(
+                            ffmpeg_bin,
+                            &video_tmp,
+                            fw,
+                            fh,
+                            fps,
+                            quality,
+                        )?);
+                    }
+                    if let Some(enc) = encoder.as_mut() {
+                        enc.write_rgba(fw, fh, &pixels)?;
+                        if first_video_at.is_none() {
+                            first_video_at = Some(Instant::now());
+                        }
+                        frames_written += 1;
+                    }
+                    maybe_progress(&on_event, &clock, &mut last_progress);
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+        let elapsed = clock.active_secs().max(0.001);
+        eprintln!(
+            "[recorder-sck] video frames={frames_written} active={elapsed:.3}s effective_fps={:.2}",
+            frames_written as f64 / elapsed
+        );
+        Ok(())
+    })();
+
+    let video_dur_secs = if frames_written > 0 {
+        Some(frames_written as f64 / f64::from(fps.max(1)))
+    } else {
+        None
+    };
+
+    if let Some(enc) = encoder.take() {
+        enc.finish()?;
+    } else if capture_result.is_ok() {
+        let _ = sck.finish();
+        let _ = std::fs::remove_file(&audio_tmp);
+        return Err(RecorderError::Capture("no frames captured".into()));
+    }
+
+    let external_sys = match sck.finish() {
+        Ok(p) => p,
+        Err(e) => {
+            emit(
+                &on_event,
+                RecorderEvent::Error {
+                    message: format!("sck sys finalize: {e}"),
+                },
+            );
+            None
+        }
+    };
+
+    let audio_path = if let Some(session) = audio.take() {
+        match session.finish(video_dur_secs, first_video_at, external_sys, Some(sck_epoch)) {
+            Ok(p) => Some(p),
+            Err(e) => {
+                emit(
+                    &on_event,
+                    RecorderEvent::Error {
+                        message: format!("audio finalize failed: {e}"),
+                    },
+                );
+                None
+            }
+        }
+    } else if let Some(sys) = external_sys {
+        match crate::audio::finalize_external_sys_wav(
+            ffmpeg_bin,
+            &sys,
+            &audio_tmp,
+            video_dur_secs,
+            first_video_at,
+            Some(sck_epoch),
+        ) {
+            Ok(p) => Some(p),
+            Err(e) => {
+                emit(
+                    &on_event,
+                    RecorderEvent::Error {
+                        message: format!("sys-only finalize failed: {e}"),
+                    },
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    if let Err(e) = capture_result {
+        let _ = std::fs::remove_file(&video_tmp);
+        let _ = std::fs::remove_file(&audio_tmp);
+        return Err(e);
+    }
+
+    let has_audio = audio_path
+        .as_ref()
+        .map(|p| p.exists() && p.metadata().map(|m| m.len() > 64).unwrap_or(false))
+        .unwrap_or(false);
+
+    if has_audio {
+        if let Some(wav) = &audio_path {
+            match mux_video_audio(ffmpeg_bin, &video_tmp, wav, output) {
+                Ok(()) => {}
+                Err(e) => {
+                    emit(
+                        &on_event,
+                        RecorderEvent::Error {
+                            message: format!("mux failed, save video only: {e}"),
+                        },
+                    );
+                    finalize_video_only(&video_tmp, output)?;
+                }
+            }
+        }
+    } else {
+        finalize_video_only(&video_tmp, output)?;
+    }
+
+    if std::env::var_os("RECORDER_KEEP_TEMP").is_none() {
+        let _ = std::fs::remove_file(&video_tmp);
+        let _ = std::fs::remove_file(&audio_tmp);
+        let _ = std::fs::remove_file(&sys_tmp);
+    } else {
+        eprintln!("[recorder-sck] keep temp video={video_tmp:?} audio={audio_tmp:?}");
+    }
+
+    emit(
+        &on_event,
+        RecorderEvent::Finished {
+            output_path: output.to_string_lossy().into_owned(),
+        },
+    );
+    Ok(())
+}
+
+/// xcap 画面 + flexaudio 麦/系统声（全平台回退路径）
+#[allow(clippy::too_many_arguments)]
+fn capture_loop_xcap(
+    monitor: xcap::Monitor,
+    fps: u32,
+    quality: VideoQuality,
+    mic_device_id: Option<String>,
+    system_device_id: Option<String>,
+    region: Option<RecordRegion>,
+    ffmpeg_bin: &str,
+    output: &PathBuf,
+    stop_flag: Arc<AtomicBool>,
+    pause_flag: Arc<AtomicBool>,
+    mic_mute_flag: Arc<AtomicBool>,
+    sys_mute_flag: Arc<AtomicBool>,
+    on_event: Option<EventCallback>,
+) -> Result<(), RecorderError> {
     let video_tmp = sibling_temp(output, "video.tmp.mp4");
     let audio_tmp = sibling_temp(output, "audio.tmp.wav");
     let _ = std::fs::remove_file(&video_tmp);
@@ -376,12 +707,15 @@ fn capture_loop(
     let mut encoder: Option<FfmpegEncoder> = None;
     // 上一轮是否处于暂停，用于恢复时重置帧时钟
     let mut was_paused = false;
+    // 写出帧数（CFR 时长 = frames / fps），供音频对齐
+    let mut frames_written: u64 = 0;
+    // 首帧写出时刻：裁掉早于画面的音频片头
+    let mut first_video_at: Option<Instant> = None;
 
     let capture_result = (|| -> Result<(), RecorderError> {
         // 按目标 fps 丢帧：xcap 常 60fps，若原样写入 -r 30 会把视频时间轴拉长，声音相对变尖变快
         let frame_interval = Duration::from_secs_f64(1.0 / f64::from(fps.max(1)));
         let mut next_frame_at = Instant::now();
-        let mut frames_written: u64 = 0;
 
         if let Ok((video_recorder, rx)) = monitor.video_recorder() {
             if video_recorder.start().is_ok() {
@@ -432,6 +766,9 @@ fn capture_loop(
                             }
                             if let Some(enc) = encoder.as_mut() {
                                 enc.write_rgba(fw, fh, &pixels)?;
+                                if first_video_at.is_none() {
+                                    first_video_at = Some(Instant::now());
+                                }
                                 frames_written += 1;
                             }
                             maybe_progress(&on_event, &clock, &mut last_progress);
@@ -495,15 +832,38 @@ fn capture_loop(
             }
             if let Some(enc) = encoder.as_mut() {
                 enc.write_rgba(fw, fh, &pixels)?;
+                if first_video_at.is_none() {
+                    first_video_at = Some(Instant::now());
+                }
+                frames_written += 1;
             }
             maybe_progress(&on_event, &clock, &mut last_progress);
         }
+        let elapsed = clock.active_secs().max(0.001);
+        eprintln!(
+            "[recorder] video frames={frames_written} active={elapsed:.3}s effective_fps={:.2}",
+            frames_written as f64 / elapsed
+        );
         Ok(())
     })();
 
-    // 先停音频再收尾视频，保证音画时长接近
+    // 视频 CFR 时长；音频裁片头并按此时长对齐后再 mux（不再依赖 -shortest）
+    let video_dur_secs = if frames_written > 0 {
+        Some(frames_written as f64 / f64::from(fps.max(1)))
+    } else {
+        None
+    };
+
+    // 先收尾视频编码（定长），再停音频并对齐时长
+    if let Some(enc) = encoder.take() {
+        enc.finish()?;
+    } else if capture_result.is_ok() {
+        let _ = std::fs::remove_file(&audio_tmp);
+        return Err(RecorderError::Capture("no frames captured".into()));
+    }
+
     let audio_path = if let Some(session) = audio.take() {
-        match session.finish() {
+        match session.finish(video_dur_secs, first_video_at, None, None) {
             Ok(p) => Some(p),
             Err(e) => {
                 emit(
@@ -518,13 +878,6 @@ fn capture_loop(
     } else {
         None
     };
-
-    if let Some(enc) = encoder.take() {
-        enc.finish()?;
-    } else if capture_result.is_ok() {
-        let _ = std::fs::remove_file(&audio_tmp);
-        return Err(RecorderError::Capture("no frames captured".into()));
-    }
 
     if let Err(e) = capture_result {
         let _ = std::fs::remove_file(&video_tmp);

@@ -2,10 +2,13 @@
 
 mod aec;
 mod audio;
+mod av_sync;
 mod crop;
 mod encoder;
 mod pipeline;
 mod screen;
+#[cfg(target_os = "macos")]
+mod sck_capture;
 mod types;
 
 pub use audio::{list_mics, list_system_outputs};

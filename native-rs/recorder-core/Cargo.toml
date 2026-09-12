@@ -12,3 +12,10 @@ hound.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+screencapturekit.workspace = true
+core-foundation = "0.10"
+core-graphics = "0.25"
+core-media-rs = "0.3"
+core-video-rs = "0.3"
