@@ -1,5 +1,5 @@
 /**
- * 主进程入口：组装 core / clipboard / projects / screenshot，注册 IPC，启动托盘与浮层。
+ * 主进程入口：组装 core / clipboard / projects / screenshot / recorder，注册 IPC，启动托盘与浮层。
  */
 import { app, BrowserWindow, nativeTheme, session } from 'electron'
 import { is } from '@electron-toolkit/utils'
@@ -36,6 +36,7 @@ import {
   installScreenshotImageProtocol,
   registerScreenshotIpc
 } from './modules/screenshot'
+import { RecorderHost, RecorderSelectSession, registerRecorderIpc } from './modules/recorder'
 import { resolve } from 'path'
 
 // 自定义协议须在 ready 前一次性注册（不可分两次调用）
@@ -52,6 +53,8 @@ let trayManager: TrayManager
 let clipboardWatcher: ClipboardWatcher
 let projectsRuntime: ProjectsRuntime
 let screenshotSession: ScreenshotSession
+let recorderHost: RecorderHost
+let recorderSelectSession: RecorderSelectSession
 
 const gotSingleLock = app.requestSingleInstanceLock()
 
@@ -65,10 +68,8 @@ if (!gotSingleLock) {
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.ctools.app')
 
-    // macOS：托盘 + 程序坞并存（activate / Cmd+Tab 依赖 Dock 图标）
-    if (process.platform === 'darwin') {
-      app.dock?.show()
-    }
+    // macOS：托盘常驻；程序坞图标随功能面板显隐（见 bindDockIconToPanel）
+    // 勿在此无条件 dock.show()，否则录制中仅 skipTaskbar 窗时行为与面板脱节
 
     // 开发环境加载远程URL，生产环境加载本地HTML文件
     if (is.dev) {
@@ -93,30 +94,61 @@ if (!gotSingleLock) {
     windowManager = new WindowManager(() => configManager.get())
 
     const startScreenshot = (): void => {
+      if (recorderSelectSession?.isActive) return
       void screenshotSession?.start()
     }
 
+    /** 录屏快捷键回调：函数体在 startRegion/Fullscreen / pause / stop 定义后挂上 */
+    const recorderHotkeys = {
+      startRegion: (): void => {},
+      startFullscreen: (): void => {},
+      pauseResume: (): void => {},
+      stop: (): void => {}
+    }
+
     shortcutManager = new ShortcutManager({
-      togglePanel: () => {
+      toggleClipboard: () => {
         if (screenshotSession?.isActive) return
+        if (recorderSelectSession?.isActive) return
         if (!windowManager.clipboard.isVisible()) {
           windowManager.noteForegroundBeforeShow()
         }
         windowManager.toggleClipboard()
       },
       screenshot: () => {
+        if (recorderSelectSession?.isActive) return
         startScreenshot()
+      },
+      recorderRegion: () => {
+        recorderHotkeys.startRegion()
+      },
+      recorderFullscreen: () => {
+        recorderHotkeys.startFullscreen()
+      },
+      recorderPauseResume: () => {
+        recorderHotkeys.pauseResume()
+      },
+      recorderStop: () => {
+        recorderHotkeys.stop()
       }
     })
 
     // 规范化并注册全部快捷键
     const nextShortcuts = {
-      togglePanel: normalizeAccelerator(cfg.shortcuts.togglePanel),
-      screenshot: normalizeAccelerator(cfg.shortcuts.screenshot)
+      toggleClipboard: normalizeAccelerator(cfg.shortcuts.toggleClipboard),
+      screenshot: normalizeAccelerator(cfg.shortcuts.screenshot),
+      recorderRegion: normalizeAccelerator(cfg.shortcuts.recorderRegion ?? ''),
+      recorderFullscreen: normalizeAccelerator(cfg.shortcuts.recorderFullscreen ?? ''),
+      recorderPauseResume: normalizeAccelerator(cfg.shortcuts.recorderPauseResume ?? ''),
+      recorderStop: normalizeAccelerator(cfg.shortcuts.recorderStop ?? '')
     }
     if (
-      nextShortcuts.togglePanel !== cfg.shortcuts.togglePanel ||
-      nextShortcuts.screenshot !== cfg.shortcuts.screenshot
+      nextShortcuts.toggleClipboard !== cfg.shortcuts.toggleClipboard ||
+      nextShortcuts.screenshot !== cfg.shortcuts.screenshot ||
+      nextShortcuts.recorderRegion !== (cfg.shortcuts.recorderRegion ?? '') ||
+      nextShortcuts.recorderFullscreen !== (cfg.shortcuts.recorderFullscreen ?? '') ||
+      nextShortcuts.recorderPauseResume !== (cfg.shortcuts.recorderPauseResume ?? '') ||
+      nextShortcuts.recorderStop !== (cfg.shortcuts.recorderStop ?? '')
     ) {
       configManager.update({ shortcuts: nextShortcuts })
     }
@@ -130,17 +162,140 @@ if (!gotSingleLock) {
       windowManager.showSettings()
     }
 
+    // 录屏宿主尽早创建，托盘菜单可读状态
+    recorderHost = new RecorderHost()
+    recorderHost.load()
+    recorderSelectSession = new RecorderSelectSession({
+      host: recorderHost,
+      hideAppWindows: () => windowManager.captureAndHideAppWindows(),
+      captureExternalFocus: () => windowManager.captureScreenshotExternalFocus(),
+      settleAfterSelect: (opts) => windowManager.settleAfterScreenshot(opts),
+      onRecordingChanged: () => trayManager?.rebuild(),
+      getFullscreenFloatPos: () => {
+        const pos = configManager.get().recorder.fullscreenFloatPos
+        if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return null
+        return { x: pos.x, y: pos.y }
+      },
+      setFullscreenFloatPos: (pos) => {
+        configManager.update({
+          recorder: { fullscreenFloatPos: { x: pos.x, y: pos.y } }
+        })
+      },
+      persistRecorderPrefs: (prefs) => {
+        configManager.update({ recorder: prefs })
+      }
+    })
+
+    /** 区域录屏：框选会话；框选中再点则取消 */
+    const startRegionRecord = async (): Promise<void> => {
+      if (!recorderHost || !recorderSelectSession) return
+      try {
+        if (recorderSelectSession.isActive) {
+          await recorderSelectSession.cancelAsync()
+          return
+        }
+        if (screenshotSession?.isActive) return
+        const st = recorderHost.status()
+        if (!st.available) {
+          console.error('[recorder] unavailable:', st.reason)
+          return
+        }
+        if (st.state !== 'idle') return
+        await recorderSelectSession.startRegion()
+      } catch (err) {
+        console.error('[recorder] region start failed:', err)
+      } finally {
+        trayManager?.rebuild()
+      }
+    }
+
+    /** 全屏录屏：选屏 Dialog（Rust xcap listScreens） + 声音/清晰度 */
+    const startFullscreenRecord = async (): Promise<void> => {
+      if (!recorderHost || !recorderSelectSession) return
+      try {
+        if (screenshotSession?.isActive) return
+        const st = recorderHost.status()
+        if (!st.available) {
+          console.error('[recorder] unavailable:', st.reason)
+          return
+        }
+        if (st.state !== 'idle') return
+        await recorderSelectSession.startFullscreen()
+      } catch (err) {
+        console.error('[recorder] fullscreen start failed:', err)
+      } finally {
+        trayManager?.rebuild()
+      }
+    }
+
+    /** 录制中停止并收外框；成片后弹自定义保存路径 */
+    const stopScreenRecord = (): void => {
+      if (!recorderSelectSession) return
+      recorderSelectSession.stopRecording({ promptSave: true })
+      trayManager?.rebuild()
+    }
+
+    /** 录制中暂停 ↔ 继续（空闲/框选中忽略） */
+    const togglePauseRecord = (): void => {
+      if (!recorderHost) return
+      try {
+        const st = recorderHost.status()
+        if (st.state === 'recording') {
+          recorderHost.pause()
+        } else if (st.state === 'paused') {
+          recorderHost.resume()
+        }
+      } catch (err) {
+        console.error('[recorder] pause/resume failed:', err)
+      } finally {
+        trayManager?.rebuild()
+      }
+    }
+
+    recorderHotkeys.startRegion = () => {
+      void startRegionRecord()
+    }
+    recorderHotkeys.startFullscreen = () => {
+      void startFullscreenRecord()
+    }
+    recorderHotkeys.pauseResume = () => {
+      togglePauseRecord()
+    }
+    recorderHotkeys.stop = () => {
+      stopScreenRecord()
+    }
+
     windowManager.onSettingsClosed = () => {
       shortcutManager.registerAll(configManager.get().shortcuts)
     }
 
     trayManager = new TrayManager(
-      () => ({ launchAtLogin: configManager.get().general.launchAtLogin }),
+      () => {
+        const rs = recorderHost?.status().state
+        const recordingState =
+          rs === 'recording' || rs === 'paused' ? rs : ('idle' as const)
+        const cfg = configManager.get()
+        return {
+          launchAtLogin: cfg.general.launchAtLogin,
+          recordingState,
+          shortcuts: cfg.shortcuts
+        }
+      },
       {
         showPanel: () => windowManager.showPanel(),
         togglePanel: () => windowManager.togglePanel(),
         openSettings,
         startScreenshot,
+        startRegionRecord: () => {
+          void startRegionRecord()
+        },
+        startFullscreenRecord: () => {
+          void startFullscreenRecord()
+        },
+        stopRecord: () => {
+          stopScreenRecord()
+        },
+        togglePauseRecord,
         toggleLogin: () => {
           const enabled = !configManager.get().general.launchAtLogin
           configManager.update({ general: { launchAtLogin: enabled } })
@@ -149,6 +304,15 @@ if (!gotSingleLock) {
       }
     )
     trayManager.create()
+    recorderHost.onEvent((event) => {
+      if (
+        event.type === 'finished' ||
+        (event.type === 'stateChanged' && event.state === 'idle')
+      ) {
+        recorderSelectSession?.hideRecordingBorder()
+      }
+      trayManager?.rebuild()
+    })
 
     configManager.onChanged = (next, prev) => {
       if (next.general.launchAtLogin !== prev.general.launchAtLogin) {
@@ -245,6 +409,14 @@ if (!gotSingleLock) {
       windows: windowManager
     })
     registerScreenshotIpc(screenshotSession)
+    registerRecorderIpc(recorderHost, recorderSelectSession, {
+      persistAudioPrefs: (prefs) => {
+        configManager.update({ recorder: prefs })
+      },
+      persistRecorderPrefs: (prefs) => {
+        configManager.update({ recorder: prefs })
+      }
+    })
 
     applyLoginItem(cfg.general.launchAtLogin)
     applyNativeThemeSource(cfg.general.theme)
@@ -252,13 +424,15 @@ if (!gotSingleLock) {
     pasteService.notifyAccessibilityHintOnLaunch()
 
     windowManager.createPanel()
-    // 预热截屏遮罩，缩短快捷键到可截的等待
+    // 预热截屏 / 录屏框选遮罩，缩短入口到可操作等待
     screenshotSession.prewarm()
+    recorderSelectSession.prewarm()
     startAppUpdater()
 
     app.on('activate', () => {
-      // 截屏中/刚结束还焦时勿抬起功能面板
+      // 截屏 / 录屏框选中或刚结束还焦时勿抬起功能面板
       if (screenshotSession?.blocksPanelActivate) return
+      if (recorderSelectSession?.blocksPanelActivate) return
       windowManager.showPanel({ captureFocus: false })
     })
   })
@@ -286,6 +460,9 @@ function prepareQuit(): void {
   if (quitting) return
   quitting = true
   screenshotSession?.cancel()
+  recorderSelectSession?.hideRecordingBorder()
+  recorderSelectSession?.cancel()
+  recorderHost?.dispose()
 
   const cfg = configManager?.get()
   if (cfg?.privacy.clearOnQuit) historyManager?.clear()

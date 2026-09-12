@@ -5,6 +5,7 @@ import { clipboardApi } from './modules/clipboard'
 import { projectsApi } from './modules/projects'
 import { logBridgeApi } from './modules/log'
 import { screenshotApi } from './modules/screenshot'
+import { recorderApi } from './modules/recorder'
 
 /**
  * Preload：把安全的 IPC 封装暴露给渲染进程。
@@ -16,7 +17,8 @@ const api = {
   ...clipboardApi,
   ...projectsApi,
   ...logBridgeApi,
-  screenshot: screenshotApi
+  screenshot: screenshotApi,
+  recorder: recorderApi
 }
 
 export type Api = typeof api

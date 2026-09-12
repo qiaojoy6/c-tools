@@ -3,6 +3,7 @@ import { join } from 'path'
 import type { AppConfig } from '@shared/types'
 import { resolveIsDark } from '../theme'
 import { loadRoute } from './loadRoute'
+import { syncMacDockIcon } from './macDockIcon'
 import {
   asExternalBundleId,
   getFrontmostBundleId
@@ -32,6 +33,7 @@ export interface PanelShowOptions {
 /**
  * 功能面板窗口：titleBarStyle hidden + 原生窗控，顶部自定义通栏
  * 托盘左键 / 程序坞：已打开则置顶、不关闭；托盘右键可切换显隐；ESC / 失焦不关闭
+ * macOS 程序坞：默认隐藏；唤起面板后显示；最小化仍保留
  */
 export class PanelWindow {
   private win: BrowserWindow | null = null
@@ -52,6 +54,17 @@ export class PanelWindow {
 
   isVisible(): boolean {
     return this.win?.isVisible() ?? false
+  }
+
+  /**
+   * macOS 程序坞：默认不展示；面板 show 后展示；最小化仍保留；hide/关窗后隐藏。
+   * （最小化时 isVisible() 为 false，不能单靠 isVisible 判）
+   */
+  shouldShowDockIcon(): boolean {
+    const win = this.win
+    if (!win || win.isDestroyed()) return false
+    if (win.isMinimized()) return true
+    return win.isVisible()
   }
 
   /** Win/Linux：按主题刷新原生窗控底色 */
@@ -107,7 +120,21 @@ export class PanelWindow {
       if (!this.isQuitting()) {
         e.preventDefault()
         win.hide()
+        syncMacDockIcon()
       }
+    })
+    // 最小化须留在程序坞；真正 hide 才隐藏图标
+    win.on('minimize', () => {
+      syncMacDockIcon()
+    })
+    win.on('restore', () => {
+      syncMacDockIcon()
+    })
+    win.on('hide', () => {
+      syncMacDockIcon()
+    })
+    win.on('show', () => {
+      syncMacDockIcon()
     })
 
     // 失焦后记下切到的外部应用，供面板内剪贴板粘贴还原
@@ -145,6 +172,7 @@ export class PanelWindow {
     if (process.platform === 'darwin') {
       app.focus({ steal: true })
     }
+    syncMacDockIcon()
     win.webContents.send('panel:shown')
   }
 
@@ -155,9 +183,11 @@ export class PanelWindow {
       this.win.setFocusable(false)
       this.win.hide()
       this.win.setFocusable(true)
+      syncMacDockIcon()
       return
     }
     this.win.hide()
+    syncMacDockIcon()
   }
 
   takePreviousAppBundleId(): string | null {

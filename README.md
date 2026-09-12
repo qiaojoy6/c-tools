@@ -2,55 +2,166 @@
 
 c-tools 是一款基于 Electron + Vue 的桌面效率工具，目前以剪贴板管理为核心。
 
-它会在后台监听系统剪贴板（文本、图片），保存历史并支持收藏；可通过快捷键呼出独立浮层，或从托盘打开功能面板，搜索、筛选后粘贴回原应用。另有设置（快捷键、条数上限、过期清理、开机自启等），托盘常驻，关窗不退出
+它会在后台监听系统剪贴板（文本、图片），保存历史并支持收藏；可通过快捷键呼出独立浮层，或从托盘打开功能面板，搜索、筛选后粘贴回原应用。另有设置（快捷键、条数上限、过期清理、开机自启等），托盘常驻，关窗不退出。录屏能力由 Rust 原生插件（napi `.node`）提供。
 
-icon
-
+## icon
 
 | mac       | 尺寸(实际的内容大小占原图的80.5%左右) | 说明            |
 | --------- | ---------------------- | ------------- |
 | icon.icns | 512、256、128、64、32      | 包含程序坞、文件列表中的、 |
 
 
-## Project Setup
+## 新电脑：从零编译与打包
 
-### Install
+在一台装好 Node 的新机器上，克隆本仓库后按下面做即可开发和打包。
+
+### 1. 环境依赖
+
+| 依赖 | 用途 | 说明 |
+|------|------|------|
+| **Node.js** | 前端 / Electron | 建议 **18+**（推荐 LTS），已装则可跳过 |
+| **npm** | 包管理 | 随 Node 安装 |
+| **Rust** | 编译录屏 `.node` | [rustup](https://rustup.rs/) 安装；仓库含 `rust-toolchain.toml`，进入项目后会自动对齐工具链 |
+| **ffmpeg** | 录屏编码 / 混流 | 由依赖 `ffmpeg-static` 提供；`npm install` 后即可。打包会把可执行文件打进安装包，用户机不必再装 |
+
+可选但推荐：
+
+- **macOS**：Xcode Command Line Tools（`xcode-select --install`）
+- **Windows**：Visual Studio Build Tools（MSVC，编 Windows `.node` / Electron 原生依赖时需要）
+
+校验：
 
 ```bash
-$ npm install
+node -v
+npm -v
+rustc --version
+cargo --version
+# 可选：确认 ffmpeg-static 已下载
+node -e "console.log(require('ffmpeg-static'))"
 ```
 
-### Development
+### 2. 克隆与安装
 
 ```bash
-$ npm run dev
+git clone <本仓库地址>
+cd c-tools
+npm install
 ```
 
-### Build
+`postinstall` 会执行 `electron-builder install-app-deps`，并尝试给开发态 Electron 写入 macOS 麦克风/系统音频权限文案（`scripts/patch-electron-plist.sh`）。
+
+### 3. 编译录屏原生插件（必做一次）
+
+`.node` **不进 Git**，新机器必须本地编：
 
 ```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
+npm run build:native
 ```
 
-### 发版与自动更新
+脚本会：
 
-1. 改 `package.json` 的 `version`（如 `1.0.0` → `1.0.1`）
-2. 打包：`npm run build:mac` / `build:win`（产物在 `dist/`，含 `latest-mac.yml` / `latest.yml`）
-3. 在 Gitee 建长期 Release，**tag 固定为 `updater`**，把下列文件上传到该 Release（覆盖旧文件）：
-   - mac：`latest-mac.yml` + `*.zip`（自动更新用）+ 可选 `.dmg`（给人装）
-   - win：`latest.yml` + `*-setup.exe`
-4. 用户端：打包版启动约 5 秒后自动检查；设置 → 通用 →「检查更新」；下载完可「重启安装」
+1. 在 `native-rs/recorder-napi` 用 napi-rs 编译**当前平台**的 `.node`
+2. 拷贝到项目根目录 `native/`（开发加载与打包 `extraResources` 都用这里）
 
-更新源地址见 `electron-builder.yml` 的 `publish.url`（须能直接 HTTP 下载到上述 yml/安装包）。
+产物示例：
+
+- Apple Silicon Mac → `native/recorder.darwin-arm64.node`
+- Intel Mac → `native/recorder.darwin-x64.node`
+- Windows x64 → `native/recorder.win32-x64-msvc.node`
+
+说明：
+
+- `native-rs/recorder-napi/index.js` 里列出多平台只是**运行时加载模板**，不会在一台机器上自动编出全部平台。
+- **Windows 的 `.node` 必须在 Windows（或 Windows CI）上编译**，不能在 Mac 上直接产出。
+- 改了 `native-rs/` 下 Rust 代码后，需再跑一次 `npm run build:native`，并**完全重启** `npm run dev`（原生模块会被进程缓存）。
+
+### 4. 开发运行
+
+```bash
+npm run build:native   # 若尚未编译过插件
+npm run dev
+```
+
+录屏：托盘右键 → 开始 / 暂停·继续 / 停止；默认麦克风 + 系统声；文件默认在应用 `userData/recordings/`。
+
+其它常用命令：
+
+```bash
+npm run typecheck      # TypeScript / Vue 类型检查
+npm run lint
+npm run format
+```
+
+### 5. 打包安装包
+
+先确保当前平台的 `.node` 已在 `native/` 中，且 `node_modules/ffmpeg-static` 下已有当前平台的 `ffmpeg`（`npm install` 时下载），再打包（`electron-builder` 会把 `native/*.node` 与 ffmpeg 可执行文件打进 `extraResources`）：
+
+```bash
+# macOS（dmg + zip，产物在 dist/）
+npm run build:mac
+
+# Windows（需在 Windows 上，且已有 win 的 .node）
+npm run build:win
+
+# Linux
+npm run build:linux
+
+# 仅解包目录、不打安装包（调试用）
+npm run build:unpack
+```
+
+`build:mac` / `build:win` / `build:linux` 内部会先跑 `npm run build`（typecheck + electron-vite 构建），再调用 electron-builder。
+
+跨平台发版时：在对应系统（或 CI）分别执行 `build:native` + 对应 `build:*`，汇总各平台安装包。
+
+### 5.1 GitHub Actions 打包 + 自动更新
+
+更新源已改为 **GitHub Releases**（`electron-builder.yml` → `provider: github`，仓库 `qiaojoy6/c-tools`）。客户端用 `electron-updater` 查最新 Release。
+
+**前置条件**
+
+- 代码在 GitHub：`origin2` → `qiaojoy6/c-tools`
+- 仓库建议 **Public**（私有仓客户端无法匿名拉更新，除非另做 token 方案）
+- CI 默认不签名：win 更新一般可用；mac 自动更新仍需代码签名 / 公证
+
+**日常试打包（不发版）**
+
+1. 推代码到 GitHub
+2. Actions → **Build** → **Run workflow** → 选 `all` / `mac` / `win`
+3. 在 Artifacts 下载安装包自测
+
+**正式发版（自动更新）**
+
+1. 改好功能并推到 GitHub（`package.json` 的 version 可先不改：CI 会按 tag 同步）
+2. 打 tag 并推送（会触发 mac + win 打包，并发布到同名 GitHub Release）：
+
+```bash
+git tag v1.0.1
+git push origin2 v1.0.1
+```
+
+3. 到 GitHub → **Releases** 确认该 tag 下已有：
+   - win：`*-setup.exe`、`latest.yml`（及 blockmap）
+   - mac：`*.zip`（更新用）、可选 `*.dmg`、`latest-mac.yml`
+4. 用户端：已安装的打包版启动约 5 秒后自动检查；设置 → 通用 →「检查更新」；下载完可「重启安装」
+
+注意：用户必须先装上「更新源已指向 GitHub」的新包，之后才会从 GitHub 检查更新（旧 Gitee 包不会自动切过来）。
+
+### 6. 本地发版（可选）
+
+若不用 CI，可本机打包后手动建 GitHub Release，上传与上面相同的文件；`latest.yml` / `latest-mac.yml` 必须在 Release 资源里。
 
 **注意**：macOS 自动更新需要代码签名；未签名时检查/安装可能失败（设置页会显示错误信息）。
+
+### 7. 常见问题
+
+| 现象 | 处理 |
+|------|------|
+| 录屏不可用 / 找不到 `.node` | 执行 `npm run build:native`，确认 `native/` 下有当前平台文件 |
+| `ffmpeg not found` | 执行 `npm install` 确保 `ffmpeg-static` 已下载；打包版应自带 `Resources/bin/ffmpeg` |
+| 改了 Rust 但行为没变 | 重新 `build:native` 后**整进程重启** `npm run dev` |
+| macOS 无系统声 | 系统设置 → 隐私与安全性，允许麦克风及「音频 / 屏幕与系统音频录制」；开发态依赖 Electron.app 的 plist 文案（`postinstall` / `build:native` 会尝试写入） |
+| Windows 编不过原生模块 | 安装 VS Build Tools（MSVC），在 **Windows** 上执行 `npm run build:native` |
 
 ## 主进程 ↔ 渲染进程通讯
 

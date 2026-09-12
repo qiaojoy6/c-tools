@@ -27,6 +27,16 @@ const router = createRouter({
       path: '/screenshot',
       name: 'screenshot',
       component: () => import('@renderer/pages/ScreenshotPage.vue')
+    },
+    {
+      path: '/recorder-select',
+      name: 'recorder-select',
+      component: () => import('@renderer/pages/RecorderSelectPage.vue')
+    },
+    {
+      path: '/recorder-fullscreen',
+      name: 'recorder-fullscreen',
+      component: () => import('@renderer/pages/RecorderFullscreenPage.vue')
     }
   ]
 })

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AppConfig, ConfigPatch } from '@shared/types'
-import { defaultScreenshotShortcut } from '@shared/modules/screenshot'
+import { defaultShortcut } from '@shared/shortcuts'
 import { computed } from 'vue'
 import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
@@ -15,7 +15,7 @@ const emit = defineEmits<{
   (e: 'apply', patch: ConfigPatch): void
 }>()
 
-const defaultShot = defaultScreenshotShortcut()
+const defaultShot = defaultShortcut('screenshot')
 
 const isDefaultShortcut = computed(() => props.config.shortcuts.screenshot === defaultShot)
 

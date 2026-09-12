@@ -1,3 +1,4 @@
-provider: generic
-url: https://gitee.com/qiaoyue66/c-tools/releases/download/updater
+provider: github
+owner: qiaojoy6
+repo: c-tools
 updaterCacheDirName: c-tools-updater

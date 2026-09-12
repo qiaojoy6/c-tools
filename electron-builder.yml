@@ -12,10 +12,30 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   # 原图仅本地备份，不打进安装包
   - '!resources/原图.png'
+  - '!native-rs/**'
+  - '!target/**'
+  - '!Cargo.toml'
+  - '!Cargo.lock'
+  - '!rust-toolchain.toml'
+  - '!scripts/**'
+  # 二进制走 extraResources，避免 ~45MB ffmpeg 再进 asar
+  - '!node_modules/ffmpeg-static/**'
 asarUnpack:
   - resources/**
   - node_modules/koffi/**
   - node_modules/@koromix/**
+extraResources:
+  - from: native
+    to: native
+    filter:
+      - '*.node'
+  # 只拷可执行文件（+许可证），不拷整个 npm 包
+  - from: node_modules/ffmpeg-static
+    to: bin
+    filter:
+      - ffmpeg
+      - ffmpeg.exe
+      - ffmpeg.LICENSE
 win:
   executableName: c-tools
 nsis:
@@ -32,6 +52,9 @@ mac:
   extendInfo:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    - NSMicrophoneUsageDescription: c-tools 需要使用麦克风以便在录屏时采集人声。
+    - NSAudioCaptureUsageDescription: c-tools 需要采集系统声音以便录屏时收录电脑播放的音频。
+    - NSCameraUsageDescription: c-tools 可能需要使用摄像头（预留）。
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}
@@ -45,10 +68,11 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-# 更新源：该 URL 下需能直接访问 latest.yml / latest-mac.yml 及安装包
-# 推荐在 Gitee 建长期 Release（tag=updater），每次发版覆盖上传产物
+# 更新源：GitHub Releases（electron-updater 走 GitHub API 取最新版）
+# 仓库建议公开；私有仓客户端无法匿名检查更新
 publish:
-  provider: generic
-  url: https://gitee.com/qiaoyue66/c-tools/releases/download/updater
+  provider: github
+  owner: qiaojoy6
+  repo: c-tools
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

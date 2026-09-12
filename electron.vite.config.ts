@@ -10,10 +10,10 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    // koffi 含平台 .node，不可被打包进 bundle
+    // koffi / ffmpeg-static 含原生二进制，不可被打包进 bundle
     build: {
       rollupOptions: {
-        external: ['koffi']
+        external: ['koffi', 'ffmpeg-static']
       }
     }
   },
@@ -29,6 +29,15 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('src/shared')
+      }
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/renderer/index.html'),
+          'recorder-border': resolve('src/renderer/recorder-border.html'),
+          'recorder-float': resolve('src/renderer/recorder-float.html')
+        }
       }
     },
     plugins: [

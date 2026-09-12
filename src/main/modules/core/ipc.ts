@@ -41,11 +41,9 @@ export interface CoreIpcDeps {
 function normalizeShortcutPatch(patch: ConfigPatch | undefined): ConfigPatch | undefined {
   if (!patch?.shortcuts) return patch
   const next: Partial<ShortcutConfig> = { ...patch.shortcuts }
-  if (patch.shortcuts.togglePanel !== undefined) {
-    next.togglePanel = normalizeAccelerator(patch.shortcuts.togglePanel)
-  }
-  if (patch.shortcuts.screenshot !== undefined) {
-    next.screenshot = normalizeAccelerator(patch.shortcuts.screenshot)
+  for (const key of Object.keys(patch.shortcuts) as Array<keyof ShortcutConfig>) {
+    const raw = patch.shortcuts[key]
+    if (raw !== undefined) next[key] = normalizeAccelerator(raw)
   }
   return { ...patch, shortcuts: next }
 }
@@ -65,8 +63,7 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
     const cfg = config.update(normalizedPatch ?? {})
 
     const shortcutChanged =
-      normalizedPatch?.shortcuts?.togglePanel !== undefined ||
-      normalizedPatch?.shortcuts?.screenshot !== undefined
+      !!normalizedPatch?.shortcuts && Object.keys(normalizedPatch.shortcuts).length > 0
 
     if (shortcutChanged) {
       const failed = shortcuts.registerAll(cfg.shortcuts)
@@ -82,12 +79,7 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
         const reverted = config.update({ shortcuts: revert })
         const failedAgain = shortcuts.registerAll(reverted.shortcuts)
         if (failedAgain.length) {
-          config.update({
-            shortcuts: {
-              togglePanel: DEFAULT_CONFIG.shortcuts.togglePanel,
-              screenshot: DEFAULT_CONFIG.shortcuts.screenshot
-            }
-          })
+          config.update({ shortcuts: { ...DEFAULT_CONFIG.shortcuts } })
           shortcuts.registerAll(DEFAULT_CONFIG.shortcuts)
           return { config: config.get(), warnings }
         }
@@ -111,12 +103,7 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
     const current = config.get().shortcuts
     const failed = shortcuts.registerAll(current)
     if (!failed.length) return true
-    config.update({
-      shortcuts: {
-        togglePanel: DEFAULT_CONFIG.shortcuts.togglePanel,
-        screenshot: DEFAULT_CONFIG.shortcuts.screenshot
-      }
-    })
+    config.update({ shortcuts: { ...DEFAULT_CONFIG.shortcuts } })
     shortcuts.registerAll(DEFAULT_CONFIG.shortcuts)
     return true
   })

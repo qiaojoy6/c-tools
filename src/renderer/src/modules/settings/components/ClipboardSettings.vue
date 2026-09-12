@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AppConfig, ConfigPatch } from '@shared/types'
-import { DEFAULT_TOGGLE_PANEL_SHORTCUT } from '@shared/config'
+import { defaultShortcut } from '@shared/shortcuts'
 import { computed } from 'vue'
 import { Button } from '@renderer/components/ui/button'
 import { Select, type SelectOption } from '@renderer/components/ui/select'
@@ -16,13 +16,13 @@ const emit = defineEmits<{
   (e: 'apply', patch: ConfigPatch): void
 }>()
 
-const isDefaultShortcut = computed(
-  () => props.config.shortcuts.togglePanel === DEFAULT_TOGGLE_PANEL_SHORTCUT
-)
+const defaultToggle = defaultShortcut('toggleClipboard')
+
+const isDefaultShortcut = computed(() => props.config.shortcuts.toggleClipboard === defaultToggle)
 
 function restoreDefaultShortcut(): void {
   if (isDefaultShortcut.value) return
-  emit('apply', { shortcuts: { togglePanel: DEFAULT_TOGGLE_PANEL_SHORTCUT } })
+  emit('apply', { shortcuts: { toggleClipboard: defaultToggle } })
 }
 
 const maxOptions: SelectOption[] = [50, 100, 150, 200].map((v) => ({ label: `${v} 条`, value: v }))
@@ -45,8 +45,8 @@ const cleanOptions: SelectOption[] = [
         </div>
         <div class="flex shrink-0 flex-col items-end gap-1.5">
           <HotkeyInput
-            :model-value="config.shortcuts.togglePanel"
-            @update:model-value="(v) => emit('apply', { shortcuts: { togglePanel: v } })"
+            :model-value="config.shortcuts.toggleClipboard"
+            @update:model-value="(v) => emit('apply', { shortcuts: { toggleClipboard: v } })"
           />
           <Button
             variant="ghost"

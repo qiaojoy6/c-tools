@@ -3,6 +3,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { delay, loadRoute } from '../core/windows/loadRoute'
+import { syncMacDockIcon } from '../core/windows/macDockIcon'
 import type { ShotDisplayFrame, ShotOverlayInit, ShotRect, ShotWindowInfo } from '@shared/types'
 import { shotImageUrl } from './protocol'
 import { windowsOnDisplay } from './windowHit'
@@ -256,6 +257,7 @@ export class ScreenshotOverlayHost {
     if (process.platform === 'darwin' && this.macChromeHidden) {
       await setMacChromeHidden(false)
       this.macChromeHidden = false
+      syncMacDockIcon()
       await delay(32)
     }
   }
@@ -274,6 +276,7 @@ export class ScreenshotOverlayHost {
     if (process.platform === 'darwin' && this.macChromeHidden) {
       await setMacChromeHidden(false)
       this.macChromeHidden = false
+      syncMacDockIcon()
     }
   }
 

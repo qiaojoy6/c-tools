@@ -7,9 +7,16 @@ import type { ClipboardApi } from '../../preload/modules/clipboard'
 import type { ProjectsApi } from '../../preload/modules/projects'
 import type { LogBridgeApi } from '../../preload/modules/log'
 import type { ScreenshotApi } from '../../preload/modules/screenshot'
+import type { RecorderApi } from '../../preload/modules/recorder'
 
 /** 与 preload 暴露的 window.api 对齐 */
-type Api = AppApi & ClipboardApi & ProjectsApi & LogBridgeApi & { screenshot: ScreenshotApi }
+type Api = AppApi &
+  ClipboardApi &
+  ProjectsApi &
+  LogBridgeApi & {
+    screenshot: ScreenshotApi
+    recorder: RecorderApi
+  }
 
 declare global {
   interface Window {

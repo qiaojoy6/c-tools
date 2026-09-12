@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'"
+    />
+    <title>recorder-border</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+      }
+      /* 仅选区外框；工具条由 recorder-float 独立窗承载 */
+      .ring {
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        border: 3px solid #5b9dff;
+        background: transparent;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ring" aria-hidden="true"></div>
+  </body>
+</html>
