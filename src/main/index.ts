@@ -98,10 +98,12 @@ if (!gotSingleLock) {
       void screenshotSession?.start()
     }
 
-    /** 录屏快捷键回调：函数体在 startRegion/Fullscreen 定义后挂上 */
+    /** 录屏快捷键回调：函数体在 startRegion/Fullscreen / pause / stop 定义后挂上 */
     const recorderHotkeys = {
       startRegion: (): void => {},
-      startFullscreen: (): void => {}
+      startFullscreen: (): void => {},
+      pauseResume: (): void => {},
+      stop: (): void => {}
     }
 
     shortcutManager = new ShortcutManager({
@@ -122,6 +124,12 @@ if (!gotSingleLock) {
       },
       recorderFullscreen: () => {
         recorderHotkeys.startFullscreen()
+      },
+      recorderPauseResume: () => {
+        recorderHotkeys.pauseResume()
+      },
+      recorderStop: () => {
+        recorderHotkeys.stop()
       }
     })
 
@@ -130,13 +138,17 @@ if (!gotSingleLock) {
       toggleClipboard: normalizeAccelerator(cfg.shortcuts.toggleClipboard),
       screenshot: normalizeAccelerator(cfg.shortcuts.screenshot),
       recorderRegion: normalizeAccelerator(cfg.shortcuts.recorderRegion ?? ''),
-      recorderFullscreen: normalizeAccelerator(cfg.shortcuts.recorderFullscreen ?? '')
+      recorderFullscreen: normalizeAccelerator(cfg.shortcuts.recorderFullscreen ?? ''),
+      recorderPauseResume: normalizeAccelerator(cfg.shortcuts.recorderPauseResume ?? ''),
+      recorderStop: normalizeAccelerator(cfg.shortcuts.recorderStop ?? '')
     }
     if (
       nextShortcuts.toggleClipboard !== cfg.shortcuts.toggleClipboard ||
       nextShortcuts.screenshot !== cfg.shortcuts.screenshot ||
       nextShortcuts.recorderRegion !== (cfg.shortcuts.recorderRegion ?? '') ||
-      nextShortcuts.recorderFullscreen !== (cfg.shortcuts.recorderFullscreen ?? '')
+      nextShortcuts.recorderFullscreen !== (cfg.shortcuts.recorderFullscreen ?? '') ||
+      nextShortcuts.recorderPauseResume !== (cfg.shortcuts.recorderPauseResume ?? '') ||
+      nextShortcuts.recorderStop !== (cfg.shortcuts.recorderStop ?? '')
     ) {
       configManager.update({ shortcuts: nextShortcuts })
     }
@@ -216,13 +228,6 @@ if (!gotSingleLock) {
       }
     }
 
-    recorderHotkeys.startRegion = () => {
-      void startRegionRecord()
-    }
-    recorderHotkeys.startFullscreen = () => {
-      void startFullscreenRecord()
-    }
-
     /** 录制中停止并收外框；成片后弹自定义保存路径 */
     const stopScreenRecord = (): void => {
       if (!recorderSelectSession) return
@@ -230,6 +235,7 @@ if (!gotSingleLock) {
       trayManager?.rebuild()
     }
 
+    /** 录制中暂停 ↔ 继续（空闲/框选中忽略） */
     const togglePauseRecord = (): void => {
       if (!recorderHost) return
       try {
@@ -244,6 +250,19 @@ if (!gotSingleLock) {
       } finally {
         trayManager?.rebuild()
       }
+    }
+
+    recorderHotkeys.startRegion = () => {
+      void startRegionRecord()
+    }
+    recorderHotkeys.startFullscreen = () => {
+      void startFullscreenRecord()
+    }
+    recorderHotkeys.pauseResume = () => {
+      togglePauseRecord()
+    }
+    recorderHotkeys.stop = () => {
+      stopScreenRecord()
     }
 
     windowManager.onSettingsClosed = () => {

@@ -12,6 +12,10 @@ export interface ShortcutConfig {
   recorderRegion: string
   /** 进入全屏录屏；空则关闭（仍可用托盘） */
   recorderFullscreen: string
+  /** 录制中暂停 / 继续；空则关闭（仍可用托盘 / 悬浮条） */
+  recorderPauseResume: string
+  /** 停止录屏；空则关闭（仍可用托盘 / 悬浮条） */
+  recorderStop: string
 }
 
 /** 主进程 / 渲染进程均可安全判断是否 macOS */
@@ -35,13 +39,17 @@ export const DEFAULT_SHORTCUTS = {
     toggleClipboard: 'Alt+Space',
     screenshot: 'Command+Shift+A',
     recorderRegion: 'Command+Shift+R',
-    recorderFullscreen: 'Command+Shift+F'
+    recorderFullscreen: 'Command+Shift+F',
+    recorderPauseResume: 'Command+Shift+P',
+    recorderStop: 'Command+Shift+S'
   },
   win: {
     toggleClipboard: 'Alt+Space',
     screenshot: 'Alt+A',
     recorderRegion: 'Alt+R',
-    recorderFullscreen: 'Alt+Shift+F'
+    recorderFullscreen: 'Alt+Shift+F',
+    recorderPauseResume: 'Alt+P',
+    recorderStop: 'Alt+S'
   }
 } as const satisfies Record<'darwin' | 'win', ShortcutConfig>
 

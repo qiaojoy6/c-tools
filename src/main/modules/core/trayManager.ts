@@ -109,9 +109,13 @@ export class TrayManager {
       )
     } else {
       items.push(
-        this.item(rs === 'paused' ? '继续录屏' : '暂停录屏', () => this.actions.togglePauseRecord())
+        this.item(
+          rs === 'paused' ? '继续录屏' : '暂停录屏',
+          () => this.actions.togglePauseRecord(),
+          sc.recorderPauseResume
+        )
       )
-      items.push(this.item('停止录屏', () => this.actions.stopRecord()))
+      items.push(this.item('停止录屏', () => this.actions.stopRecord(), sc.recorderStop))
     }
 
     items.push(

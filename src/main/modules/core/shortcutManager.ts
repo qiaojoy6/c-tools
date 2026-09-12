@@ -25,10 +25,12 @@ export type ShortcutHandlers = {
   screenshot: () => void
   recorderRegion: () => void
   recorderFullscreen: () => void
+  recorderPauseResume: () => void
+  recorderStop: () => void
 }
 
 /**
- * 全局快捷键：剪贴板呼出、截屏、区域/全屏录屏。
+ * 全局快捷键：剪贴板呼出、截屏、区域/全屏录屏、录制暂停·停止。
  * 配置为空字符串时不注册该键（功能关闭）。
  */
 export class ShortcutManager {
@@ -49,7 +51,9 @@ export class ShortcutManager {
       ['toggleClipboard', this.handlers.toggleClipboard],
       ['screenshot', this.handlers.screenshot],
       ['recorderRegion', this.handlers.recorderRegion],
-      ['recorderFullscreen', this.handlers.recorderFullscreen]
+      ['recorderFullscreen', this.handlers.recorderFullscreen],
+      ['recorderPauseResume', this.handlers.recorderPauseResume],
+      ['recorderStop', this.handlers.recorderStop]
     ]
 
     for (const [key, handler] of entries) {
