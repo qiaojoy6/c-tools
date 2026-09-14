@@ -46,7 +46,7 @@ const emit = defineEmits<{
       </div>
       <p class="row-path">{{ item.path }}</p>
     </div>
-    <div class="row-actions no-drag">
+    <div class="row-actions app-no-drag">
       <Button
         v-if="item.valid"
         variant="ghost"
@@ -80,6 +80,10 @@ const emit = defineEmits<{
   padding: 8px 8px 8px 4px;
   cursor: default;
   transition: background 0.12s ease;
+}
+
+.row + .row {
+  margin-top: 6px;
 }
 
 .row:hover,
@@ -169,9 +173,5 @@ const emit = defineEmits<{
 .danger-btn:hover {
   background: color-mix(in oklab, var(--destructive) 14%, transparent);
   color: var(--destructive);
-}
-
-.no-drag {
-  -webkit-app-region: no-drag;
 }
 </style>

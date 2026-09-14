@@ -76,6 +76,7 @@
 
 - `src/main/modules/clipboard/` — watcher / history / favorites / paste / imageStore（编排；按键模拟走 focusTarget/mac·win） / ipc
 - `src/renderer/src/pages/ClipboardPage.vue` — 剪贴板内容（独立路由与面板内嵌共用）
+- `src/renderer/src/components/SearchField.vue` — 浮层搜索框（剪贴板 / 快捷文件夹共用）
 - `src/renderer/src/modules/clipboard/` — 卡片、虚拟列表、useHistory
 - `src/preload/modules/clipboard.ts`
 - `src/shared/modules/clipboard.ts`
@@ -102,6 +103,7 @@
 - `src/main/modules/core/windows/quickFoldersWindow.ts` — 独立浮层
 - `src/main/bootstrap/quickFolders.ts` — 启动初始化
 - `src/renderer/src/pages/QuickFoldersPage.vue` — 列表与添加/编辑（独立路由与面板内嵌共用）
+- `src/renderer/src/components/SearchField.vue` — 浮层搜索框（与剪贴板共用）
 - `src/renderer/src/modules/quickFolders/composables/useQuickFolders.ts`
 - `src/renderer/src/modules/quickFolders/components/` — Toolbar / List / Row / FormDialog / DeleteDialog
 - `src/renderer/src/modules/quickFolders/label.ts` — 展示名（备注或文件夹名）

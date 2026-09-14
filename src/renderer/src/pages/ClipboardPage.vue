@@ -12,10 +12,10 @@ import {
   DialogTitle
 } from '@renderer/components/ui/dialog'
 import { Button } from '@renderer/components/ui/button'
-import { Input } from '@renderer/components/ui/input'
+import SearchField from '@renderer/components/SearchField.vue'
 import ClipVirtualList from '@renderer/modules/clipboard/components/ClipVirtualList.vue'
 import { useHistory } from '@renderer/modules/clipboard/composables/useHistory'
-import { ClipboardList, Image as ImageIcon, Search, Star, Trash2, Type } from 'lucide-vue-next'
+import { ClipboardList, Image as ImageIcon, Star, Trash2, Type } from 'lucide-vue-next'
 
 type FilterType = 'all' | 'text' | 'image' | 'favorite'
 
@@ -28,7 +28,7 @@ const { records, favorites, refresh, remove, clear, addFavorite, removeFavorite,
 
 // ---------- 状态 ----------
 const search = ref('')
-const searchWrap = ref<HTMLElement | null>(null)
+const searchField = ref<{ focusInput: () => void; blurInput: () => void } | null>(null)
 const listRef = ref<{ scrollToIndex: (index: number) => void } | null>(null)
 const filter = ref<FilterType>('all')
 const highlight = ref(0)
@@ -329,11 +329,11 @@ function onKeydown(e: KeyboardEvent): void {
 }
 
 function focusSearch(): void {
-  searchWrap.value?.querySelector('input')?.focus()
+  searchField.value?.focusInput()
 }
 
 function blurSearch(): void {
-  searchWrap.value?.querySelector('input')?.blur()
+  searchField.value?.blurInput()
 }
 
 // ---------- 生命周期 ----------
@@ -359,19 +359,15 @@ onUnmounted(() => {
 
 <template>
   <div class="page">
-    <header class="header drag-region">
-      <div ref="searchWrap" class="search">
-        <Search class="search-icon" aria-hidden="true" />
-        <Input
-          v-model="search"
-          placeholder="搜索剪贴记录…"
-          aria-label="搜索剪贴记录"
-          class="search-input no-drag"
-        />
-        <kbd v-if="!search" class="search-hint">⌘F</kbd>
-      </div>
+    <header class="header app-drag">
+      <SearchField
+        ref="searchField"
+        v-model="search"
+        placeholder="搜索剪贴记录…"
+        label="搜索剪贴记录"
+      />
 
-      <div class="filters no-drag" role="tablist" aria-label="类型筛选">
+      <div class="filters app-no-drag" role="tablist" aria-label="类型筛选">
         <button
           v-for="tab in tabs"
           :key="tab.value"
@@ -444,7 +440,7 @@ onUnmounted(() => {
         <span class="hint"><kbd class="kbd">←→</kbd> 筛选</span>
         <span class="hint"><kbd class="kbd">⌫</kbd> 删除</span>
       </div>
-      <div class="footer-actions no-drag">
+      <div class="footer-actions app-no-drag">
         <Button
           v-if="!viewingFavorites"
           variant="ghost"
@@ -500,58 +496,11 @@ onUnmounted(() => {
 
 .header {
   flex-shrink: 0;
-  padding: 16px 16px 12px;
+  padding: 12px 14px 10px;
 }
 
 .header > * + * {
   margin-top: 12px;
-}
-
-.search {
-  position: relative;
-  min-width: 0;
-}
-
-.search-icon {
-  pointer-events: none;
-  position: absolute;
-  top: 50%;
-  left: 14px;
-  width: 16px;
-  height: 16px;
-  transform: translateY(-50%);
-  color: var(--muted-foreground);
-}
-
-.search-input {
-  height: 44px;
-  border-radius: 12px;
-  border-color: color-mix(in oklab, var(--border) 50%, transparent);
-  background: var(--surface-elevated);
-  padding-left: 15px;
-  font-size: 15px;
-  box-shadow: none;
-  backdrop-filter: blur(8px);
-}
-
-.search-input::placeholder {
-  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
-}
-
-.search-hint {
-  pointer-events: none;
-  position: absolute;
-  top: 50%;
-  right: 12px;
-  display: inline;
-  transform: translateY(-50%);
-  border-radius: 6px;
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  background: color-mix(in oklab, var(--muted) 40%, transparent);
-  padding: 2px 6px;
-  font-family: inherit;
-  font-size: 10px;
-  color: var(--muted-foreground);
 }
 
 .filters {
@@ -763,14 +712,6 @@ onUnmounted(() => {
   font-weight: 500;
   color: var(--primary-foreground);
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 20%);
-}
-
-.drag-region {
-  -webkit-app-region: drag;
-}
-
-.no-drag {
-  -webkit-app-region: no-drag;
 }
 
 .toast-enter-active,

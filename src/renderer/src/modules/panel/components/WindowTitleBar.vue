@@ -7,7 +7,7 @@ const isMac = navigator.userAgent.includes('Mac')
 </script>
 
 <template>
-  <header class="titlebar drag-region" :class="isMac ? 'titlebar--mac' : 'titlebar--win'">
+  <header class="titlebar app-drag" :class="isMac ? 'titlebar--mac' : 'titlebar--win'">
     <span class="title">功能面板</span>
   </header>
 </template>
@@ -41,7 +41,4 @@ const isMac = navigator.userAgent.includes('Mac')
   color: var(--muted-foreground);
 }
 
-.drag-region {
-  -webkit-app-region: drag;
-}
 </style>
