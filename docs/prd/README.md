@@ -8,10 +8,11 @@
 
 ### 功能
 
-- 独立剪贴板窗口（`/clipboard`）：无边框置顶浮层、在鼠标所在屏顶部居中、ESC 关闭；仅快捷键呼出；失焦隐藏由 `window.hideOnBlur` 控制（View 菜单可开关）；macOS 为 `type: 'panel'`（show/focus 不激活整个应用，不抬起功能面板）
+- 独立剪贴板窗口（`/clipboard`）：无边框置顶浮层、在鼠标所在屏顶部居中、ESC 关闭；仅快捷键呼出；失焦隐藏由 `window.hideOnBlur` 控制（View 菜单可开关）；macOS 为 `type: 'panel'`（show/focus 不激活整个应用，不抬起功能面板）；macOS 置顶用 `floating` 级，避免盖住输入法候选窗
 - 功能面板窗口（`/panel`）：`titleBarStyle: hidden` + 原生窗控（macOS 交通灯 / Win·Linux `titleBarOverlay`），通栏自定义表头；托盘左键始终显示/置顶、右键可切换显隐；程序坞 / Cmd+Tab 切回置顶（不关闭）；ESC / 失焦不关闭
 - macOS 程序坞图标：默认不展示；唤起功能面板后展示；最小化仍留在程序坞；面板 hide/关窗后隐藏（托盘仍可唤起）
-- 面板左侧图标轨道切换模块（可扩展；当前：剪贴板、快捷文件夹、项目）；底部打开设置
+- 面板左侧使用 shadcn-vue Sidebar（`collapsible="icon"`）切换模块（剪贴板、快捷文件夹、项目）；底部设置
+- 侧栏随面板内宽自动展开/收起，也可手动切换（SidebarTrigger / ⌘B）；纯渲染层适配，不改主进程窗宽
 - 独立设置窗口
 - 应用菜单保留 Edit（系统复制/粘贴依赖）与 View；无 File / Window；View 可开关「点击空白区域隐藏窗口」（作用于独立剪贴板浮层）；刷新 / DevTools 仅开发环境（未打包）提供
 - 托盘常驻（关窗口不退出）；右键菜单含「截屏 / 区域录屏 / 全屏录屏」等入口；已配置的全局快捷键会显示在对应菜单项旁
@@ -30,13 +31,14 @@
 
 ### 相关文件
 
-- `src/main/modules/core/windows/` — ClipboardWindow / QuickFoldersWindow / PanelWindow / SettingsWindow / WindowManager / focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）
+- `src/main/modules/core/windows/` — ClipboardWindow / QuickFoldersWindow / PanelWindow / SettingsWindow / WindowManager / floatingLevel（浮层置顶层级）/ focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）
 - `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac` osascript；`win` koffi+user32）
 - `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu / logIpc / crashGuard / appUpdater / updaterIpc
 - `src/main/bootstrap/` — 主进程启动编排（clipboard / quickFolders / screenshot / recorder / shortcuts / tray / ipc / lifecycle）
 - `src/main/index.ts` — 薄入口：单实例、协议、ready、生命周期
 - `src/main/config/` — 默认配置与读写
-- `src/renderer/src/pages/PanelPage.vue` — 功能面板壳（表头 + 左侧模块 Tab）
+- `src/renderer/src/pages/PanelPage.vue` — 功能面板壳（表头 + shadcn Sidebar 模块 Tab）
+- `src/renderer/src/components/ui/sidebar/` — shadcn-vue Sidebar（嵌入面板布局）
 - `src/renderer/src/modules/panel/components/WindowTitleBar.vue` — 通栏自定义表头（无自绘窗控）
 - `src/renderer/src/pages/ClipboardPage.vue` — 独立剪贴板入口（亦内嵌于面板）
 - `src/renderer/src/modules/panel/tabs.ts` — 面板模块注册
@@ -88,7 +90,7 @@
 ### 功能
 
 - 快捷文件夹书签：本地持久化路径 + 可选备注；路径唯一；默认上限 50（设置可改）
-- 双入口：全局快捷键 → 独立浮层（行为对齐剪贴板）；功能面板左侧 Tab 内嵌同一页面
+- 双入口：全局快捷键 → 独立浮层（行为对齐剪贴板，含 macOS `floating` 置顶以免盖输入法候选）；功能面板左侧 Tab 内嵌同一页面
 - 添加：页面内系统选目录或粘贴/手输路径；添加时路径必须是已存在的文件夹；重复路径拒绝
 - 列表：有备注显示备注，无备注显示文件夹名，其后跟路径；搜索扫备注/文件夹名/路径
 - 打开：Enter / 双击 → `shell.openPath`；独立浮层打开后立刻关闭

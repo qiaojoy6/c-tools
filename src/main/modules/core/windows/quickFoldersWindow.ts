@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import type { AppConfig } from '@shared/types'
 import { loadRoute } from './loadRoute'
+import { applyOverlayFloatingLevel } from './floatingLevel'
 
 /**
  * 快捷文件夹浮层：无边框、置顶、失焦隐藏；由全局快捷键呼出。
@@ -107,16 +108,7 @@ export class QuickFoldersWindow {
   }
 
   private applyFloatingLevel(win: BrowserWindow): void {
-    const onTop = this.getConfig().window.alwaysOnTop
-    if (!onTop) {
-      win.setAlwaysOnTop(false)
-      return
-    }
-    if (process.platform === 'darwin') {
-      win.setAlwaysOnTop(true, 'screen-saver')
-      return
-    }
-    win.setAlwaysOnTop(true)
+    applyOverlayFloatingLevel(win, this.getConfig().window.alwaysOnTop)
   }
 
   /** 居中贴在鼠标所在显示器顶部 */

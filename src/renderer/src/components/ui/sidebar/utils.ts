@@ -6,8 +6,8 @@ export const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 /** 功能面板展开轨宽度（约 148px） */
 export const SIDEBAR_WIDTH = "9.25rem"
 export const SIDEBAR_WIDTH_MOBILE = "18rem"
-/** 功能面板收起为图标轨宽度（约 55px） */
-export const SIDEBAR_WIDTH_ICON = "3.4375rem"
+/** 功能面板收起为图标轨宽度（约 48px） */
+export const SIDEBAR_WIDTH_ICON = "3rem"
 export const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
 export const [useSidebar, provideSidebarContext] = createContext<{

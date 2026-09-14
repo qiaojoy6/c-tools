@@ -3,6 +3,7 @@ import { join } from 'path'
 import type { AppConfig } from '@shared/types'
 import { loadRoute } from './loadRoute'
 import { asExternalBundleId, getFrontmostBundleId } from './focusTarget'
+import { applyOverlayFloatingLevel } from './floatingLevel'
 
 /**
  * 独立剪贴板浮层：无边框、置顶、失焦隐藏；由全局快捷键呼出。
@@ -124,19 +125,9 @@ export class ClipboardWindow {
     this.onExternalAppCaptured?.(bundleId)
   }
 
-  /** 高置顶层级，浮在其它应用之上且不依赖激活本应用 */
+  /** 浮层置顶：压住普通应用，但不盖输入法候选 */
   private applyFloatingLevel(win: BrowserWindow): void {
-    const onTop = this.getConfig().window.alwaysOnTop
-    if (!onTop) {
-      win.setAlwaysOnTop(false)
-      return
-    }
-    if (process.platform === 'darwin') {
-      // screen-saver 级置顶即可；不用 visibleOnAllWorkspaces（会扰乱 Spaces / Cmd+Tab）
-      win.setAlwaysOnTop(true, 'screen-saver')
-      return
-    }
-    win.setAlwaysOnTop(true)
+    applyOverlayFloatingLevel(win, this.getConfig().window.alwaysOnTop)
   }
 
   /** 居中贴在鼠标所在显示器顶部（多屏时不再固定主屏） */

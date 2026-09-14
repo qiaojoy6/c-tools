@@ -10,16 +10,21 @@ const props = withDefaults(defineProps<{
   defaultOpen?: boolean
   open?: boolean
   class?: HTMLAttributes["class"]
+  /** 覆盖 CSS 变量 --sidebar-width（如设置页固定宽） */
+  sidebarWidth?: string
+  /** 是否启用 ⌘/Ctrl+B；固定展开侧栏可关 */
+  enableShortcut?: boolean
 }>(), {
   defaultOpen: !defaultDocument?.cookie.includes(`${SIDEBAR_COOKIE_NAME}=false`),
   open: undefined,
+  enableShortcut: true,
 })
 
 const emits = defineEmits<{
   "update:open": [open: boolean]
 }>()
 
-const isMobile = useMediaQuery('(max-width: 0px)') // 功能面板不走移动端 Sheet
+const isMobile = useMediaQuery('(max-width: 0px)') // Electron 窗不走移动端 Sheet
 const openMobile = ref(false)
 
 const open = useVModel(props, "open", emits, {
@@ -44,6 +49,7 @@ function toggleSidebar() {
 }
 
 useEventListener("keydown", (event: KeyboardEvent) => {
+  if (!props.enableShortcut) return
   if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
     event.preventDefault()
     toggleSidebar()
@@ -69,7 +75,7 @@ provideSidebarContext({
   <TooltipProvider :delay-duration="0">
     <div
       :style="{
-        '--sidebar-width': SIDEBAR_WIDTH,
+        '--sidebar-width': props.sidebarWidth ?? SIDEBAR_WIDTH,
         '--sidebar-width-icon': SIDEBAR_WIDTH_ICON,
       }"
       :class="cn('group/sidebar-wrapper relative flex min-h-0 h-full w-full has-[[data-variant=inset]]:bg-sidebar', props.class)"

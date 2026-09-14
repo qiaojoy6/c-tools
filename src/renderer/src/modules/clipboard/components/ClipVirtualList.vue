@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ClipRecord } from '@shared/types'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import ClipCard from '@renderer/modules/clipboard/components/ClipCard.vue'
@@ -50,14 +50,6 @@ function scrollToIndex(index: number): void {
   if (index < 0 || index >= props.records.length) return
   virtualizer.value.scrollToIndex(index, { align: 'auto' })
 }
-
-watch(
-  () => props.records.length,
-  () => {
-    // 筛选变化后重置测量缓存，避免高度错位
-    virtualizer.value.measure()
-  }
-)
 
 defineExpose({ scrollToIndex })
 </script>

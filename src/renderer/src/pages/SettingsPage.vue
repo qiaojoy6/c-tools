@@ -8,6 +8,22 @@ import QuickFoldersSettings from '@renderer/modules/settings/components/QuickFol
 import ScreenshotSettings from '@renderer/modules/settings/components/ScreenshotSettings.vue'
 import RecorderSettings from '@renderer/modules/settings/components/RecorderSettings.vue'
 import ProjectSettings from '@renderer/modules/settings/components/ProjectSettings.vue'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider
+} from '@renderer/components/ui/sidebar'
+
+/** 设置窗固定侧栏宽度 */
+const SETTINGS_SIDEBAR_WIDTH = '12rem'
 
 const config = ref<AppConfig | null>(null)
 const activeModule = ref(SETTINGS_MODULES[0]!.id)
@@ -60,56 +76,73 @@ onUnmounted(() => {
 
 <template>
   <div class="settings">
-    <aside class="aside">
-      <div class="aside-label-wrap">
-        <p class="aside-label">设置</p>
-      </div>
-      <nav class="aside-nav" aria-label="设置模块">
-        <button
-          v-for="mod in SETTINGS_MODULES"
-          :key="mod.id"
-          type="button"
-          class="aside-btn"
-          :aria-current="activeModule === mod.id ? 'page' : undefined"
-          @click="activeModule = mod.id"
-        >
-          <component :is="mod.icon" class="aside-icon" aria-hidden="true" />
-          <span class="aside-btn-text">{{ mod.label }}</span>
-        </button>
-      </nav>
-    </aside>
+    <!-- 设置侧栏始终展开：collapsible=none，关闭 ⌘B -->
+    <SidebarProvider
+      :default-open="true"
+      :enable-shortcut="false"
+      :sidebar-width="SETTINGS_SIDEBAR_WIDTH"
+      class="min-h-0 flex-1"
+    >
+      <Sidebar collapsible="none" class="border-sidebar-border">
+        <SidebarHeader>
+          <SidebarGroupLabel class="px-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
+            设置
+          </SidebarGroupLabel>
+        </SidebarHeader>
 
-    <main class="main">
-      <header class="main-header">
-        <h2 class="main-title">{{ activeTab.label }}</h2>
-        <p class="main-desc">{{ activeTab.description }}</p>
-      </header>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem v-for="mod in SETTINGS_MODULES" :key="mod.id">
+                  <SidebarMenuButton
+                    :is-active="activeModule === mod.id"
+                    :aria-label="mod.label"
+                    class="h-10"
+                    @click="activeModule = mod.id"
+                  >
+                    <component :is="mod.icon" />
+                    <span>{{ mod.label }}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
 
-      <div v-if="config" class="main-body">
-        <GeneralSettings v-if="activeModule === 'general'" :config="config" @apply="apply" />
-        <ClipboardSettings
-          v-else-if="activeModule === 'clipboard'"
-          :config="config"
-          @apply="apply"
-        />
-        <QuickFoldersSettings
-          v-else-if="activeModule === 'quickFolders'"
-          :config="config"
-          @apply="apply"
-        />
-        <ScreenshotSettings
-          v-else-if="activeModule === 'screenshot'"
-          :config="config"
-          @apply="apply"
-        />
-        <RecorderSettings
-          v-else-if="activeModule === 'recorder'"
-          :config="config"
-          @apply="apply"
-        />
-        <ProjectSettings v-else-if="activeModule === 'projects'" />
-      </div>
-    </main>
+      <SidebarInset class="min-h-0 overflow-hidden bg-transparent">
+        <header class="main-header">
+          <h2 class="main-title">{{ activeTab.label }}</h2>
+          <p class="main-desc">{{ activeTab.description }}</p>
+        </header>
+
+        <div v-if="config" class="main-body">
+          <GeneralSettings v-if="activeModule === 'general'" :config="config" @apply="apply" />
+          <ClipboardSettings
+            v-else-if="activeModule === 'clipboard'"
+            :config="config"
+            @apply="apply"
+          />
+          <QuickFoldersSettings
+            v-else-if="activeModule === 'quickFolders'"
+            :config="config"
+            @apply="apply"
+          />
+          <ScreenshotSettings
+            v-else-if="activeModule === 'screenshot'"
+            :config="config"
+            @apply="apply"
+          />
+          <RecorderSettings
+            v-else-if="activeModule === 'recorder'"
+            :config="config"
+            @apply="apply"
+          />
+          <ProjectSettings v-else-if="activeModule === 'projects'" />
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
 
     <Transition name="toast">
       <div v-if="toastMsg" class="toast-wrap">
@@ -125,79 +158,6 @@ onUnmounted(() => {
   height: 100vh;
   background: var(--background);
   color: var(--foreground);
-}
-
-.aside {
-  display: flex;
-  width: 208px;
-  flex-shrink: 0;
-  flex-direction: column;
-  border-right: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
-  background: color-mix(in oklab, var(--rail) 60%, transparent);
-}
-
-.aside-label-wrap {
-  padding: 20px 16px 12px;
-}
-
-.aside-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-
-.aside-nav {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 10px 16px;
-}
-
-.aside-btn {
-  display: flex;
-  cursor: pointer;
-  align-items: center;
-  gap: 10px;
-  border-radius: 12px;
-  padding: 10px 12px;
-  text-align: left;
-  font-size: 14px;
-  color: var(--muted-foreground);
-  transition:
-    color 0.2s ease,
-    background 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.aside-btn:hover {
-  background: color-mix(in oklab, var(--foreground) 10%, transparent);
-  color: var(--foreground);
-}
-
-.aside-btn[aria-current='page'] {
-  background: color-mix(in oklab, var(--primary) 18%, transparent);
-  color: var(--primary);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent);
-}
-
-.aside-icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
-
-.aside-btn-text {
-  font-weight: 500;
-}
-
-.main {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
 }
 
 .main-header {
