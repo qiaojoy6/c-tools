@@ -6,6 +6,7 @@ import type {
   HistoryManager,
   PasteService
 } from '../modules/clipboard'
+import type { QuickFoldersStore } from '../modules/quickFolders'
 import type { ShortcutManager, TrayManager, WindowManager } from '../modules/core'
 import type { ProjectsRuntime } from '../modules/projects'
 import type { RecorderHost, RecorderSelectSession } from '../modules/recorder'
@@ -30,6 +31,7 @@ export type AppContext = {
   favorites: FavoritesManager
   paste: PasteService
   clipboardWatcher: ClipboardWatcher
+  quickFolders: QuickFoldersStore
   projects: ProjectsRuntime
   screenshot: ScreenshotSession
   recorderHost: RecorderHost

@@ -1,5 +1,6 @@
 import type { ClipboardConfig } from './modules/clipboard'
 import type { ProjectsConfig } from './modules/projects'
+import type { QuickFoldersConfig } from './modules/quickFolders'
 import type { RecorderConfig } from './modules/recorder'
 import type { ScreenshotConfig } from './modules/screenshot'
 import type { ShortcutConfig } from './shortcuts'
@@ -48,6 +49,7 @@ export interface AppConfig {
   window: WindowConfig
   shortcuts: ShortcutConfig
   clipboard: ClipboardConfig
+  quickFolders: QuickFoldersConfig
   screenshot: ScreenshotConfig
   projects: ProjectsConfig
   privacy: PrivacyConfig

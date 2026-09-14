@@ -5,6 +5,7 @@ import type { LogApi } from '@shared/types'
 import type { AppApi } from '../../preload/modules/app'
 import type { ClipboardApi } from '../../preload/modules/clipboard'
 import type { ProjectsApi } from '../../preload/modules/projects'
+import type { QuickFoldersApi } from '../../preload/modules/quickFolders'
 import type { LogBridgeApi } from '../../preload/modules/log'
 import type { ScreenshotApi } from '../../preload/modules/screenshot'
 import type { RecorderApi } from '../../preload/modules/recorder'
@@ -14,6 +15,7 @@ type Api = AppApi &
   ClipboardApi &
   ProjectsApi &
   LogBridgeApi & {
+    quickFolders: QuickFoldersApi
     screenshot: ScreenshotApi
     recorder: RecorderApi
   }

@@ -12,6 +12,7 @@ import {
 import type { RecorderSelectSession } from '../modules/recorder'
 import type { AppContext } from './context'
 import { setupClipboard } from './clipboard'
+import { setupQuickFolders } from './quickFolders'
 import { setupScreenshot } from './screenshot'
 import { setupRecorder } from './recorder'
 import { setupShortcuts } from './shortcuts'
@@ -50,8 +51,9 @@ export function runWhenReady(): AppContext {
 
   const windows = new WindowManager(() => config.get())
 
-  // ---- clipboard / screenshot / recorder ----
+  // ---- clipboard / quickFolders / screenshot / recorder ----
   const clipboard = setupClipboard(config)
+  const quickFolders = setupQuickFolders(config)
 
   const trayRef: { current?: TrayManager } = {}
   const selectRef: { current?: RecorderSelectSession } = {}
@@ -113,6 +115,7 @@ export function runWhenReady(): AppContext {
     history: clipboard.history,
     favorites: clipboard.favorites,
     paste: clipboard.paste,
+    quickFolders,
     screenshot,
     recorderHost,
     recorderSelect
@@ -139,6 +142,7 @@ export function runWhenReady(): AppContext {
     favorites: clipboard.favorites,
     paste: clipboard.paste,
     clipboardWatcher: clipboard.watcher,
+    quickFolders,
     projects,
     screenshot,
     recorderHost,

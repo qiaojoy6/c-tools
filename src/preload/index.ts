@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { appApi } from './modules/app'
 import { clipboardApi } from './modules/clipboard'
 import { projectsApi } from './modules/projects'
+import { quickFoldersApi } from './modules/quickFolders'
 import { logBridgeApi } from './modules/log'
 import { screenshotApi } from './modules/screenshot'
 import { recorderApi } from './modules/recorder'
@@ -17,6 +18,7 @@ const api = {
   ...clipboardApi,
   ...projectsApi,
   ...logBridgeApi,
+  quickFolders: quickFoldersApi,
   screenshot: screenshotApi,
   recorder: recorderApi
 }

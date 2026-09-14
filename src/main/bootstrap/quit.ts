@@ -16,6 +16,7 @@ export function prepareQuit(ctx: AppContext | null): void {
   if (cfg.privacy.clearOnQuit) ctx.history.clear()
   ctx.history.dispose()
   ctx.favorites.dispose()
+  ctx.quickFolders.dispose()
   ctx.clipboardWatcher.stop()
   void ctx.projects.stopAll()
   ctx.windows.markQuitting()

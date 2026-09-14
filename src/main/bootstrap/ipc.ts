@@ -14,6 +14,7 @@ import {
   type FavoritesManager,
   type PasteService
 } from '../modules/clipboard'
+import { registerQuickFoldersIpc, type QuickFoldersStore } from '../modules/quickFolders'
 import { ProjectsRuntime, registerProjectsIpc } from '../modules/projects'
 import { registerScreenshotIpc, type ScreenshotSession } from '../modules/screenshot'
 import {
@@ -30,6 +31,7 @@ export type IpcSetupDeps = {
   history: HistoryManager
   favorites: FavoritesManager
   paste: PasteService
+  quickFolders: QuickFoldersStore
   screenshot: ScreenshotSession
   recorderHost: RecorderHost
   recorderSelect: RecorderSelectSession
@@ -63,6 +65,10 @@ export function registerAllIpc(deps: IpcSetupDeps): ProjectsRuntime {
     history: deps.history,
     favorites: deps.favorites,
     paste: deps.paste,
+    windows: deps.windows
+  })
+  registerQuickFoldersIpc({
+    store: deps.quickFolders,
     windows: deps.windows
   })
   registerScreenshotIpc(deps.screenshot)

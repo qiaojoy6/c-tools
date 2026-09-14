@@ -4,6 +4,7 @@ import { delay } from './loadRoute'
 import { bindDockIconToPanel } from './macDockIcon'
 import { ClipboardWindow } from './clipboardWindow'
 import { PanelWindow, type PanelShowOptions } from './panelWindow'
+import { QuickFoldersWindow } from './quickFoldersWindow'
 import { SettingsWindow } from './settingsWindow'
 import {
   activateExternalApp,
@@ -19,12 +20,13 @@ const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 220 : 120
 
 export type AppWindowVisibility = {
   clipboard: boolean
+  quickFolders: boolean
   panel: boolean
   settings: boolean
 }
 
 /**
- * 窗口枢纽：独立剪贴板浮层 + 功能面板 + 设置窗
+ * 窗口枢纽：独立剪贴板 / 快捷文件夹浮层 + 功能面板 + 设置窗
  * 还焦原语见 focusHandoff（粘贴 / 截屏共用）
  */
 export class WindowManager {
@@ -32,12 +34,14 @@ export class WindowManager {
   /** 最近一次外部前台应用，面板内粘贴 / 截屏被盖住时的回落目标 */
   private lastExternalBundleId: string | null = null
   readonly clipboard: ClipboardWindow
+  readonly quickFolders: QuickFoldersWindow
   readonly panel: PanelWindow
   readonly settings: SettingsWindow
 
   constructor(getConfig: () => AppConfig) {
     const isQuitting = (): boolean => this.quitting
     this.clipboard = new ClipboardWindow(getConfig, isQuitting)
+    this.quickFolders = new QuickFoldersWindow(getConfig, isQuitting)
     this.panel = new PanelWindow(isQuitting, () => getConfig().general.theme)
     this.settings = new SettingsWindow(isQuitting)
 
@@ -60,6 +64,10 @@ export class WindowManager {
     return this.clipboard.browserWindow
   }
 
+  get quickFoldersWindow() {
+    return this.quickFolders.browserWindow
+  }
+
   get settingsWindow() {
     return this.settings.browserWindow
   }
@@ -73,12 +81,13 @@ export class WindowManager {
   }
 
   isVisible(): boolean {
-    return this.clipboard.isVisible() || this.panel.isVisible()
+    return this.clipboard.isVisible() || this.quickFolders.isVisible() || this.panel.isVisible()
   }
 
-  /** 预创建剪贴板 + 功能面板（隐藏），避免首次点程序坞再冷创建 */
+  /** 预创建浮层 + 功能面板（隐藏），避免首次点程序坞再冷创建 */
   createPanel(): void {
     this.clipboard.create()
+    this.quickFolders.create()
     this.panel.create()
     // macOS：默认不进程序坞；唤起面板后展示；最小化仍保留
     bindDockIconToPanel(() => this.panel.shouldShowDockIcon())
@@ -92,6 +101,10 @@ export class WindowManager {
     this.clipboard.show()
   }
 
+  showQuickFolders(): void {
+    this.quickFolders.show()
+  }
+
   showPanel(opts?: PanelShowOptions): void {
     this.panel.show(opts)
   }
@@ -100,27 +113,35 @@ export class WindowManager {
     this.clipboard.hide()
   }
 
-  /** IPC `panel:hide`：只关独立剪贴板浮层（历史命名；功能面板不关） */
+  hideQuickFolders(): void {
+    this.quickFolders.hide()
+  }
+
+  /** IPC `panel:hide`：关独立浮层（剪贴板 / 快捷文件夹；功能面板不关） */
   hidePanel(): void {
     this.hideClipboard()
+    this.hideQuickFolders()
   }
 
   hideAllOverlays(): void {
     this.clipboard.hide()
+    this.quickFolders.hide()
     this.panel.hide()
   }
 
-  /** 藏起剪贴板 / 面板 / 设置（截屏遮罩下或还焦前） */
+  /** 藏起浮层 / 面板 / 设置（截屏遮罩下或还焦前） */
   hideAppBrowserWindows(): void {
     if (this.clipboard.isVisible()) this.clipboard.hide()
+    if (this.quickFolders.isVisible()) this.quickFolders.hide()
     if (this.panel.isVisible()) this.panel.hide()
     if (this.settings.isVisible()) this.settings.hide()
   }
 
-  /** 记下显隐后藏起剪贴板 / 面板 / 设置（截屏 hideAppWindows） */
+  /** 记下显隐后藏起浮层 / 面板 / 设置（截屏 hideAppWindows） */
   captureAndHideAppWindows(): AppWindowVisibility {
     const state: AppWindowVisibility = {
       clipboard: this.clipboard.isVisible(),
+      quickFolders: this.quickFolders.isVisible(),
       panel: this.panel.isVisible(),
       settings: this.settings.isVisible()
     }
@@ -131,6 +152,11 @@ export class WindowManager {
   toggleClipboard(): void {
     if (this.clipboard.isVisible()) this.hideClipboard()
     else this.showClipboard()
+  }
+
+  toggleQuickFolders(): void {
+    if (this.quickFolders.isVisible()) this.hideQuickFolders()
+    else this.showQuickFolders()
   }
 
   /**
@@ -209,6 +235,7 @@ export class WindowManager {
     if (!visibility) return
     if (visibility.panel) this.showPanel({ captureFocus: false })
     if (visibility.clipboard) this.showClipboard()
+    if (visibility.quickFolders) this.showQuickFolders()
     if (visibility.settings) this.showSettings()
   }
 

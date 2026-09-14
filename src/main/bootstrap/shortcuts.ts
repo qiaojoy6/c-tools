@@ -26,6 +26,11 @@ export function setupShortcuts(deps: ShortcutSetupDeps): ShortcutManager {
       }
       windows.toggleClipboard()
     },
+    toggleQuickFolders: () => {
+      if (screenshot.isActive) return
+      if (recorderSelect.isActive) return
+      windows.toggleQuickFolders()
+    },
     screenshot: () => {
       if (recorderSelect.isActive) return
       startScreenshot()
@@ -47,6 +52,7 @@ export function setupShortcuts(deps: ShortcutSetupDeps): ShortcutManager {
   const cfg = config.get()
   const nextShortcuts = {
     toggleClipboard: normalizeAccelerator(cfg.shortcuts.toggleClipboard),
+    toggleQuickFolders: normalizeAccelerator(cfg.shortcuts.toggleQuickFolders ?? ''),
     screenshot: normalizeAccelerator(cfg.shortcuts.screenshot),
     recorderRegion: normalizeAccelerator(cfg.shortcuts.recorderRegion ?? ''),
     recorderFullscreen: normalizeAccelerator(cfg.shortcuts.recorderFullscreen ?? ''),
@@ -55,6 +61,7 @@ export function setupShortcuts(deps: ShortcutSetupDeps): ShortcutManager {
   }
   if (
     nextShortcuts.toggleClipboard !== cfg.shortcuts.toggleClipboard ||
+    nextShortcuts.toggleQuickFolders !== (cfg.shortcuts.toggleQuickFolders ?? '') ||
     nextShortcuts.screenshot !== cfg.shortcuts.screenshot ||
     nextShortcuts.recorderRegion !== (cfg.shortcuts.recorderRegion ?? '') ||
     nextShortcuts.recorderFullscreen !== (cfg.shortcuts.recorderFullscreen ?? '') ||

@@ -14,6 +14,11 @@ const router = createRouter({
       component: () => import('@renderer/pages/ClipboardPage.vue')
     },
     {
+      path: '/quick-folders',
+      name: 'quick-folders',
+      component: () => import('@renderer/pages/QuickFoldersPage.vue')
+    },
+    {
       path: '/panel',
       name: 'panel',
       component: () => import('@renderer/pages/PanelPage.vue')

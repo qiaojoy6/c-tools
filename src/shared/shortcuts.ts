@@ -6,6 +6,8 @@
 export interface ShortcutConfig {
   /** 呼出/隐藏剪贴板窗口，Electron Accelerator 格式 */
   toggleClipboard: string
+  /** 呼出/隐藏快捷文件夹浮层；空则关闭（仍可用功能面板入口） */
+  toggleQuickFolders: string
   /** 进入截屏；空则关闭（仍可用托盘等入口） */
   screenshot: string
   /** 进入区域录屏；空则关闭（仍可用托盘） */
@@ -37,6 +39,7 @@ export function isDarwinPlatform(platform?: string): boolean {
 export const DEFAULT_SHORTCUTS = {
   darwin: {
     toggleClipboard: 'Alt+Space',
+    toggleQuickFolders: 'Command+Shift+O',
     screenshot: 'Command+Shift+A',
     recorderRegion: 'Command+Shift+R',
     recorderFullscreen: 'Command+Shift+F',
@@ -45,6 +48,7 @@ export const DEFAULT_SHORTCUTS = {
   },
   win: {
     toggleClipboard: 'Alt+Space',
+    toggleQuickFolders: 'Control+Shift+O',
     screenshot: 'Alt+A',
     recorderRegion: 'Alt+R',
     recorderFullscreen: 'Alt+Shift+F',

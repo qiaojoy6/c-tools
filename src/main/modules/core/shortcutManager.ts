@@ -22,6 +22,7 @@ function isUsableAccelerator(accelerator: string): boolean {
 
 export type ShortcutHandlers = {
   toggleClipboard: () => void
+  toggleQuickFolders: () => void
   screenshot: () => void
   recorderRegion: () => void
   recorderFullscreen: () => void
@@ -30,7 +31,7 @@ export type ShortcutHandlers = {
 }
 
 /**
- * 全局快捷键：剪贴板呼出、截屏、区域/全屏录屏、录制暂停·停止。
+ * 全局快捷键：剪贴板 / 快捷文件夹呼出、截屏、区域/全屏录屏、录制暂停·停止。
  * 配置为空字符串时不注册该键（功能关闭）。
  */
 export class ShortcutManager {
@@ -49,6 +50,7 @@ export class ShortcutManager {
 
     const entries: Array<[keyof ShortcutConfig, () => void]> = [
       ['toggleClipboard', this.handlers.toggleClipboard],
+      ['toggleQuickFolders', this.handlers.toggleQuickFolders],
       ['screenshot', this.handlers.screenshot],
       ['recorderRegion', this.handlers.recorderRegion],
       ['recorderFullscreen', this.handlers.recorderFullscreen],

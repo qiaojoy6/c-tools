@@ -1,5 +1,5 @@
 import type { Component } from 'vue'
-import { ClipboardList, FolderKanban, Scan, Settings2, Video } from 'lucide-vue-next'
+import { ClipboardList, FolderKanban, FolderOpen, Scan, Settings2, Video } from 'lucide-vue-next'
 
 /** 设置侧边模块：后续新功能在此注册即可 */
 export interface SettingsModuleTab {
@@ -21,6 +21,12 @@ export const SETTINGS_MODULES: SettingsModuleTab[] = [
     label: '剪贴板',
     description: '呼出快捷键、记录与隐私',
     icon: ClipboardList
+  },
+  {
+    id: 'quickFolders',
+    label: '快捷文件夹',
+    description: '呼出快捷键与条数上限',
+    icon: FolderOpen
   },
   {
     id: 'screenshot',

@@ -1,6 +1,7 @@
 export { WindowManager } from './windowManager'
 export type { AppWindowVisibility } from './windowManager'
 export { ClipboardWindow } from './clipboardWindow'
+export { QuickFoldersWindow } from './quickFoldersWindow'
 export { PanelWindow, PANEL_TITLE_BAR_HEIGHT } from './panelWindow'
 export { SettingsWindow } from './settingsWindow'
 export { bindDockIconToPanel, syncMacDockIcon } from './macDockIcon'

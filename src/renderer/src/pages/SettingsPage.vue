@@ -4,6 +4,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { SETTINGS_MODULES } from '@renderer/modules/settings/tabs'
 import GeneralSettings from '@renderer/modules/settings/components/GeneralSettings.vue'
 import ClipboardSettings from '@renderer/modules/settings/components/ClipboardSettings.vue'
+import QuickFoldersSettings from '@renderer/modules/settings/components/QuickFoldersSettings.vue'
 import ScreenshotSettings from '@renderer/modules/settings/components/ScreenshotSettings.vue'
 import RecorderSettings from '@renderer/modules/settings/components/RecorderSettings.vue'
 import ProjectSettings from '@renderer/modules/settings/components/ProjectSettings.vue'
@@ -88,6 +89,11 @@ onUnmounted(() => {
         <GeneralSettings v-if="activeModule === 'general'" :config="config" @apply="apply" />
         <ClipboardSettings
           v-else-if="activeModule === 'clipboard'"
+          :config="config"
+          @apply="apply"
+        />
+        <QuickFoldersSettings
+          v-else-if="activeModule === 'quickFolders'"
           :config="config"
           @apply="apply"
         />

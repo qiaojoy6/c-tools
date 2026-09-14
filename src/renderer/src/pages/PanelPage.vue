@@ -4,6 +4,7 @@ import { Settings2 } from 'lucide-vue-next'
 import { PANEL_MODULES } from '@renderer/modules/panel/tabs'
 import WindowTitleBar from '@renderer/modules/panel/components/WindowTitleBar.vue'
 import ClipboardPage from '@renderer/pages/ClipboardPage.vue'
+import QuickFoldersPage from '@renderer/pages/QuickFoldersPage.vue'
 import ProjectsPage from '@renderer/pages/ProjectsPage.vue'
 
 /** 功能面板：通栏自定义表头 + 左侧模块轨 + 内容区 */
@@ -12,6 +13,7 @@ const activeModule = ref(PANEL_MODULES[0]!.id)
 const projectsMounted = ref(false)
 
 const showClipboard = computed(() => activeModule.value === 'clipboard')
+const showQuickFolders = computed(() => activeModule.value === 'quickFolders')
 const showProjects = computed(() => activeModule.value === 'projects')
 
 watch(activeModule, (id) => {
@@ -78,6 +80,7 @@ function openSettings(): void {
 
       <div class="panel-body">
         <ClipboardPage v-if="showClipboard" />
+        <QuickFoldersPage v-else-if="showQuickFolders" />
         <ProjectsPage v-if="projectsMounted" v-show="showProjects" />
       </div>
     </div>
