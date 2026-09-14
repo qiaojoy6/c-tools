@@ -50,5 +50,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     enableSystemAudio: true,
     micDeviceId: null,
     quality: 'original'
+  },
+  features: {
+    enabled: {}
   }
 }

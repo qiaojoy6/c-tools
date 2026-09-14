@@ -1,15 +1,12 @@
-import type { ConfigManager } from '../config'
-import {
-  ClipboardImageStore,
-  ClipboardWatcher,
-  FavoritesManager,
-  HistoryManager,
-  PasteService,
-  installClipboardImageProtocol
-} from '../modules/clipboard'
-import { installScreenshotImageProtocol } from '../modules/screenshot'
+import type { ConfigManager } from '../../config'
+import { ClipboardImageStore, installClipboardImageProtocol } from './imageStore'
+import { ClipboardWatcher } from './watcher'
+import { FavoritesManager } from './favorites'
+import { HistoryManager } from './history'
+import { PasteService } from './paste'
 import { broadcastFavorites, broadcastHistory } from './broadcast'
 
+/** 剪贴板内部栈：Feature 与 HostServices 共用 */
 export type ClipboardStack = {
   images: ClipboardImageStore
   history: HistoryManager
@@ -18,11 +15,13 @@ export type ClipboardStack = {
   watcher: ClipboardWatcher
 }
 
-/** 组装剪贴板：图片协议、历史/收藏、监听与粘贴 */
-export function setupClipboard(config: ConfigManager): ClipboardStack {
+/**
+ * 组装剪贴板：图片协议、历史/收藏、监听与粘贴
+ * 不安装截屏协议（截屏 Feature 自己挂）
+ */
+export function assembleClipboard(config: ConfigManager): ClipboardStack {
   const images = new ClipboardImageStore()
   installClipboardImageProtocol(images)
-  installScreenshotImageProtocol()
 
   // 用 bag 打破 history ↔ favorites 与 reconcile 的初始化顺序
   const bag: {

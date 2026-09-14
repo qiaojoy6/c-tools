@@ -55,9 +55,15 @@ export class ScreenshotOverlayHost {
     })
   }
 
+  /** 小窗加载路由即可；勿在预热阶段铺全屏/置顶，否则会抢焦点并弄没面板/设置 */
   prewarm(): void {
     for (const display of screen.getAllDisplays()) {
-      this.ensureWindow(display.id, { ...display.bounds })
+      this.ensureWindow(display.id, {
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: 8,
+        height: 8
+      })
     }
   }
 
@@ -82,6 +88,7 @@ export class ScreenshotOverlayHost {
       return existing
     }
 
+    // 预热阶段保持普通隐藏窗；置顶 / 全 Space 仅在 showSession 时施加
     const win = new BrowserWindow({
       x: place.x,
       y: place.y,
@@ -95,7 +102,8 @@ export class ScreenshotOverlayHost {
       maximizable: false,
       fullscreenable: false,
       skipTaskbar: true,
-      alwaysOnTop: true,
+      alwaysOnTop: false,
+      focusable: false,
       hasShadow: false,
       show: false,
       paintWhenInitiallyHidden: true,
@@ -108,8 +116,6 @@ export class ScreenshotOverlayHost {
       }
     })
 
-    win.setAlwaysOnTop(true, 'screen-saver')
-    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     if (process.platform === 'darwin') {
       win.setWindowButtonVisibility(false)
     }
@@ -211,6 +217,8 @@ export class ScreenshotOverlayHost {
       const win = this.wins.get(frame.displayId)
       if (!win || win.isDestroyed()) continue
       const place = { ...frame.bounds }
+      win.setFocusable(true)
+      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       win.setAlwaysOnTop(true, 'screen-saver')
       win.setBounds(place)
       if (!win.isVisible()) {
@@ -245,13 +253,15 @@ export class ScreenshotOverlayHost {
     for (const win of this.wins.values()) {
       if (win.isDestroyed() || !win.isVisible()) continue
       if (win.isFocused()) win.blur()
+      win.setAlwaysOnTop(false)
+      win.setVisibleOnAllWorkspaces(false)
       if (process.platform === 'win32') {
-        win.setAlwaysOnTop(false)
         win.setFocusable(false)
         win.hide()
         win.setFocusable(true)
       } else {
         win.hide()
+        win.setFocusable(false)
       }
     }
     if (process.platform === 'darwin' && this.macChromeHidden) {

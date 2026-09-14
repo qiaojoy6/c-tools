@@ -8,78 +8,109 @@ import {
   type ShortcutManager,
   type WindowManager
 } from '../modules/core'
-import {
-  registerClipboardIpc,
-  type HistoryManager,
-  type FavoritesManager,
-  type PasteService
-} from '../modules/clipboard'
-import { registerQuickFoldersIpc, type QuickFoldersStore } from '../modules/quickFolders'
-import { ProjectsRuntime, registerProjectsIpc } from '../modules/projects'
-import { registerScreenshotIpc, type ScreenshotSession } from '../modules/screenshot'
-import {
-  registerRecorderIpc,
-  type RecorderHost,
-  type RecorderSelectSession
+import type { ClipboardFeatureHandles } from '../modules/clipboard'
+import { broadcastHistory } from '../modules/clipboard'
+import type { QuickFoldersFeatureHandles, QuickFoldersStore } from '../modules/quickFolders'
+import type { ProjectsRuntime, ProjectsFeatureHandles } from '../modules/projects'
+import type { ScreenshotFeatureHandles, ScreenshotSession } from '../modules/screenshot'
+import type {
+  RecorderFeatureHandles,
+  RecorderHost,
+  RecorderSelectSession,
+  RecorderActions
 } from '../modules/recorder'
-import { broadcastHistory } from './broadcast'
+import type { FeatureHost } from '../modules/feature'
+import { resyncShortcutHandlers } from './shortcuts'
 
 export type IpcSetupDeps = {
   config: ConfigManager
   shortcuts: ShortcutManager
   windows: WindowManager
-  history: HistoryManager
-  favorites: FavoritesManager
-  paste: PasteService
-  quickFolders: QuickFoldersStore
-  screenshot: ScreenshotSession
-  recorderHost: RecorderHost
-  recorderSelect: RecorderSelectSession
+  featureHost: FeatureHost
 }
 
-/** 注册全部 IPC，并安装 webview 辅助；返回 projects 运行时 */
-export function registerAllIpc(deps: IpcSetupDeps): ProjectsRuntime {
+/**
+ * 注册全部 IPC，并安装 webview 辅助。
+ * Feature 贡献的 IPC 由 FeatureHost.registerAllIpc 挂载；开关变更时可热加载。
+ */
+export function registerAllIpc(deps: IpcSetupDeps): void {
   registerLogIpc()
   registerUpdaterIpc()
-  // webview target=_blank / window.open → 宿主开页签（deny 系统弹窗）
   installWebviewWindowOpenHandler()
-  // guest 销毁时关掉对应开发者工具独立窗
   installGuestDevToolsLifecycle()
 
-  const projects = new ProjectsRuntime()
-  registerProjectsIpc({
-    config: deps.config,
-    runtime: projects
-  })
+  deps.featureHost.registerAllIpc()
 
   registerCoreIpc({
     config: deps.config,
     shortcuts: deps.shortcuts,
     windows: deps.windows,
     onModuleConfigChanged: () => {
-      deps.history.applyConfigChanged()
-      broadcastHistory(deps.history.getAll())
-    }
-  })
-  registerClipboardIpc({
-    history: deps.history,
-    favorites: deps.favorites,
-    paste: deps.paste,
-    windows: deps.windows
-  })
-  registerQuickFoldersIpc({
-    store: deps.quickFolders,
-    windows: deps.windows
-  })
-  registerScreenshotIpc(deps.screenshot)
-  registerRecorderIpc(deps.recorderHost, deps.recorderSelect, {
-    persistAudioPrefs: (prefs) => {
-      deps.config.update({ recorder: prefs })
+      // 热加载后剪贴板句柄可能才出现，每次现取
+      const clipboard = deps.featureHost.tryGetHandles<ClipboardFeatureHandles>('clipboard')
+      if (!clipboard) return
+      clipboard.history.applyConfigChanged()
+      broadcastHistory(clipboard.history.getAll())
     },
-    persistRecorderPrefs: (prefs) => {
-      deps.config.update({ recorder: prefs })
+    onFeaturesConfigChanged: () => {
+      const { loaded, warnings } = deps.featureHost.syncRuntimeFeatures()
+      resyncShortcutHandlers(deps.shortcuts, deps.featureHost)
+      deps.shortcuts.registerAll(deps.config.get().shortcuts)
+      const msgs = [...warnings]
+      for (const id of loaded) {
+        const label =
+          id === 'clipboard'
+            ? '剪贴板'
+            : id === 'quickFolders'
+              ? '快捷文件夹'
+              : id === 'projects'
+                ? '项目'
+                : id === 'screenshot'
+                  ? '截屏'
+                  : id === 'recorder'
+                    ? '录屏'
+                    : id
+        msgs.push(`已启用${label}`)
+      }
+      return msgs
     }
   })
+}
 
-  return projects
+export function getClipboardHandles(featureHost: FeatureHost): ClipboardFeatureHandles | undefined {
+  return featureHost.tryGetHandles<ClipboardFeatureHandles>('clipboard')
+}
+
+export function getProjectsRuntime(featureHost: FeatureHost): ProjectsRuntime | undefined {
+  return featureHost.tryGetHandles<ProjectsFeatureHandles>('projects')?.runtime
+}
+
+export function getQuickFoldersStore(featureHost: FeatureHost): QuickFoldersStore | undefined {
+  return featureHost.tryGetHandles<QuickFoldersFeatureHandles>('quickFolders')?.store
+}
+
+export function getScreenshotHandles(
+  featureHost: FeatureHost
+): ScreenshotFeatureHandles | undefined {
+  return featureHost.tryGetHandles<ScreenshotFeatureHandles>('screenshot')
+}
+
+export function getRecorderHandles(featureHost: FeatureHost): RecorderFeatureHandles | undefined {
+  return featureHost.tryGetHandles<RecorderFeatureHandles>('recorder')
+}
+
+export function getScreenshotSession(featureHost: FeatureHost): ScreenshotSession | undefined {
+  return getScreenshotHandles(featureHost)?.session
+}
+
+export function getRecorderStack(featureHost: FeatureHost):
+  | {
+      host: RecorderHost
+      select: RecorderSelectSession
+      actions: RecorderActions
+    }
+  | undefined {
+  const h = getRecorderHandles(featureHost)
+  if (!h) return undefined
+  return { host: h.host, select: h.select, actions: h.actions }
 }

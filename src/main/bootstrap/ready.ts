@@ -9,21 +9,29 @@ import {
   startAppUpdater,
   type TrayManager
 } from '../modules/core'
-import type { RecorderSelectSession } from '../modules/recorder'
+import { FeatureHost } from '../modules/feature'
+import { clipboardFeature } from '../modules/clipboard'
+import { projectsFeature } from '../modules/projects'
+import { quickFoldersFeature } from '../modules/quickFolders'
+import { screenshotFeature } from '../modules/screenshot'
+import { recorderFeature } from '../modules/recorder'
 import type { AppContext } from './context'
-import { setupClipboard } from './clipboard'
-import { setupQuickFolders } from './quickFolders'
-import { setupScreenshot } from './screenshot'
-import { setupRecorder } from './recorder'
 import { setupShortcuts } from './shortcuts'
 import { setupTray } from './tray'
 import { wireConfigSync } from './configSync'
-import { registerAllIpc } from './ipc'
+import {
+  getClipboardHandles,
+  getProjectsRuntime,
+  getQuickFoldersStore,
+  getRecorderStack,
+  getScreenshotHandles,
+  registerAllIpc
+} from './ipc'
 import { quitApp } from './quit'
 
 /**
  * app.whenReady 后的组装顺序：
- * shell → clipboard → screenshot → recorder → shortcuts → tray → sync → ipc → windows
+ * shell → FeatureHost.setup → shortcuts → tray → sync → ipc → windows
  */
 export function runWhenReady(): AppContext {
   electronApp.setAppUserModelId('com.ctools.app')
@@ -51,42 +59,35 @@ export function runWhenReady(): AppContext {
 
   const windows = new WindowManager(() => config.get())
 
-  // ---- clipboard / quickFolders / screenshot / recorder ----
-  const clipboard = setupClipboard(config)
-  const quickFolders = setupQuickFolders(config)
-
+  // 托盘延后创建；recorder Feature 经 shared.getTray 取用
   const trayRef: { current?: TrayManager } = {}
-  const selectRef: { current?: RecorderSelectSession } = {}
 
-  const { session: screenshot, startScreenshot } = setupScreenshot({
+  // ---- FeatureHost：按 features.enabled 跳过禁用模块 ----
+  const featureHost = new FeatureHost()
+  featureHost.register(clipboardFeature)
+  featureHost.register(projectsFeature)
+  featureHost.register(quickFoldersFeature)
+  featureHost.register(screenshotFeature)
+  featureHost.register(recorderFeature)
+  featureHost.setupAll({
     config,
     windows,
-    images: clipboard.images,
-    history: clipboard.history,
-    watcher: clipboard.watcher,
-    isRecorderSelectActive: () => Boolean(selectRef.current?.isActive)
+    shared: {
+      getTray: () => trayRef.current
+    }
   })
 
-  const {
-    host: recorderHost,
-    select: recorderSelect,
-    actions: recorderActions
-  } = setupRecorder({
-    config,
-    windows,
-    isScreenshotActive: () => screenshot.isActive,
-    getTray: () => trayRef.current
-  })
-  selectRef.current = recorderSelect
+  const clipboard = getClipboardHandles(featureHost)
+  const quickFolders = getQuickFoldersStore(featureHost)
+  const screenshotHandles = getScreenshotHandles(featureHost)
+  const recorder = getRecorderStack(featureHost)
+  const projects = getProjectsRuntime(featureHost)
 
-  // ---- shortcuts / tray ----
+  // ---- shortcuts / tray（业务入口由 Feature 贡献）----
   const shortcuts = setupShortcuts({
     config,
     windows,
-    screenshot,
-    recorderSelect,
-    startScreenshot,
-    recorderActions
+    featureHost
   })
 
   const openSettings = (): void => {
@@ -98,9 +99,8 @@ export function runWhenReady(): AppContext {
   const tray = setupTray({
     config,
     windows,
-    recorderHost,
-    startScreenshot,
-    recorderActions,
+    featureHost,
+    recorderHost: recorder?.host,
     openSettings,
     quit: () => quitApp(ctxRef.current)
   })
@@ -108,28 +108,19 @@ export function runWhenReady(): AppContext {
 
   wireConfigSync({ config, windows, tray })
 
-  const projects = registerAllIpc({
+  registerAllIpc({
     config,
     shortcuts,
     windows,
-    history: clipboard.history,
-    favorites: clipboard.favorites,
-    paste: clipboard.paste,
-    quickFolders,
-    screenshot,
-    recorderHost,
-    recorderSelect
+    featureHost
   })
 
   applyLoginItem(cfg.general.launchAtLogin)
   applyNativeThemeSource(cfg.general.theme)
 
-  clipboard.paste.notifyAccessibilityHintOnLaunch()
+  clipboard?.paste.notifyAccessibilityHintOnLaunch()
 
   windows.createPanel()
-  // 预热截屏 / 录屏框选遮罩，缩短入口到可操作等待
-  screenshot.prewarm()
-  recorderSelect.prewarm()
   startAppUpdater()
 
   const ctx: AppContext = {
@@ -137,18 +128,19 @@ export function runWhenReady(): AppContext {
     windows,
     shortcuts,
     tray,
-    clipboardImages: clipboard.images,
-    history: clipboard.history,
-    favorites: clipboard.favorites,
-    paste: clipboard.paste,
-    clipboardWatcher: clipboard.watcher,
+    featureHost,
+    clipboardImages: clipboard?.images,
+    history: clipboard?.history,
+    favorites: clipboard?.favorites,
+    paste: clipboard?.paste,
+    clipboardWatcher: clipboard?.watcher,
     quickFolders,
     projects,
-    screenshot,
-    recorderHost,
-    recorderSelect,
-    recorderActions,
-    startScreenshot,
+    screenshot: screenshotHandles?.session,
+    recorderHost: recorder?.host,
+    recorderSelect: recorder?.select,
+    recorderActions: recorder?.actions,
+    startScreenshot: screenshotHandles?.startScreenshot,
     quitApp: () => quitApp(ctxRef.current)
   }
   ctxRef.current = ctx

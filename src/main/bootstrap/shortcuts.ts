@@ -1,53 +1,20 @@
 import { DEFAULT_CONFIG, type ConfigManager } from '../config'
 import { ShortcutManager, normalizeAccelerator, type WindowManager } from '../modules/core'
-import type { ScreenshotSession } from '../modules/screenshot'
-import type { RecorderSelectSession } from '../modules/recorder'
-import type { RecorderActions } from './context'
+import type { ShortcutHandlers } from '../modules/core/shortcutManager'
+import type { FeatureHost } from '../modules/feature'
 
 export type ShortcutSetupDeps = {
   config: ConfigManager
   windows: WindowManager
-  screenshot: ScreenshotSession
-  recorderSelect: RecorderSelectSession
-  startScreenshot: () => void
-  recorderActions: RecorderActions
+  /** 已 setup 的 FeatureHost；快捷键由已启用 Feature 贡献 */
+  featureHost: FeatureHost
 }
 
 /** 规范化配置中的快捷键并注册；失败则回退默认 */
 export function setupShortcuts(deps: ShortcutSetupDeps): ShortcutManager {
-  const { config, windows, screenshot, recorderSelect, startScreenshot, recorderActions } = deps
+  const { config, windows, featureHost } = deps
 
-  const manager = new ShortcutManager({
-    toggleClipboard: () => {
-      if (screenshot.isActive) return
-      if (recorderSelect.isActive) return
-      if (!windows.clipboard.isVisible()) {
-        windows.noteForegroundBeforeShow()
-      }
-      windows.toggleClipboard()
-    },
-    toggleQuickFolders: () => {
-      if (screenshot.isActive) return
-      if (recorderSelect.isActive) return
-      windows.toggleQuickFolders()
-    },
-    screenshot: () => {
-      if (recorderSelect.isActive) return
-      startScreenshot()
-    },
-    recorderRegion: () => {
-      recorderActions.startRegion()
-    },
-    recorderFullscreen: () => {
-      recorderActions.startFullscreen()
-    },
-    recorderPauseResume: () => {
-      recorderActions.pauseResume()
-    },
-    recorderStop: () => {
-      recorderActions.stop()
-    }
-  })
+  const manager = new ShortcutManager(buildHandlers(featureHost))
 
   const cfg = config.get()
   const nextShortcuts = {
@@ -78,8 +45,43 @@ export function setupShortcuts(deps: ShortcutSetupDeps): ShortcutManager {
   }
 
   windows.onSettingsClosed = () => {
+    // 设置关闭后按当前 Feature 开关重绑再注册
+    resyncShortcutHandlers(manager, featureHost)
     manager.registerAll(config.get().shortcuts)
   }
 
   return manager
+}
+
+/** 功能开关变更后：重绑 handler 并按当前 shortcuts 配置注册 */
+export function resyncShortcutHandlers(
+  manager: ShortcutManager,
+  featureHost: FeatureHost
+): void {
+  manager.setHandlers(buildHandlers(featureHost))
+}
+
+const SHORTCUT_HANDLER_KEYS: Array<keyof ShortcutHandlers> = [
+  'toggleClipboard',
+  'toggleQuickFolders',
+  'screenshot',
+  'recorderRegion',
+  'recorderFullscreen',
+  'recorderPauseResume',
+  'recorderStop'
+]
+
+const noop = (): void => {}
+
+function buildHandlers(featureHost: FeatureHost): ShortcutHandlers {
+  return withNoopHandlers(featureHost.collectShortcutHandlers())
+}
+
+/** 未贡献的键填空操作（对应 Feature 已禁用） */
+function withNoopHandlers(partial: Partial<ShortcutHandlers>): ShortcutHandlers {
+  const out = { ...partial } as ShortcutHandlers
+  for (const key of SHORTCUT_HANDLER_KEYS) {
+    if (!out[key]) out[key] = noop
+  }
+  return out
 }

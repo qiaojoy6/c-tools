@@ -7,23 +7,23 @@ import { quickFoldersApi } from './modules/quickFolders'
 import { logBridgeApi } from './modules/log'
 import { screenshotApi } from './modules/screenshot'
 import { recorderApi } from './modules/recorder'
+import { PRELOAD_BRIDGES, assemblePreloadApi } from './feature'
 
 /**
- * Preload：把安全的 IPC 封装暴露给渲染进程。
+ * Preload：按 PRELOAD_BRIDGES 注册表组装 window.api。
  * 渲染侧只使用 window.api / window.logApi / window.electron，不直接访问 ipcRenderer。
- * 新增功能模块时在此合并对应 bridge。
  */
-const api = {
-  ...appApi,
-  ...clipboardApi,
-  ...projectsApi,
-  ...logBridgeApi,
-  quickFolders: quickFoldersApi,
-  screenshot: screenshotApi,
-  recorder: recorderApi
-}
+const api = assemblePreloadApi([...PRELOAD_BRIDGES]) as Api
 
-export type Api = typeof api
+/** 与注册表一致的公开类型（供 renderer env.d.ts） */
+export type Api = typeof appApi &
+  typeof clipboardApi &
+  typeof projectsApi &
+  typeof logBridgeApi & {
+    quickFolders: typeof quickFoldersApi
+    screenshot: typeof screenshotApi
+    recorder: typeof recorderApi
+  }
 
 if (process.contextIsolated) {
   try {

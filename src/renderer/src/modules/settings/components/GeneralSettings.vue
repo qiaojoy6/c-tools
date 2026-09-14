@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import type { AppConfig, ConfigPatch, UpdateStatus } from '@shared/types'
+import type { AppConfig, ConfigPatch, ToggleableFeatureId, UpdateStatus } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
+import { FEATURE_TOGGLE_OPTIONS } from '@renderer/modules/feature/toggles'
+import { isFeatureEnabled } from '@renderer/modules/feature/enabled'
 import { Monitor, Moon, Sun } from 'lucide-vue-next'
 
-defineProps<{
+const props = defineProps<{
   config: AppConfig
 }>()
 
@@ -29,6 +31,8 @@ const busy = computed(() => {
 
 const canInstall = computed(() => update.value?.state === 'downloaded')
 
+const clipboardOn = computed(() => isFeatureEnabled(props.config.features, 'clipboard'))
+
 onMounted(() => {
   void window.api.getUpdateStatus().then((s) => {
     update.value = s
@@ -49,6 +53,30 @@ async function onCheck(): Promise<void> {
 
 async function onInstall(): Promise<void> {
   await window.api.installUpdate()
+}
+
+function featureOn(id: ToggleableFeatureId): boolean {
+  // 剪贴板关闭时截屏在主进程也会被跳过，开关显示为关且不可开
+  if (id === 'screenshot' && !clipboardOn.value) return false
+  return isFeatureEnabled(props.config.features, id)
+}
+
+function featureLocked(id: ToggleableFeatureId): boolean {
+  return id === 'screenshot' && !clipboardOn.value
+}
+
+function onFeatureToggle(id: ToggleableFeatureId, enabled: boolean): void {
+  if (featureLocked(id)) return
+  let enabledPatch: Partial<Record<ToggleableFeatureId, boolean>> = { [id]: enabled }
+  // 关剪贴板时同步关掉截屏开关位，避免配置看起来仍开着
+  if (id === 'clipboard' && !enabled) {
+    enabledPatch = { clipboard: false, screenshot: false }
+  }
+  emit('apply', {
+    features: {
+      enabled: enabledPatch
+    }
+  })
 }
 </script>
 
@@ -86,6 +114,33 @@ async function onInstall(): Promise<void> {
         <Switch
           :model-value="config.general.launchAtLogin"
           @update:model-value="(v) => emit('apply', { general: { launchAtLogin: v } })"
+        />
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <div>
+        <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">功能模块</h3>
+        <p class="mt-1 text-xs text-muted-foreground">
+          开关立即生效：侧栏、快捷键、托盘会同步；关闭会暂停剪贴板监听。首次开启某模块会自动加载
+        </p>
+      </div>
+      <div
+        v-for="opt in FEATURE_TOGGLE_OPTIONS"
+        :key="opt.id"
+        class="flex items-center justify-between gap-4"
+      >
+        <div class="min-w-0">
+          <p class="text-sm">{{ opt.label }}</p>
+          <p class="mt-0.5 text-xs text-muted-foreground">
+            <template v-if="featureLocked(opt.id)">需先开启剪贴板</template>
+            <template v-else>{{ opt.description }}</template>
+          </p>
+        </div>
+        <Switch
+          :model-value="featureOn(opt.id)"
+          :disabled="featureLocked(opt.id)"
+          @update:model-value="(v) => onFeatureToggle(opt.id, v)"
         />
       </div>
     </section>

@@ -89,6 +89,11 @@ export class ShortcutManager {
     return failed
   }
 
+  /** 运行时替换 handler（功能开关变更后重绑） */
+  setHandlers(handlers: ShortcutHandlers): void {
+    this.handlers = handlers
+  }
+
   getRegistered(key: keyof ShortcutConfig): string {
     return this.registered[key] ?? ''
   }

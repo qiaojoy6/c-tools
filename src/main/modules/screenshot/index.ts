@@ -1,3 +1,5 @@
 export { ScreenshotSession } from './session'
 export { registerScreenshotIpc } from './ipc'
 export { installScreenshotImageProtocol } from './protocol'
+export { screenshotFeature } from './feature'
+export type { ScreenshotFeatureHandles } from './feature'

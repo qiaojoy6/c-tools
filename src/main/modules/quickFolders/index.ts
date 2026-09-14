@@ -1,3 +1,5 @@
 export { QuickFoldersStore, normalizeFolderPath, folderDisplayName } from './store'
 export { registerQuickFoldersIpc } from './ipc'
 export type { QuickFoldersIpcDeps } from './ipc'
+export { quickFoldersFeature } from './feature'
+export type { QuickFoldersFeatureHandles } from './feature'

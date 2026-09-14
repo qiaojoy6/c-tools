@@ -36,6 +36,8 @@ export interface CoreIpcDeps {
   windows: WindowManager
   /** 各功能模块对配置变更的联动（由入口装配注入，如剪贴板裁剪/清理/广播） */
   onModuleConfigChanged: () => void
+  /** features.enabled 变更后热加载 / 软切换；返回给设置页的 warnings */
+  onFeaturesConfigChanged?: () => string[]
 }
 
 function normalizeShortcutPatch(patch: ConfigPatch | undefined): ConfigPatch | undefined {
@@ -89,6 +91,12 @@ export function registerCoreIpc(deps: CoreIpcDeps): void {
 
     if (normalizedPatch?.clipboard) {
       deps.onModuleConfigChanged()
+    }
+
+    if (normalizedPatch?.features && deps.onFeaturesConfigChanged) {
+      for (const w of deps.onFeaturesConfigChanged()) {
+        warnings.push(w)
+      }
     }
 
     return { config: cfg, warnings }

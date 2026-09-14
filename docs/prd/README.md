@@ -2,6 +2,37 @@
 
 按模块记录已有功能与对应源码目录。新增功能时，在对应模块补功能条目；有新文件则补到「相关文件」。
 
+架构演进（可插拔 Feature / 插件系统）：见 [plugin-system.md](./plugin-system.md)。
+
+---
+
+## feature（插件宿主 · P0）
+
+### 功能
+
+- 主进程 `defineFeature` + `FeatureHost`：编译期注册内置模块，统一 setup / registerIpc / bindShortcuts / dispose
+- 渲染层 Panel / Settings 贡献表带 `component`，页面按注册表动态挂载（去掉硬编码 v-if 链）
+- 已迁入 FeatureHost：`clipboard`、`projects`、`quickFolders`、`screenshot`、`recorder`（主进程业务模块均经 Host）
+- 跨模块互斥 / 服务经 `FeatureContext.shared`；快捷键 `bindShortcuts`；托盘 `bindTray`
+- `features.enabled`：配置关闭模块后 Host 跳过 setup；Panel/Settings 隐藏对应 Tab；运行时软切换快捷键/托盘/剪贴板监听；启动未加载的模块可热 setup
+- preload 经 `PRELOAD_BRIDGES` 注册表组装 `window.api`
+- 第三方动态加载与 capability 沙箱见计划 P2，尚未实现
+
+### 相关文件
+
+- `docs/prd/plugin-system.md` — 架构计划与分阶段
+- `src/shared/modules/feature.ts` — FeatureId / FeaturesConfig / 贡献点元类型
+- `src/main/modules/feature/` — FeatureHost / defineFeature / FeatureShared
+- `src/main/modules/clipboard/feature.ts` — clipboard Feature
+- `src/main/modules/clipboard/hostServices.ts` — 截屏入库等对外服务
+- `src/main/modules/projects/feature.ts` — projects Feature
+- `src/main/modules/quickFolders/feature.ts` — quickFolders Feature
+- `src/main/modules/screenshot/feature.ts` — screenshot Feature（含 tray）
+- `src/main/modules/recorder/feature.ts` — recorder Feature（含 tray）
+- `src/renderer/src/modules/feature/enabled.ts` — 渲染层按 enabled 过滤
+- `src/renderer/src/modules/panel/tabs.ts` — 面板贡献（含 component / keepAlive）
+- `src/renderer/src/modules/settings/tabs.ts` — 设置贡献（含 component）
+
 ---
 
 ## core
@@ -34,18 +65,20 @@
 - `src/main/modules/core/windows/` — ClipboardWindow / QuickFoldersWindow / PanelWindow / SettingsWindow / WindowManager / floatingLevel（浮层置顶层级）/ focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）
 - `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac` osascript；`win` koffi+user32）
 - `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu / logIpc / crashGuard / appUpdater / updaterIpc
-- `src/main/bootstrap/` — 主进程启动编排（clipboard / quickFolders / screenshot / recorder / shortcuts / tray / ipc / lifecycle）
+- `src/main/bootstrap/` — 主进程启动编排（FeatureHost + shortcuts / tray / ipc / lifecycle）
+- `src/main/modules/feature/` — 内置 Feature 宿主（见「feature」节）
 - `src/main/index.ts` — 薄入口：单实例、协议、ready、生命周期
 - `src/main/config/` — 默认配置与读写
-- `src/renderer/src/pages/PanelPage.vue` — 功能面板壳（表头 + shadcn Sidebar 模块 Tab）
+- `src/renderer/src/pages/PanelPage.vue` — 功能面板壳（表头 + shadcn Sidebar；模块页来自 `panel/tabs`）
 - `src/renderer/src/components/ui/sidebar/` — shadcn-vue Sidebar（嵌入面板布局）
 - `src/renderer/src/modules/panel/components/WindowTitleBar.vue` — 通栏自定义表头（无自绘窗控）
 - `src/renderer/src/pages/ClipboardPage.vue` — 独立剪贴板入口（亦内嵌于面板）
-- `src/renderer/src/modules/panel/tabs.ts` — 面板模块注册
+- `src/renderer/src/modules/panel/tabs.ts` — 面板模块注册（含页面 component）
 - `src/renderer/src/router/index.ts` — `/clipboard` / `/quick-folders` / `/panel` / `/settings`
 - `src/renderer/src/utils/logApi.ts` — 渲染日志安装与封装
 - `src/shared/logFormat.ts` — 日志安全序列化
 - `src/shared/modules/updater.ts` — 更新状态类型
+- `src/preload/feature/` — bridge 注册表（defineRootBridge / defineNestedBridge / assemblePreloadApi）
 - `src/preload/modules/app.ts`
 - `src/preload/modules/log.ts`
 - `src/shared/config.ts`
@@ -76,12 +109,13 @@
 
 ### 相关文件
 
-- `src/main/modules/clipboard/` — watcher / history / favorites / paste / imageStore（编排；按键模拟走 focusTarget/mac·win） / ipc
+- `src/main/modules/clipboard/` — assemble / feature / hostServices / watcher / history / favorites / paste / imageStore / ipc / broadcast
 - `src/renderer/src/pages/ClipboardPage.vue` — 剪贴板内容（独立路由与面板内嵌共用）
 - `src/renderer/src/components/SearchField.vue` — 浮层搜索框（剪贴板 / 快捷文件夹共用）
 - `src/renderer/src/modules/clipboard/` — 卡片、虚拟列表、useHistory
 - `src/preload/modules/clipboard.ts`
 - `src/shared/modules/clipboard.ts`
+- 入口耦接：`FeatureHost` / `bindShortcuts`（toggleClipboard）/ `WindowManager` / `panel/tabs` / `settings/tabs`
 
 ---
 
@@ -101,9 +135,8 @@
 
 ### 相关文件
 
-- `src/main/modules/quickFolders/` — store / ipc
+- `src/main/modules/quickFolders/` — store / ipc / feature（FeatureHost：lifecycle + IPC + 快捷键）
 - `src/main/modules/core/windows/quickFoldersWindow.ts` — 独立浮层
-- `src/main/bootstrap/quickFolders.ts` — 启动初始化
 - `src/renderer/src/pages/QuickFoldersPage.vue` — 列表与添加/编辑（独立路由与面板内嵌共用）
 - `src/renderer/src/components/SearchField.vue` — 浮层搜索框（与剪贴板共用）
 - `src/renderer/src/modules/quickFolders/composables/useQuickFolders.ts`
@@ -112,7 +145,7 @@
 - `src/renderer/src/modules/settings/components/QuickFoldersSettings.vue`
 - `src/preload/modules/quickFolders.ts`
 - `src/shared/modules/quickFolders.ts`
-- 入口耦接：`shortcutManager` / `WindowManager` / `panel/tabs` / `settings/tabs`
+- 入口耦接：`FeatureHost` / `shortcutManager`（经 `bindShortcuts`）/ `WindowManager` / `panel/tabs` / `settings/tabs`
 
 ---
 
@@ -136,7 +169,7 @@
 
 ### 相关文件
 
-- `src/main/modules/projects/` — scan / staticServer / runtime / port / ipc
+- `src/main/modules/projects/` — scan / staticServer / runtime / port / ipc / feature（FeatureHost 样板）
 - `src/renderer/src/modules/projects/components/ProjectWebview.vue` — 预览工具栏（含刷新右键 ContextMenu 强制刷新）
 - `src/renderer/src/components/ui/context-menu/` — shadcn ContextMenu（reka-ui）
 - `src/renderer/src/components/ui/drawer/` — shadcn Drawer（reka-ui；项目编辑侧栏）
@@ -147,7 +180,7 @@
 - `src/renderer/src/pages/ProjectsPage.vue`
 - `src/renderer/src/modules/projects/` — composables、卡片列表与页签、ProjectWebview、ProjectIcon、ClearPreviewDataDialog
 - `src/main/modules/projects/icon.ts` — 扫描时解析项目图标
-- `src/renderer/src/modules/panel/tabs.ts` — 面板模块注册
+- `src/renderer/src/modules/panel/tabs.ts` — 面板模块注册（projects keepAlive）
 - `src/main/modules/core/windows/panelWindow.ts` — `webviewTag`
 
 ---
@@ -178,7 +211,7 @@
 
 ### 相关文件
 
-- `src/main/modules/screenshot/` — 抓屏、多屏遮罩编排、完成/下载、IPC、协议
+- `src/main/modules/screenshot/` — feature / 抓屏、多屏遮罩编排、完成/下载、IPC、协议
 - `src/main/modules/screenshot/windowHit/` — 窗口枚举与本屏裁剪（mac / win）
 - `src/main/modules/core/schemes.ts` — `clipimg` / `shotimg` 特权方案注册
 - `src/renderer/src/modules/screenshot/` — 遮罩选区、工具条、标注画布、标注几何（命中/平移）
@@ -187,8 +220,8 @@
 - `src/renderer/src/modules/settings/components/ScreenshotSettings.vue` — 截屏设置区块
 - `src/preload/modules/screenshot.ts`
 - `src/shared/modules/screenshot.ts`
-- 完成时耦接：`src/main/modules/clipboard/`（写板 / history / imageStore / syncBaseline）
-- 入口耦接：`src/main/bootstrap/`（screenshot / shortcuts / tray）、`settings.json` 中 `shortcuts` + `screenshot`
+- 完成时耦接：`ClipboardHostServices.ingestScreenshotPng`（写板 / 同步基线 / 入库历史）
+- 入口耦接：`FeatureHost` / `bindShortcuts` / tray、`settings.json` 中 `shortcuts` + `screenshot`
 
 ---
 
@@ -218,7 +251,7 @@
 - `scripts/build-native.sh` — `npm run build:native`
 - `.github/workflows/build.yml` — GitHub Actions：mac/win 编 `.node` 并打包；`v*` tag 时发布到 GitHub Release（自动更新）
 - `electron-builder.yml` / `dev-app-update.yml` — 更新源 `provider: github`
-- `src/main/modules/recorder/` — 主进程加载插件、框选遮罩会话、全屏选屏弹窗、区域外框与全屏悬浮条 IPC、停录另存为、麦/系统声权限（`permission.ts`）
+- `src/main/modules/recorder/` — feature / 主进程加载插件、框选遮罩会话、全屏选屏弹窗、区域外框与全屏悬浮条 IPC、停录另存为、麦/系统声权限（`permission.ts`）
 - `src/main/modules/recorder/saveRecording.ts` — 停录后系统保存对话框与挪文件
 - `src/main/modules/core/trayManager.ts` — 托盘；录制中暂停/停止入口
 - `src/main/modules/core/shortcutManager.ts` — 全局快捷键（含区域/全屏/暂停·停止录屏）
@@ -232,7 +265,7 @@
 - `src/preload/modules/recorder.ts`
 - `src/shared/modules/recorder.ts` — 录屏类型
 - `src/shared/shortcuts.ts` — 区域/全屏/暂停·停止默认快捷键
-- 入口耦接：`src/main/bootstrap/`（recorder / shortcuts / tray）、`src/main/modules/core/trayManager.ts`
+- 入口耦接：`FeatureHost` / `bindShortcuts` / tray
 - 路由：`src/renderer/src/router/index.ts`（`/recorder-select` / `/recorder-fullscreen`）
 
 ---
@@ -251,16 +284,19 @@
 - 过期自动清理周期
 - 开机自启
 - 外观主题：浅色 / 深色 / 跟随系统（柔和石板雾灰 / 抬升炭灰；写入 `general.theme`）
+- 功能模块开关（通用页）：剪贴板 / 快捷文件夹 / 项目 / 截屏 / 录屏；写入 `features.enabled`；关闭后侧栏 / 快捷键 / 托盘立刻失效，剪贴板监听暂停；启动时未加载的模块首次开启会热加载（截屏/录屏会预热遮罩）；关剪贴板会连带关截屏
 - 退出时清空记录
 - 启动时清空记录
 - 关于与更新：显示当前版本、检查更新、下载完成后重启安装
 
 ### 相关文件
 
-- `src/renderer/src/pages/SettingsPage.vue`
-- `src/renderer/src/modules/settings/tabs.ts` — 模块 Tab 注册
-- `src/renderer/src/modules/settings/components/` — GeneralSettings / ClipboardSettings / QuickFoldersSettings / ScreenshotSettings / RecorderSettings / ProjectSettings / HotkeyInput
-- `src/renderer/src/composables/useTheme.ts` — 渲染进程应用 `.dark`
+- `src/renderer/src/pages/SettingsPage.vue` — 设置壳；内容来自 `settings/tabs` 动态挂载
+- `src/renderer/src/modules/settings/tabs.ts` — 模块 Tab 注册（含 settings component）
+- `src/renderer/src/modules/settings/components/` — GeneralSettings（含功能模块开关）/ ClipboardSettings / QuickFoldersSettings / ScreenshotSettings / RecorderSettings / ProjectSettings / HotkeyInput
+- `src/renderer/src/modules/feature/toggles.ts` — 功能开关选项文案
+- `src/renderer/src/modules/feature/enabled.ts` — 按 `features.enabled` 过滤 Tab
+
 - `src/main/modules/core/theme.ts` — 主进程 nativeTheme 同步
 - `src/main/modules/core/windows/settingsWindow.ts`
 - `src/main/modules/core/appUpdater.ts` / `updaterIpc.ts`

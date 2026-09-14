@@ -8,8 +8,8 @@ export function attachAppLifecycle(getCtx: () => AppContext | null): void {
     const ctx = getCtx()
     if (!ctx) return
     // 截屏 / 录屏框选中或刚结束还焦时勿抬起功能面板
-    if (ctx.screenshot.blocksPanelActivate) return
-    if (ctx.recorderSelect.blocksPanelActivate) return
+    if (ctx.screenshot?.blocksPanelActivate) return
+    if (ctx.recorderSelect?.blocksPanelActivate) return
     ctx.windows.showPanel({ captureFocus: false })
   })
 

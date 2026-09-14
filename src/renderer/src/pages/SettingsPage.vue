@@ -1,13 +1,8 @@
 <script setup lang="ts">
 import type { AppConfig, ConfigPatch } from '@shared/types'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { SETTINGS_MODULES } from '@renderer/modules/settings/tabs'
-import GeneralSettings from '@renderer/modules/settings/components/GeneralSettings.vue'
-import ClipboardSettings from '@renderer/modules/settings/components/ClipboardSettings.vue'
-import QuickFoldersSettings from '@renderer/modules/settings/components/QuickFoldersSettings.vue'
-import ScreenshotSettings from '@renderer/modules/settings/components/ScreenshotSettings.vue'
-import RecorderSettings from '@renderer/modules/settings/components/RecorderSettings.vue'
-import ProjectSettings from '@renderer/modules/settings/components/ProjectSettings.vue'
+import { filterEnabledFeatures } from '@renderer/modules/feature/enabled'
 import {
   Sidebar,
   SidebarContent,
@@ -32,9 +27,20 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null
 let offShown: (() => void) | null = null
 let offConfig: (() => void) | null = null
 
-const activeTab = computed(
-  () => SETTINGS_MODULES.find((m) => m.id === activeModule.value) ?? SETTINGS_MODULES[0]!
+const visibleModules = computed(() =>
+  filterEnabledFeatures(SETTINGS_MODULES, config.value?.features)
 )
+
+const activeTab = computed(
+  () => visibleModules.value.find((m) => m.id === activeModule.value) ?? visibleModules.value[0]!
+)
+
+watch(visibleModules, (mods) => {
+  if (!mods.length) return
+  if (!mods.some((m) => m.id === activeModule.value)) {
+    activeModule.value = mods[0]!.id
+  }
+})
 
 async function loadConfig(): Promise<void> {
   config.value = await window.api.getConfig()
@@ -94,7 +100,7 @@ onUnmounted(() => {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem v-for="mod in SETTINGS_MODULES" :key="mod.id">
+                <SidebarMenuItem v-for="mod in visibleModules" :key="mod.id">
                   <SidebarMenuButton
                     :is-active="activeModule === mod.id"
                     :aria-label="mod.label"
@@ -118,28 +124,15 @@ onUnmounted(() => {
         </header>
 
         <div v-if="config" class="main-body">
-          <GeneralSettings v-if="activeModule === 'general'" :config="config" @apply="apply" />
-          <ClipboardSettings
-            v-else-if="activeModule === 'clipboard'"
-            :config="config"
-            @apply="apply"
-          />
-          <QuickFoldersSettings
-            v-else-if="activeModule === 'quickFolders'"
-            :config="config"
-            @apply="apply"
-          />
-          <ScreenshotSettings
-            v-else-if="activeModule === 'screenshot'"
-            :config="config"
-            @apply="apply"
-          />
-          <RecorderSettings
-            v-else-if="activeModule === 'recorder'"
-            :config="config"
-            @apply="apply"
-          />
-          <ProjectSettings v-else-if="activeModule === 'projects'" />
+          <!-- 设置内容来自可见 SETTINGS_MODULES；needsConfig 的注入 config，统一听 apply -->
+          <template v-for="mod in visibleModules" :key="mod.id">
+            <component
+              :is="mod.component"
+              v-if="activeModule === mod.id"
+              v-bind="mod.needsConfig !== false ? { config } : {}"
+              @apply="apply"
+            />
+          </template>
         </div>
       </SidebarInset>
     </SidebarProvider>

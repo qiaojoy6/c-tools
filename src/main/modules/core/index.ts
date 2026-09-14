@@ -1,7 +1,15 @@
 /** 通用能力模块：窗口、快捷键、托盘、存储、通用 IPC */
 export { WindowManager } from './windows'
 export { ShortcutManager, normalizeAccelerator } from './shortcutManager'
-export { TrayManager } from './trayManager'
+export type { ShortcutHandlers } from './shortcutManager'
+export { TrayManager, trayMenuItem } from './trayManager'
+export type {
+  TrayShellActions,
+  TrayState,
+  TrayRecordingState,
+  TrayContribution,
+  TrayMenuContext
+} from './trayManager'
 export { setupAppMenu } from './appMenu'
 export { registerCoreIpc } from './ipc'
 export type { CoreIpcDeps } from './ipc'

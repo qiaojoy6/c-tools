@@ -3,6 +3,7 @@ import type { ProjectsConfig } from './modules/projects'
 import type { QuickFoldersConfig } from './modules/quickFolders'
 import type { RecorderConfig } from './modules/recorder'
 import type { ScreenshotConfig } from './modules/screenshot'
+import type { FeaturesConfig } from './modules/feature'
 import type { ShortcutConfig } from './shortcuts'
 
 /** ============ 应用全局配置类型 ============ */
@@ -55,6 +56,8 @@ export interface AppConfig {
   privacy: PrivacyConfig
   general: GeneralConfig
   recorder: RecorderConfig
+  /** 内置 Feature 开关（缺省全开；关 clipboard 时截屏也会跳过） */
+  features: FeaturesConfig
 }
 
 /** 配置局部更新（递归 Partial） */

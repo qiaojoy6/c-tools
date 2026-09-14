@@ -1,31 +1,14 @@
-import { clipboard, dialog, nativeImage, Notification, type BrowserWindow } from 'electron'
+import { dialog, Notification, type BrowserWindow } from 'electron'
 import { writeFileSync } from 'fs'
-import type { ClipboardImageStore } from '../clipboard/imageStore'
-import type { HistoryManager } from '../clipboard/history'
+import type { ClipboardHostServices } from '../clipboard'
 
 export interface CompleteDeps {
-  images: ClipboardImageStore
-  history: HistoryManager
-  /** 写入系统剪贴板后同步监听基线 */
-  syncBaseline: () => void
+  clipboard: ClipboardHostServices
 }
 
-/** 完成：写系统剪贴板 + 入库历史 */
+/** 完成：委托剪贴板 HostServices 写板 + 入库 */
 export function completeScreenshot(png: Buffer, deps: CompleteDeps): boolean {
-  if (!png.byteLength) return false
-  const img = nativeImage.createFromBuffer(png)
-  if (img.isEmpty()) return false
-  const { width, height } = img.getSize()
-
-  clipboard.write({ image: img })
-  deps.syncBaseline()
-
-  const meta = deps.images.saveBuffer(png, 'png')
-  deps.history.add({
-    type: 'image',
-    image: { ...meta, width, height }
-  })
-  return true
+  return deps.clipboard.ingestScreenshotPng(png)
 }
 
 /** 下载 PNG：在截屏遮罩上弹系统保存对话框（parent 保证 mac 上确定/回车可用） */

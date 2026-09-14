@@ -8,4 +8,5 @@ export * from './modules/recorder'
 export * from './modules/webview'
 export * from './modules/log'
 export * from './modules/updater'
+export * from './modules/feature'
 
