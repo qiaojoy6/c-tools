@@ -1,4 +1,4 @@
-import { ipcRenderer } from 'electron'
+import { ipcRenderer, webUtils } from 'electron'
 import type {
   QuickFolderInput,
   QuickFolderItem,
@@ -20,6 +20,9 @@ export const quickFoldersApi = {
   reorder: (ids: string[]): Promise<boolean> => ipcRenderer.invoke('quickFolders:reorder', ids),
   pickDirectory: (): Promise<string | null> => ipcRenderer.invoke('quickFolders:pickDirectory'),
   open: (id: string): Promise<boolean> => ipcRenderer.invoke('quickFolders:open', id),
+
+  /** 拖放 File → 本地绝对路径（contextIsolation 下须经 preload） */
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 
   onUpdated: (callback: (items: QuickFolderItem[]) => void): (() => void) => {
     const listener = (_e: Electron.IpcRendererEvent, items: QuickFolderItem[]): void =>
