@@ -33,6 +33,8 @@
 - `src/main/modules/core/windows/` — ClipboardWindow / PanelWindow / SettingsWindow / WindowManager / focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）
 - `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac` osascript；`win` koffi+user32）
 - `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu / logIpc / crashGuard / appUpdater / updaterIpc
+- `src/main/bootstrap/` — 主进程启动编排（clipboard / screenshot / recorder / shortcuts / tray / ipc / lifecycle）
+- `src/main/index.ts` — 薄入口：单实例、协议、ready、生命周期
 - `src/main/config/` — 默认配置与读写
 - `src/renderer/src/pages/PanelPage.vue` — 功能面板壳（表头 + 左侧模块 Tab）
 - `src/renderer/src/modules/panel/components/WindowTitleBar.vue` — 通栏自定义表头（无自绘窗控）
@@ -152,7 +154,7 @@
 - `src/preload/modules/screenshot.ts`
 - `src/shared/modules/screenshot.ts`
 - 完成时耦接：`src/main/modules/clipboard/`（写板 / history / imageStore / syncBaseline）
-- 入口耦接：`src/main/modules/core/trayManager.ts`、快捷键注册、`settings.json` 中 `shortcuts` + `screenshot`
+- 入口耦接：`src/main/bootstrap/`（screenshot / shortcuts / tray）、`settings.json` 中 `shortcuts` + `screenshot`
 
 ---
 
@@ -196,7 +198,7 @@
 - `src/preload/modules/recorder.ts`
 - `src/shared/modules/recorder.ts` — 录屏类型
 - `src/shared/shortcuts.ts` — 区域/全屏/暂停·停止默认快捷键
-- 入口耦接：`src/main/index.ts`、`src/main/modules/core/trayManager.ts`（托盘 + 快捷键）
+- 入口耦接：`src/main/bootstrap/`（recorder / shortcuts / tray）、`src/main/modules/core/trayManager.ts`
 - 路由：`src/renderer/src/router/index.ts`（`/recorder-select` / `/recorder-fullscreen`）
 
 ---
