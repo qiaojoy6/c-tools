@@ -217,11 +217,6 @@ export class RecorderSelectSession {
     }
   }
 
-  /** @deprecated 兼容旧入口，等同 startRegion */
-  async start(): Promise<void> {
-    await this.startRegion()
-  }
-
   /**
    * 全屏录屏：自定义弹窗选屏（列表来自 Rust xcap），可选麦克风/系统声/清晰度，不传 region。
    */
