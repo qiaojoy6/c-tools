@@ -4,6 +4,7 @@ import { defaultShortcut } from '@shared/shortcuts'
 import { computed } from 'vue'
 import { Button } from '@renderer/components/ui/button'
 import HotkeyInput from './HotkeyInput.vue'
+import SettingsSectionTitle from './SettingsSectionTitle.vue'
 
 const props = defineProps<{
   config: AppConfig
@@ -49,11 +50,9 @@ function restoreStop(): void {
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-        全局快捷键
-      </h3>
+      <SettingsSectionTitle title="全局快捷键" />
 
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">

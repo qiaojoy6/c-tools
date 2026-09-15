@@ -6,6 +6,7 @@ import { Switch } from '@renderer/components/ui/switch'
 import { FEATURE_TOGGLE_OPTIONS } from '@renderer/modules/feature/toggles'
 import { isFeatureEnabled } from '@renderer/modules/feature/enabled'
 import { Monitor, Moon, Sun } from 'lucide-vue-next'
+import SettingsSectionTitle from './SettingsSectionTitle.vue'
 
 const props = defineProps<{
   config: AppConfig
@@ -81,9 +82,9 @@ function onFeatureToggle(id: ToggleableFeatureId, enabled: boolean): void {
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">外观</h3>
+      <SettingsSectionTitle title="外观" />
       <div>
         <p class="text-sm">主题</p>
         <div class="theme-seg mt-3" role="radiogroup" aria-label="主题">
@@ -105,7 +106,7 @@ function onFeatureToggle(id: ToggleableFeatureId, enabled: boolean): void {
     </section>
 
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">启动</h3>
+      <SettingsSectionTitle title="启动" />
       <div class="flex items-center justify-between gap-4">
         <div>
           <p class="text-sm">开机自动启动</p>
@@ -119,12 +120,10 @@ function onFeatureToggle(id: ToggleableFeatureId, enabled: boolean): void {
     </section>
 
     <section class="space-y-3">
-      <div>
-        <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">功能模块</h3>
-        <p class="mt-1 text-xs text-muted-foreground">
-          开关立即生效：侧栏、快捷键、托盘会同步；关闭会暂停剪贴板监听。首次开启某模块会自动加载
-        </p>
-      </div>
+      <SettingsSectionTitle
+        title="功能模块"
+        description="开关立即生效：侧栏、快捷键、托盘会同步；关闭会暂停剪贴板监听。首次开启某模块会自动加载"
+      />
       <div
         v-for="opt in FEATURE_TOGGLE_OPTIONS"
         :key="opt.id"
@@ -146,7 +145,7 @@ function onFeatureToggle(id: ToggleableFeatureId, enabled: boolean): void {
     </section>
 
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">关于与更新</h3>
+      <SettingsSectionTitle title="关于与更新" />
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
           <p class="text-sm">当前版本 {{ update?.currentVersion ?? '…' }}</p>

@@ -6,6 +6,7 @@ import { Button } from '@renderer/components/ui/button'
 import { Select, type SelectOption } from '@renderer/components/ui/select'
 import { Separator } from '@renderer/components/ui/separator'
 import HotkeyInput from './HotkeyInput.vue'
+import SettingsSectionTitle from './SettingsSectionTitle.vue'
 
 const props = defineProps<{
   config: AppConfig
@@ -33,9 +34,9 @@ const maxOptions: SelectOption[] = [20, 50, 100, 200].map((v) => ({
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">全局快捷键</h3>
+      <SettingsSectionTitle title="全局快捷键" />
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <p class="text-sm">呼出快捷文件夹</p>
@@ -62,7 +63,7 @@ const maxOptions: SelectOption[] = [20, 50, 100, 200].map((v) => ({
     <Separator />
 
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">列表</h3>
+      <SettingsSectionTitle title="列表" />
       <div class="flex items-center justify-between gap-4">
         <div>
           <p class="text-sm">最大保存条数</p>

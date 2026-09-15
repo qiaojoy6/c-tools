@@ -3,10 +3,11 @@ import { join } from 'path'
 import type { AppConfig } from '@shared/types'
 import { loadRoute } from './loadRoute'
 import { applyOverlayFloatingLevel } from './floatingLevel'
+import { reassertMacDockHiddenIfNeeded } from './macDockIcon'
 
 /**
  * 快捷文件夹浮层：无边框、置顶、失焦隐藏；由全局快捷键呼出。
- * 行为对齐 ClipboardWindow（macOS type:panel，不抬起功能面板）。
+ * 行为对齐 ClipboardWindow（mac 不用 type:panel，showInactive 避免抬起功能面板）。
  */
 export class QuickFoldersWindow {
   private win: BrowserWindow | null = null
@@ -53,7 +54,7 @@ export class QuickFoldersWindow {
       maximizable: false,
       hasShadow: true,
       autoHideMenuBar: true,
-      ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
+      ...(process.platform === 'darwin' ? { roundedCorners: false } : {}),
       backgroundColor: cfg.transparent ? '#00000000' : undefined,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -89,8 +90,14 @@ export class QuickFoldersWindow {
     if (win.isMinimized()) win.restore()
     this.applyFloatingLevel(win)
 
-    win.show()
-    win.focus()
+    if (process.platform === 'darwin') {
+      win.showInactive()
+      win.focus()
+      reassertMacDockHiddenIfNeeded()
+    } else {
+      win.show()
+      win.focus()
+    }
     win.webContents.send('panel:shown')
   }
 

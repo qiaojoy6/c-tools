@@ -7,6 +7,7 @@ import { Select, type SelectOption } from '@renderer/components/ui/select'
 import { Switch } from '@renderer/components/ui/switch'
 import { Separator } from '@renderer/components/ui/separator'
 import HotkeyInput from './HotkeyInput.vue'
+import SettingsSectionTitle from './SettingsSectionTitle.vue'
 
 const props = defineProps<{
   config: AppConfig
@@ -35,9 +36,9 @@ const cleanOptions: SelectOption[] = [
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">全局快捷键</h3>
+      <SettingsSectionTitle title="全局快捷键" />
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <p class="text-sm">呼出剪贴板</p>
@@ -64,7 +65,7 @@ const cleanOptions: SelectOption[] = [
     <Separator />
 
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">记录</h3>
+      <SettingsSectionTitle title="记录" />
       <div class="flex items-center justify-between gap-4">
         <p class="text-sm">最大保存条数</p>
         <Select
@@ -92,7 +93,7 @@ const cleanOptions: SelectOption[] = [
     <Separator />
 
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">隐私</h3>
+      <SettingsSectionTitle title="隐私" />
       <div class="flex items-center justify-between gap-4">
         <p class="text-sm">退出时清空全部记录</p>
         <Switch

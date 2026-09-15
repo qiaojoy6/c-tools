@@ -3,6 +3,7 @@ import type { ClearPreviewCacheOptions } from '@shared/types'
 import { ref } from 'vue'
 import { Button } from '@renderer/components/ui/button'
 import ClearPreviewDataDialog from '@renderer/modules/projects/components/ClearPreviewDataDialog.vue'
+import SettingsSectionTitle from './SettingsSectionTitle.vue'
 
 /** 设置「项目」：整分区清除预览浏览数据（不按地址） */
 const clearOpen = ref(false)
@@ -28,11 +29,9 @@ async function confirmClear(options: ClearPreviewCacheOptions): Promise<void> {
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <section class="space-y-3">
-      <h3 class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-        预览浏览数据
-      </h3>
+      <SettingsSectionTitle title="预览浏览数据" />
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
           <p class="text-sm">清除全部预览缓存</p>

@@ -3,7 +3,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { delay, loadRoute } from '../core/windows/loadRoute'
-import { syncMacDockIcon } from '../core/windows/macDockIcon'
+import { reassertMacDockHiddenIfNeeded } from '../core/windows/macDockIcon'
 import type { ShotDisplayFrame, ShotOverlayInit, ShotRect, ShotWindowInfo } from '@shared/types'
 import { shotImageUrl } from './protocol'
 import { windowsOnDisplay } from './windowHit'
@@ -11,12 +11,12 @@ import { windowsOnDisplay } from './windowHit'
 const execFileAsync = promisify(execFile)
 
 /**
- * macOS：临时隐藏菜单栏+程序坞，使普通窗可以铺满 display.bounds。
- * HideDock(1<<1) | HideMenuBar(1<<2) = 6
+ * 仅 HideMenuBar（不用 HideDock，避免程序坞图标抖动）。
+ * 露出遮罩前藏菜单栏，盖住「窗刚出来」那一帧的顶部闪动。
  */
-async function setMacChromeHidden(hidden: boolean): Promise<void> {
+async function setMacMenuBarHidden(hidden: boolean): Promise<void> {
   if (process.platform !== 'darwin') return
-  const opts = hidden ? 6 : 0
+  const opts = hidden ? 4 : 0
   try {
     await execFileAsync(
       'osascript',
@@ -34,13 +34,15 @@ async function setMacChromeHidden(hidden: boolean): Promise<void> {
 }
 
 /**
- * 每块屏一个置顶遮罩窗。
- * 关键：冻屏图在隐藏窗内画好 → 再藏系统栏 → 再 show，避免黑屏/闪一下。
+ * 每块屏一个置顶冻屏遮罩。
+ * - 不透明黑底：首帧未合成时不会透出实时桌面（第一次截屏最明显）
+ * - 隐藏态灌图 → HideMenuBar → 再 show
+ * - macOS panel 仅用于剪贴板等小浮层；全屏遮罩不用 panel（会刷 styleMask 0x80 警告）
  */
 export class ScreenshotOverlayHost {
   private wins = new Map<number, BrowserWindow>()
   private ready = new Set<number>()
-  private macChromeHidden = false
+  private menuBarHidden = false
   private contentWaiters = new Map<
     number,
     { resolve: () => void; timer: ReturnType<typeof setTimeout> }
@@ -55,19 +57,18 @@ export class ScreenshotOverlayHost {
     })
   }
 
-  /** 小窗加载路由即可；勿在预热阶段铺全屏/置顶，否则会抢焦点并弄没面板/设置 */
+  /** 按显示器全尺寸预热（保持隐藏、不置顶），避免首次从 8×8 拉满闪一下 */
   prewarm(): void {
     for (const display of screen.getAllDisplays()) {
       this.ensureWindow(display.id, {
         x: display.bounds.x,
         y: display.bounds.y,
-        width: 8,
-        height: 8
+        width: display.bounds.width,
+        height: display.bounds.height
       })
     }
   }
 
-  /** 等路由加载完（预热） */
   async waitPageReady(displayId: number, timeoutMs = 8000): Promise<void> {
     const win = this.wins.get(displayId)
     if (!win || win.isDestroyed()) return
@@ -88,14 +89,14 @@ export class ScreenshotOverlayHost {
       return existing
     }
 
-    // 预热阶段保持普通隐藏窗；置顶 / 全 Space 仅在 showSession 时施加
     const win = new BrowserWindow({
       x: place.x,
       y: place.y,
       width: place.width,
       height: place.height,
       frame: false,
-      transparent: true,
+      // 冻屏铺满整窗，无需透明；透明首帧会透出实时桌面造成闪一下
+      transparent: false,
       resizable: false,
       movable: false,
       minimizable: false,
@@ -107,7 +108,10 @@ export class ScreenshotOverlayHost {
       hasShadow: false,
       show: false,
       paintWhenInitiallyHidden: true,
-      backgroundColor: '#00000000',
+      backgroundColor: '#000000',
+      // 不用 type:panel：全屏冻屏遮罩会触发
+      // 「NSWindow does not support nonactivating panel styleMask 0x80」刷屏；
+      // 程序坞靠 accessory 策略，不依赖 panel。
       ...(process.platform === 'darwin' ? { roundedCorners: false } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -137,29 +141,29 @@ export class ScreenshotOverlayHost {
 
   private waitContentReady(displayId: number, timeoutMs = 2500): Promise<void> {
     return new Promise((resolve) => {
-      const prev = this.contentWaiters.get(displayId)
-      if (prev) {
-        clearTimeout(prev.timer)
-        prev.resolve()
+      const existing = this.contentWaiters.get(displayId)
+      if (existing) {
+        clearTimeout(existing.timer)
+        existing.resolve = resolve
+        existing.timer = setTimeout(() => {
+          this.contentWaiters.delete(displayId)
+          resolve()
+        }, timeoutMs)
+        return
       }
       const timer = setTimeout(() => {
         this.contentWaiters.delete(displayId)
         resolve()
       }, timeoutMs)
-      this.contentWaiters.set(displayId, {
-        resolve: () => {
-          clearTimeout(timer)
-          this.contentWaiters.delete(displayId)
-          resolve()
-        },
-        timer
-      })
+      this.contentWaiters.set(displayId, { resolve, timer })
     })
   }
 
   private resolveContentReady(displayId: number): void {
     const w = this.contentWaiters.get(displayId)
     if (!w) return
+    clearTimeout(w.timer)
+    this.contentWaiters.delete(displayId)
     w.resolve()
   }
 
@@ -177,7 +181,7 @@ export class ScreenshotOverlayHost {
       }
     }
 
-    // 1) 隐藏窗内先灌冻屏图，等渲染画完再露脸
+    // 1) 隐藏窗内灌冻屏图，等双 rAF ready
     const boot: Promise<void>[] = []
     for (const frame of frames) {
       const place = { ...frame.bounds }
@@ -205,30 +209,34 @@ export class ScreenshotOverlayHost {
       )
     }
     await Promise.all(boot)
+    // 给合成器一帧，减少首次 show 空帧
+    await delay(16)
 
-    // 2) 系统栏动画藏在「已画好的冻屏」出现之前完成，减少抖感
-    if (process.platform === 'darwin' && !this.macChromeHidden) {
-      await setMacChromeHidden(true)
-      this.macChromeHidden = true
+    // 2) 再藏菜单栏（盖住露脸瞬间）
+    if (process.platform === 'darwin' && !this.menuBarHidden) {
+      reassertMacDockHiddenIfNeeded()
+      await setMacMenuBarHidden(true)
+      this.menuBarHidden = true
     }
 
-    // 3) 同一轮全部 show，避免逐屏闪
+    // 3) 同一轮 show
     for (const frame of frames) {
       const win = this.wins.get(frame.displayId)
       if (!win || win.isDestroyed()) continue
       const place = { ...frame.bounds }
       win.setFocusable(true)
-      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       win.setAlwaysOnTop(true, 'screen-saver')
       win.setBounds(place)
       if (!win.isVisible()) {
-        win.show()
+        if (process.platform === 'darwin') win.showInactive()
+        else win.show()
       } else {
         win.moveTop()
       }
       win.setBounds(place)
       win.focus()
     }
+    reassertMacDockHiddenIfNeeded()
   }
 
   updateWindows(allWindows: ShotWindowInfo[], windowPickAvailable: boolean): void {
@@ -249,12 +257,11 @@ export class ScreenshotOverlayHost {
   }
 
   async hideAll(): Promise<void> {
-    // 对齐剪贴板 hide：先松焦点再藏，避免系统把本应用其它窗抬到前台
+    reassertMacDockHiddenIfNeeded()
     for (const win of this.wins.values()) {
       if (win.isDestroyed() || !win.isVisible()) continue
       if (win.isFocused()) win.blur()
       win.setAlwaysOnTop(false)
-      win.setVisibleOnAllWorkspaces(false)
       if (process.platform === 'win32') {
         win.setFocusable(false)
         win.hide()
@@ -264,15 +271,15 @@ export class ScreenshotOverlayHost {
         win.setFocusable(false)
       }
     }
-    if (process.platform === 'darwin' && this.macChromeHidden) {
-      await setMacChromeHidden(false)
-      this.macChromeHidden = false
-      syncMacDockIcon()
-      await delay(32)
+    if (process.platform === 'darwin' && this.menuBarHidden) {
+      await setMacMenuBarHidden(false)
+      this.menuBarHidden = false
     }
+    reassertMacDockHiddenIfNeeded()
   }
 
   async destroyAll(): Promise<void> {
+    reassertMacDockHiddenIfNeeded()
     for (const win of this.wins.values()) {
       if (!win.isDestroyed()) win.destroy()
     }
@@ -283,11 +290,11 @@ export class ScreenshotOverlayHost {
       w.resolve()
     }
     this.contentWaiters.clear()
-    if (process.platform === 'darwin' && this.macChromeHidden) {
-      await setMacChromeHidden(false)
-      this.macChromeHidden = false
-      syncMacDockIcon()
+    if (process.platform === 'darwin' && this.menuBarHidden) {
+      await setMacMenuBarHidden(false)
+      this.menuBarHidden = false
     }
+    reassertMacDockHiddenIfNeeded()
   }
 
   get isActive(): boolean {
@@ -297,7 +304,6 @@ export class ScreenshotOverlayHost {
     return false
   }
 
-  /** 供系统对话框作 parent（优先已聚焦的遮罩窗） */
   getDialogParent(): BrowserWindow | undefined {
     let fallback: BrowserWindow | undefined
     for (const win of this.wins.values()) {

@@ -4,10 +4,12 @@ import type { AppConfig } from '@shared/types'
 import { loadRoute } from './loadRoute'
 import { asExternalBundleId, getFrontmostBundleId } from './focusTarget'
 import { applyOverlayFloatingLevel } from './floatingLevel'
+import { reassertMacDockHiddenIfNeeded } from './macDockIcon'
 
 /**
  * 独立剪贴板浮层：无边框、置顶、失焦隐藏；由全局快捷键呼出。
- * macOS 使用 type: 'panel'，show/focus 不激活整个应用，避免把功能面板一并抬到前台。
+ * macOS 不用 type:panel（会刷 NSWindow styleMask 0x80 警告）；
+ * showInactive + 不调 app.focus，避免抬起功能面板。
  */
 export class ClipboardWindow {
   private win: BrowserWindow | null = null
@@ -48,8 +50,7 @@ export class ClipboardWindow {
       maximizable: false,
       hasShadow: true,
       autoHideMenuBar: true,
-      // macOS：panel 窗 show/focus 不激活应用，其它窗口层级保持不动
-      ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
+      ...(process.platform === 'darwin' ? { roundedCorners: false } : {}),
       backgroundColor: cfg.transparent ? '#00000000' : undefined,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -91,9 +92,15 @@ export class ClipboardWindow {
     if (win.isMinimized()) win.restore()
     this.applyFloatingLevel(win)
 
-    // 不调用 app.focus，避免抬起功能面板（macOS 另靠 type:panel）
-    win.show()
-    win.focus()
+    // 不调 app.focus；mac 用 showInactive，避免抬起功能面板 / 程序坞
+    if (process.platform === 'darwin') {
+      win.showInactive()
+      win.focus()
+      reassertMacDockHiddenIfNeeded()
+    } else {
+      win.show()
+      win.focus()
+    }
     win.webContents.send('panel:shown')
   }
 

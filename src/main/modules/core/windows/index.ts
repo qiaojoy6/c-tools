@@ -4,7 +4,13 @@ export { ClipboardWindow } from './clipboardWindow'
 export { QuickFoldersWindow } from './quickFoldersWindow'
 export { PanelWindow, PANEL_TITLE_BAR_HEIGHT } from './panelWindow'
 export { SettingsWindow } from './settingsWindow'
-export { bindDockIconToPanel, syncMacDockIcon } from './macDockIcon'
+export {
+  bindDockIconToPanel,
+  syncMacDockIcon,
+  syncMacDockIconAfterChromeRestore,
+  prepareMacDockBeforeChromeRestore,
+  reassertMacDockHiddenIfNeeded
+} from './macDockIcon'
 export { loadRoute, delay } from './loadRoute'
 export {
   activateExternalApp,

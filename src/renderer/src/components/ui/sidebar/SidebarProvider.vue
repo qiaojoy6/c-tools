@@ -72,7 +72,8 @@ provideSidebarContext({
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="0">
+  <!-- 忽略鼠标残留 focus，避免关设置/切窗后侧栏收起态 tooltip 误开；键盘 Tab 仍可显示 -->
+  <TooltipProvider :delay-duration="0" :ignore-non-keyboard-focus="true">
     <div
       :style="{
         '--sidebar-width': props.sidebarWidth ?? SIDEBAR_WIDTH,

@@ -1,42 +1,18 @@
 import { join } from 'path'
 import { BrowserWindow, ipcMain, screen } from 'electron'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
-import { delay, loadRoute } from '../core/windows/loadRoute'
-import { syncMacDockIcon } from '../core/windows/macDockIcon'
+import { loadRoute } from '../core/windows/loadRoute'
+import { reassertMacDockHiddenIfNeeded } from '../core/windows/macDockIcon'
 import type { RecorderOverlayInit } from '@shared/modules/recorder'
 import type { ShotWindowInfo } from '@shared/modules/screenshot'
 import { windowsOnDisplay } from '../screenshot/windowHit'
 
-const execFileAsync = promisify(execFile)
-
-/** macOS：临时隐藏菜单栏+程序坞，使遮罩可铺满 display.bounds */
-async function setMacChromeHidden(hidden: boolean): Promise<void> {
-  if (process.platform !== 'darwin') return
-  const opts = hidden ? 6 : 0
-  try {
-    await execFileAsync(
-      'osascript',
-      [
-        '-l',
-        'JavaScript',
-        '-e',
-        `ObjC.import('AppKit');$.NSApplication.sharedApplication.setPresentationOptions(${opts});`
-      ],
-      { timeout: 1500 }
-    )
-  } catch (err) {
-    console.warn('[recorder] setPresentationOptions failed:', err)
-  }
-}
-
 /**
  * 每块屏一个透明置顶框选遮罩（无冻屏，底下是实时桌面）。
+ * macOS 策略与截屏遮罩一致：panel + screen-saver，不用系统栏 / VisibleOnAllWorkspaces。
  */
 export class RecorderOverlayHost {
   private wins = new Map<number, BrowserWindow>()
   private ready = new Set<number>()
-  private macChromeHidden = false
   private contentWaiters = new Map<
     number,
     { resolve: () => void; timer: ReturnType<typeof setTimeout> }
@@ -86,7 +62,6 @@ export class RecorderOverlayHost {
       return existing
     }
 
-    // 预热阶段保持普通隐藏窗；置顶 / 全 Space 仅在 showSession 时施加
     const win = new BrowserWindow({
       x: place.x,
       y: place.y,
@@ -106,6 +81,7 @@ export class RecorderOverlayHost {
       show: false,
       paintWhenInitiallyHidden: true,
       backgroundColor: '#00000000',
+      // 同截屏：框选遮罩不用 type:panel，避免 styleMask 0x80 警告刷屏
       ...(process.platform === 'darwin' ? { roundedCorners: false } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -187,24 +163,23 @@ export class RecorderOverlayHost {
     }
     await Promise.all(boot)
 
-    if (process.platform === 'darwin' && !this.macChromeHidden) {
-      await setMacChromeHidden(true)
-      this.macChromeHidden = true
-    }
-
     for (const init of inits) {
       const win = this.wins.get(init.displayId)
       if (!win || win.isDestroyed()) continue
       const place = { ...init.bounds }
       win.setFocusable(true)
-      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       win.setAlwaysOnTop(true, 'screen-saver')
       win.setBounds(place)
-      if (!win.isVisible()) win.show()
-      else win.moveTop()
+      if (!win.isVisible()) {
+        if (process.platform === 'darwin') win.showInactive()
+        else win.show()
+      } else {
+        win.moveTop()
+      }
       win.setBounds(place)
       win.focus()
     }
+    reassertMacDockHiddenIfNeeded()
   }
 
   /** 异步补全本屏窗口列表（点选应用窗） */
@@ -226,11 +201,11 @@ export class RecorderOverlayHost {
   }
 
   async hideAll(): Promise<void> {
+    reassertMacDockHiddenIfNeeded()
     for (const win of this.wins.values()) {
       if (win.isDestroyed() || !win.isVisible()) continue
       if (win.isFocused()) win.blur()
       win.setAlwaysOnTop(false)
-      win.setVisibleOnAllWorkspaces(false)
       if (process.platform === 'win32') {
         win.setFocusable(false)
         win.hide()
@@ -240,16 +215,11 @@ export class RecorderOverlayHost {
         win.setFocusable(false)
       }
     }
-    if (process.platform === 'darwin' && this.macChromeHidden) {
-      await setMacChromeHidden(false)
-      this.macChromeHidden = false
-      // HideDock 恢复后按面板显隐重同步程序坞图标
-      syncMacDockIcon()
-      await delay(32)
-    }
+    reassertMacDockHiddenIfNeeded()
   }
 
   async destroyAll(): Promise<void> {
+    reassertMacDockHiddenIfNeeded()
     for (const win of this.wins.values()) {
       if (!win.isDestroyed()) win.destroy()
     }
@@ -260,11 +230,7 @@ export class RecorderOverlayHost {
       w.resolve()
     }
     this.contentWaiters.clear()
-    if (process.platform === 'darwin' && this.macChromeHidden) {
-      await setMacChromeHidden(false)
-      this.macChromeHidden = false
-      syncMacDockIcon()
-    }
+    reassertMacDockHiddenIfNeeded()
   }
 
   get isActive(): boolean {

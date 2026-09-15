@@ -1,7 +1,7 @@
 import type { AppConfig } from '@shared/types'
 import { app } from 'electron'
 import { delay } from './loadRoute'
-import { bindDockIconToPanel } from './macDockIcon'
+import { bindDockIconToPanel, reassertMacDockHiddenIfNeeded } from './macDockIcon'
 import { ClipboardWindow } from './clipboardWindow'
 import { PanelWindow, type PanelShowOptions } from './panelWindow'
 import { QuickFoldersWindow } from './quickFoldersWindow'
@@ -11,10 +11,7 @@ import {
   captureFrontmostRaw,
   prepareYieldFocus
 } from './focusHandoff'
-import {
-  asExternalBundleId,
-  captureWindowsForegroundHwnd
-} from './focusTarget'
+import { asExternalBundleId, captureWindowsForegroundHwnd } from './focusTarget'
 
 const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 220 : 120
 
@@ -206,9 +203,11 @@ export class WindowManager {
   }
 
   /**
-   * 截屏收尾（与粘贴还焦同一套 prepare → hide → activate）：
-   * - 被外部盖住：关遮罩后还焦，自家窗保持隐藏（不 show）
-   * - 本应用前台：关遮罩后按原显隐正常 show
+   * 截屏/区域选录收尾：
+   * - 勾选「隐藏本应用窗口」且截屏前有窗：收尾后按原显隐恢复（程序坞随之出现）
+   * - 勾选但截屏前未打开任何窗：保持隐藏，程序坞不出现
+   * - 未勾选：不改自家窗显隐；仅关遮罩，程序坞仍跟面板
+   * - 无需恢复自家窗且有外部目标时：还焦外部
    */
   async settleAfterScreenshot(opts: {
     hideOverlays: () => Promise<void>
@@ -217,26 +216,35 @@ export class WindowManager {
     restoreFocus: boolean
   }): Promise<void> {
     const { external, restoreFocus, visibility } = opts
-    const coveredByExternal = Boolean(external)
+    const hadHiddenForShot = visibility != null
+    const shouldRestoreUi =
+      hadHiddenForShot &&
+      (visibility.panel ||
+        visibility.clipboard ||
+        visibility.quickFolders ||
+        visibility.settings)
 
-    if (coveredByExternal) {
-      this.hideAppBrowserWindows()
-      if (restoreFocus) prepareYieldFocus(external)
+    // 不恢复自家窗、要还焦外部时：hide 遮罩前先放行（Win）
+    if (!shouldRestoreUi && restoreFocus && external) {
+      prepareYieldFocus(external)
     }
 
     await opts.hideOverlays()
+
+    if (shouldRestoreUi) {
+      if (visibility.panel) this.showPanel({ captureFocus: false })
+      if (visibility.clipboard) this.showClipboard()
+      if (visibility.quickFolders) this.showQuickFolders()
+      if (visibility.settings) this.showSettings()
+      return
+    }
 
     if (restoreFocus && external) {
       await activateExternalApp(external)
     }
 
-    if (coveredByExternal) return
-
-    if (!visibility) return
-    if (visibility.panel) this.showPanel({ captureFocus: false })
-    if (visibility.clipboard) this.showClipboard()
-    if (visibility.quickFolders) this.showQuickFolders()
-    if (visibility.settings) this.showSettings()
+    // 截屏前未开界面：再压一次 accessory
+    reassertMacDockHiddenIfNeeded()
   }
 
   /**
