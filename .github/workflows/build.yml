@@ -1,4 +1,4 @@
-# 在对应系统 runner 上编译录屏 .node 并打安装包。
+# 在对应系统 runner 上编译原生 .node（recorder + focus-paste）并打安装包。
 # - 手动 Run：只上传 Artifact
 # - 推送 v* tag：打全平台并发布到 GitHub Release（供 electron-updater）
 name: Build
@@ -87,15 +87,21 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build recorder native addon
+      - name: Build native addons
         run: npm run build:native
 
-      - name: Verify native binary
+      - name: Verify native binaries
         run: |
           ls -la native/
           case "${{ matrix.platform }}" in
-            mac) test -n "$(ls native/recorder.darwin-*.node 2>/dev/null)" ;;
-            win) test -n "$(ls native/recorder.win32-*.node 2>/dev/null)" ;;
+            mac)
+              test -n "$(ls native/recorder.darwin-*.node 2>/dev/null)"
+              test -n "$(ls native/focus-paste.darwin-*.node 2>/dev/null)"
+              ;;
+            win)
+              test -n "$(ls native/recorder.win32-*.node 2>/dev/null)"
+              test -n "$(ls native/focus-paste.win32-*.node 2>/dev/null)"
+              ;;
           esac
 
       - name: Typecheck + vite build

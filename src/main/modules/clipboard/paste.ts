@@ -9,7 +9,7 @@ const BETWEEN_PASTE_DELAY_MS = 100
 /**
  * 粘贴服务：写入系统剪贴板 + 模拟粘贴按键
  * 无辅助功能权限时只保证写入剪贴板，不模拟回填、不拉起系统设置
- * 按键模拟见 focusTarget/mac · focusTarget/win
+ * 按键模拟见 focusTarget（focus-paste-napi）
  */
 export class PasteService {
   /** 自身写入剪贴板后回调，供监听器同步基线，避免二次入库/抢占剪贴板 */

@@ -10,3 +10,5 @@ target
 native/*.node
 native-rs/recorder-napi/*.node
 native-rs/recorder-napi/node_modules
+native-rs/focus-paste-napi/*.node
+native-rs/focus-paste-napi/node_modules

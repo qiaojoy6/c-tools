@@ -2,6 +2,8 @@
 members = [
   "native-rs/recorder-core",
   "native-rs/recorder-napi",
+  "native-rs/focus-paste-core",
+  "native-rs/focus-paste-napi",
 ]
 resolver = "2"
 

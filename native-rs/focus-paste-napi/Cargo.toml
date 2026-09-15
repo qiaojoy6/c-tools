@@ -1,0 +1,17 @@
+[package]
+name = "focus-paste-napi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "napi-rs bindings for focus-paste-core (Electron native addon)"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+focus-paste-core = { path = "../focus-paste-core" }
+napi = { workspace = true, features = ["napi8"] }
+napi-derive.workspace = true
+
+[build-dependencies]
+napi-build = "2"

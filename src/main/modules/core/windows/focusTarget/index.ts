@@ -1,7 +1,7 @@
 /**
  * 前台目标采集 / 激活 / 模拟粘贴 — 跨平台入口
- * - mac：`./mac`（osascript）
- * - win：`./win`（koffi + user32）
+ * - mac：`./mac`（focus-paste-napi）
+ * - win：`./win`（focus-paste-napi；失败回退 PowerShell）
  * 平台差异改各自文件，此处只做分发与共享判定。
  */
 import { app } from 'electron'

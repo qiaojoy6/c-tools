@@ -50,7 +50,7 @@ npm install
 
 `postinstall` 会执行 `electron-builder install-app-deps`，并尝试给开发态 Electron 写入 macOS 麦克风/系统音频权限文案（`scripts/patch-electron-plist.sh`）。
 
-### 3. 编译录屏原生插件（必做一次）
+### 3. 编译原生插件（必做一次）
 
 `.node` **不进 Git**，新机器必须本地编：
 
@@ -60,18 +60,18 @@ npm run build:native
 
 脚本会：
 
-1. 在 `native-rs/recorder-napi` 用 napi-rs 编译**当前平台**的 `.node`
+1. 在 `native-rs/recorder-napi`、`native-rs/focus-paste-napi` 用 napi-rs 编译**当前平台**的 `.node`
 2. 拷贝到项目根目录 `native/`（开发加载与打包 `extraResources` 都用这里）
 
 产物示例：
 
-- Apple Silicon Mac → `native/recorder.darwin-arm64.node`
-- Intel Mac → `native/recorder.darwin-x64.node`
-- Windows x64 → `native/recorder.win32-x64-msvc.node`
+- Apple Silicon Mac → `native/recorder.darwin-arm64.node`、`native/focus-paste.darwin-arm64.node`
+- Intel Mac → `native/recorder.darwin-x64.node`、`native/focus-paste.darwin-x64.node`
+- Windows x64 → `native/recorder.win32-x64-msvc.node`、`native/focus-paste.win32-x64-msvc.node`
 
 说明：
 
-- `native-rs/recorder-napi/index.js` 里列出多平台只是**运行时加载模板**，不会在一台机器上自动编出全部平台。
+- `native-rs/*/index.js` 里列出多平台只是**运行时加载模板**，不会在一台机器上自动编出全部平台。
 - **Windows 的 `.node` 必须在 Windows（或 Windows CI）上编译**，不能在 Mac 上直接产出。
 - 改了 `native-rs/` 下 Rust 代码后，需再跑一次 `npm run build:native`，并**完全重启** `npm run dev`（原生模块会被进程缓存）。
 

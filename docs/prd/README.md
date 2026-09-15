@@ -54,7 +54,8 @@
 - 独立剪贴板回填：贴到呼出前的前台应用；浮层不改动功能面板显隐与层级
 - macOS 无辅助功能权限时：只写入系统剪贴板，不模拟回填、不拉起系统设置；每次启动提示一次，粘贴过程不再重复弹通知
 - 自动粘贴失败时的「已复制，请手动 ⌘V/Ctrl+V」每个进程只提示一次
-- Windows 粘贴：统一模拟 Ctrl+V（SendInput / keybd_event；不用 WM_PASTE 抢先返回，避免 VS Code 等误判成功）；koffi 不可用时回退 PowerShell SendKeys
+- Windows 粘贴：统一模拟 Ctrl+V（SendInput / keybd_event，经 `focus-paste` 原生模块；不用 WM_PASTE）；原生不可用时回退 PowerShell SendKeys
+- 焦点交接 / 模拟粘贴：`native-rs/focus-paste-core` + `focus-paste-napi`（Win user32 / mac osascript）；TS `focusTarget` 仅薄封装与延时编排
 - Windows 焦点：快捷键瞬间同步采 hwnd；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）
 - 渲染进程日志 `window.logApi` / `import { logApi }`：debug/info/warn/error；先安全序列化再经 `api.logWrite` 打到主进程终端；DevTools 仍打印原始对象
 - 主进程意外退出兜底：`logs/diag.log`（未捕获异常、渲染/子进程崩溃、启停）；正常时同步 mirror 到终端；会话心跳检测上次非正常退出；本地 crashReporter minidump（不上传）；终端断管（EIO/EPIPE）只落盘一次、不刷爆日志
@@ -63,7 +64,9 @@
 ### 相关文件
 
 - `src/main/modules/core/windows/` — ClipboardWindow / QuickFoldersWindow / PanelWindow / SettingsWindow / WindowManager / floatingLevel（浮层置顶层级）/ focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）
-- `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac` osascript；`win` koffi+user32）
+- `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac`/`win` 调 focus-paste-napi；`native.ts` 加载 `.node`）
+- `native-rs/focus-paste-core/` — 焦点交接与模拟粘贴内核（按 win/mac 模块划分）
+- `native-rs/focus-paste-napi/` — napi 胶水与 `.node` 构建
 - `src/main/modules/core/` — tray / shortcut / storage / ipc / appMenu / logIpc / crashGuard / appUpdater / updaterIpc
 - `src/main/bootstrap/` — 主进程启动编排（FeatureHost + shortcuts / tray / ipc / lifecycle）
 - `src/main/modules/feature/` — 内置 Feature 宿主（见「feature」节）
@@ -230,7 +233,7 @@
 ### 功能
 
 - Rust 录屏内核（`native-rs/recorder-core`）：macOS 优先 **ScreenCaptureKit** 同源采集画面+系统声（`sck_capture.rs`，MIT `screencapturekit`）；画面静止（无脏帧/Idle）时仍按目标 fps 推进视频时间轴与 UI 计时，避免成片短于系统声/麦；失败回退 xcap + flexaudio Process Tap；Windows 为 xcap + WASAPI（事件驱动）+ `CaptureClock` 首帧锚定音画；flexaudio 采集麦克风；录制中可实时开关麦/系统声；写入侧补静音 + 停录片头裁切/CFR 时长对齐；ffmpeg sidecar 编码/混流 MP4；视频清晰度三档（流畅 / 超清 / 原画）
-- napi-rs 插件（`native-rs/recorder-napi`）：编译为平台 `.node`，由 Electron 主进程同进程加载（复用 macOS TCC）
+- napi-rs 插件（`native-rs/recorder-napi`、`native-rs/focus-paste-napi`）：编译为平台 `.node`，由 Electron 主进程同进程加载（复用 macOS TCC）
 - 主进程封装：枚举显示器/麦克风/系统输出、开始/暂停/继续/停止录制、录制中 `setMicEnabled` / `setSystemAudioEnabled`、状态与事件推送；`start` 可传 `region`（相对显示器物理像素）与 `quality`；默认先写到 `userData/recordings/`，停止后弹系统「另存为」可自定义路径（取消则删除成片不保存）
 - 框选遮罩：托盘或全局快捷键「区域录屏」进入多屏透明框选；悬停高亮应用窗、单击锁定窗尺寸（与截屏同源窗口枚举），或拖拽框选；工具条可切换系统声/麦克风、选择麦克风设备（列表来自 Rust `listMics`）与清晰度（流畅 / 超清 / 原画，固定 MP4，写入 `settings.json` 持久化）；无麦克风/系统声权限时不可选开（点击后关框选并直接跳转系统设置）；确认后关遮罩开录；Esc / 右键 /「退出录制」/ 再按区域快捷键取消
 - 全屏录屏：托盘或全局快捷键「全屏录屏」弹出选屏 Dialog（屏幕列表由 Rust 内核 `listScreens` 提供）；可切换系统声/麦克风、选择麦克风设备与清晰度（与区域共用持久化配置）；无对应权限时不可选开；确认后整屏开录（不传 `region`）
@@ -245,10 +248,12 @@
 ### 相关文件
 
 - `native-rs/recorder-core/` — 纯 Rust 录屏内核（含 `aec.rs`、`av_sync.rs`、`capture_clock.rs`、macOS `sck_capture.rs`）
-- `native-rs/recorder-napi/` — napi 胶水与 `.node` 构建
+- `native-rs/recorder-napi/` — 录屏 napi 胶水与 `.node` 构建
+- `native-rs/focus-paste-core/` — 焦点交接 / 模拟粘贴内核（win / mac 分模块）
+- `native-rs/focus-paste-napi/` — 焦点粘贴 napi 胶水
 - `native/` — 编译产物 `.node`（开发与打包资源）
 - `electron-builder.yml` — `extraResources` 拷贝 `native/*.node` 与 `ffmpeg-static` 可执行文件到 `bin/`
-- `scripts/build-native.sh` — `npm run build:native`
+- `scripts/build-native.sh` — 编译 recorder + focus-paste 并拷贝到 `native/`
 - `.github/workflows/build.yml` — GitHub Actions：mac/win 编 `.node` 并打包；`v*` tag 时发布到 GitHub Release（自动更新）
 - `electron-builder.yml` / `dev-app-update.yml` — 更新源 `provider: github`
 - `src/main/modules/recorder/` — feature / 主进程加载插件、框选遮罩会话、全屏选屏弹窗、区域外框与全屏悬浮条 IPC、停录另存为、麦/系统声权限（`permission.ts`）
