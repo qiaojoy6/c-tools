@@ -17,7 +17,8 @@ import {
   prepareWindowsFocusHandoff
 } from './focusTarget'
 
-const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 220 : 120
+/** 还焦后等待时长（经验值，非系统标准；过短易贴错窗） */
+export const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 180 : 90
 
 /** Win：在 hide 本应用窗之前调用，放行目标抢前台 */
 export function prepareYieldFocus(bundleId: string | null | undefined): void {
@@ -42,10 +43,10 @@ export async function activateExternalApp(bundleId: string | null): Promise<bool
       await delay(RESTORE_FOCUS_DELAY_MS)
       if (isWindowsForegroundOurs() || !isWindowsForegroundTarget(bundleId)) {
         await activateFocusTarget(bundleId)
-        await delay(120)
+        await delay(80)
       }
     } else {
-      await delay(RESTORE_FOCUS_DELAY_MS + 80)
+      await delay(RESTORE_FOCUS_DELAY_MS + 50)
     }
     return !isWindowsForegroundOurs()
   }

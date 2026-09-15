@@ -9,11 +9,10 @@ import { SettingsWindow } from './settingsWindow'
 import {
   activateExternalApp,
   captureFrontmostRaw,
-  prepareYieldFocus
+  prepareYieldFocus,
+  RESTORE_FOCUS_DELAY_MS
 } from './focusHandoff'
 import { asExternalBundleId, captureWindowsForegroundHwnd } from './focusTarget'
-
-const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 220 : 120
 
 export type AppWindowVisibility = {
   clipboard: boolean
