@@ -6,6 +6,7 @@ import { quickFoldersApi } from '../modules/quickFolders'
 import { logBridgeApi } from '../modules/log'
 import { screenshotApi } from '../modules/screenshot'
 import { recorderApi } from '../modules/recorder'
+import { hostsApi } from '../modules/hosts'
 
 /**
  * Preload bridge 注册表：新增模块在此追加一条即可（并实现对应 modules/*.ts）。
@@ -18,5 +19,6 @@ export const PRELOAD_BRIDGES = [
   defineRootBridge('projects', projectsApi),
   defineNestedBridge('quickFolders', 'quickFolders', quickFoldersApi),
   defineNestedBridge('screenshot', 'screenshot', screenshotApi),
-  defineNestedBridge('recorder', 'recorder', recorderApi)
+  defineNestedBridge('recorder', 'recorder', recorderApi),
+  defineNestedBridge('hosts', 'hosts', hostsApi)
 ] as const

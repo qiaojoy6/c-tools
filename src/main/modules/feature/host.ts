@@ -11,7 +11,8 @@ const TOGGLE_LABELS: Record<string, string> = {
   quickFolders: '快捷文件夹',
   projects: '项目',
   screenshot: '截屏',
-  recorder: '录屏'
+  recorder: '录屏',
+  hosts: 'Hosts'
 }
 
 /**

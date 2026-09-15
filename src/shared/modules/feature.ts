@@ -8,6 +8,7 @@ export type FeatureId =
   | 'projects'
   | 'screenshot'
   | 'recorder'
+  | 'hosts'
   | 'settings'
 
 /** 可开关的业务 Feature（不含 core / settings 壳） */
@@ -17,6 +18,7 @@ export type ToggleableFeatureId =
   | 'projects'
   | 'screenshot'
   | 'recorder'
+  | 'hosts'
 
 /** 功能开关配置；未列出的键默认启用 */
 export type FeaturesConfig = {

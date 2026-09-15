@@ -9,6 +9,7 @@ import type { QuickFoldersApi } from '../../preload/modules/quickFolders'
 import type { LogBridgeApi } from '../../preload/modules/log'
 import type { ScreenshotApi } from '../../preload/modules/screenshot'
 import type { RecorderApi } from '../../preload/modules/recorder'
+import type { HostsApi } from '../../preload/modules/hosts'
 
 /** 与 preload 暴露的 window.api 对齐 */
 type Api = AppApi &
@@ -18,6 +19,7 @@ type Api = AppApi &
     quickFolders: QuickFoldersApi
     screenshot: ScreenshotApi
     recorder: RecorderApi
+    hosts: HostsApi
   }
 
 declare global {

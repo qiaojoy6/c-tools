@@ -30,5 +30,10 @@ export const FEATURE_TOGGLE_OPTIONS: Array<{
     id: 'recorder',
     label: '录屏',
     description: '区域 / 全屏录屏与托盘控制'
+  },
+  {
+    id: 'hosts',
+    label: 'Hosts',
+    description: '多方案编辑与按需写入系统 hosts'
   }
 ]

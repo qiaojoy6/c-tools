@@ -6,7 +6,7 @@
 
 ## 现状
 
-- 主进程业务模块均经 `FeatureHost`：clipboard / projects / quickFolders / screenshot / recorder
+- 主进程业务模块均经 `FeatureHost`：clipboard / projects / quickFolders / screenshot / recorder / hosts
 - bootstrap 仅壳：窗口 / 菜单 / Host 注册 / shortcuts 聚合 / tray / core IPC / 退出
 - Panel / Settings 贡献表带 `component`；按 `features.enabled` 过滤
 - 跨模块经 `FeatureContext.shared`；托盘 `bindTray`；快捷键 `bindShortcuts`

@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
-import { ClipboardList, FolderKanban, FolderOpen } from 'lucide-vue-next'
+import { defineAsyncComponent } from 'vue'
+import { ClipboardList, FolderKanban, FolderOpen, Globe } from 'lucide-vue-next'
 import type { PanelContributionMeta } from '@shared/modules/feature'
 import ClipboardPage from '@renderer/pages/ClipboardPage.vue'
 import QuickFoldersPage from '@renderer/pages/QuickFoldersPage.vue'
@@ -30,5 +31,12 @@ export const PANEL_MODULES: PanelModuleTab[] = [
     icon: FolderKanban,
     component: ProjectsPage,
     keepAlive: true
+  },
+  {
+    id: 'hosts',
+    label: 'Hosts',
+    icon: Globe,
+    // 异步加载，避免 CodeMirror 打进面板主包
+    component: defineAsyncComponent(() => import('@renderer/pages/HostsPage.vue'))
   }
 ]

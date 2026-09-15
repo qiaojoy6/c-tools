@@ -12,7 +12,7 @@
 
 - 主进程 `defineFeature` + `FeatureHost`：编译期注册内置模块，统一 setup / registerIpc / bindShortcuts / dispose
 - 渲染层 Panel / Settings 贡献表带 `component`，页面按注册表动态挂载（去掉硬编码 v-if 链）
-- 已迁入 FeatureHost：`clipboard`、`projects`、`quickFolders`、`screenshot`、`recorder`（主进程业务模块均经 Host）
+- 已迁入 FeatureHost：`clipboard`、`projects`、`quickFolders`、`screenshot`、`recorder`、`hosts`（主进程业务模块均经 Host）
 - 跨模块互斥 / 服务经 `FeatureContext.shared`；快捷键 `bindShortcuts`；托盘 `bindTray`
 - `features.enabled`：配置关闭模块后 Host 跳过 setup；Panel/Settings 隐藏对应 Tab；运行时软切换快捷键/托盘/剪贴板监听；启动未加载的模块可热 setup
 - preload 经 `PRELOAD_BRIDGES` 注册表组装 `window.api`
@@ -29,6 +29,7 @@
 - `src/main/modules/quickFolders/feature.ts` — quickFolders Feature
 - `src/main/modules/screenshot/feature.ts` — screenshot Feature（含 tray）
 - `src/main/modules/recorder/feature.ts` — recorder Feature（含 tray）
+- `src/main/modules/hosts/feature.ts` — hosts Feature
 - `src/renderer/src/modules/feature/enabled.ts` — 渲染层按 enabled 过滤
 - `src/renderer/src/modules/panel/tabs.ts` — 面板贡献（含 component / keepAlive）
 - `src/renderer/src/modules/settings/tabs.ts` — 设置贡献（含 component）
@@ -275,11 +276,37 @@
 
 ---
 
+## hosts
+
+### 功能
+
+- 功能面板「Hosts」：多方案 Tab（添加时填名称并立刻写入本地 `hosts-schemes.json`，开关默认关）
+- 每方案：展示名可改（系统标记只认稳定 id）、CodeMirror 编辑（hosts 语法高亮；不做格式校验）、拖拽排序（顺序即叠加优先级）
+- 开开关 → 按需提权写入系统 hosts 中该 id 标记段；关开关 → 提权删除该段；开启中禁止删除
+- 提权：首次系统授权时写入 hosts 并拉起短时 helper（macOS 用 python 脱离进程树，避免假死；Windows 为 UAC helper）；之后约 10 分钟内滑动续期免密；面板展示下次需授权时间；不收集、不存储用户密码；退出应用结束会话
+- 开启态下编辑区失焦 → 写本地并更新系统该段；有开启方案时拖拽排序 → 立刻提权按新顺序重写全部 c-tools 段
+- 系统文件采用 `# ===== c-tools:<id> =====` / `# ===== /c-tools:<id> =====` 围栏，块外内容不动；多方案可同时开启并叠加；写成功后自动 flush DNS（macOS / Windows）
+- 设置「Hosts」：从系统移除全部 c-tools 段（并关闭本地方案开关）；关功能模块只藏 UI，不自动改系统
+- 仅支持 macOS 与 Windows
+
+### 相关文件
+
+- `src/main/modules/hosts/` — feature / store / markers / elevateSession / elevateHelperScripts / elevateWrite / systemHosts / ipc
+- `src/shared/modules/hosts.ts` — 方案类型
+- `src/preload/modules/hosts.ts`
+- `src/renderer/src/pages/HostsPage.vue`
+- `src/renderer/src/modules/hosts/` — composables / CodeMirror 编辑器 / 方案行 / 名称对话框
+- `src/renderer/src/modules/hosts/codemirror/` — hosts 语言高亮与主题
+- `src/renderer/src/modules/settings/components/HostsSettings.vue`
+- 入口耦接：`FeatureHost` / `panel/tabs` / `settings/tabs` / `features.enabled`
+
+---
+
 ## settings
 
 ### 功能
 
-- 独立设置窗口，左侧按模块 Tab 切换（通用 / 剪贴板 / 快捷文件夹 / 截屏 / 录屏 / 项目，可扩展）
+- 独立设置窗口，左侧按模块 Tab 切换（通用 / 剪贴板 / 快捷文件夹 / 截屏 / 录屏 / 项目 / Hosts，可扩展）
 - 自定义呼出剪贴板快捷键（可恢复默认；可清空关闭）
 - 快捷文件夹：呼出快捷键（可恢复默认；可清空关闭）、最大保存条数
 - 截屏：快捷键（可恢复默认；可清空关闭）、截屏时是否隐藏本应用窗口
@@ -289,7 +316,7 @@
 - 过期自动清理周期
 - 开机自启
 - 外观主题：浅色 / 深色 / 跟随系统（柔和石板雾灰 / 抬升炭灰；写入 `general.theme`）
-- 功能模块开关（通用页）：剪贴板 / 快捷文件夹 / 项目 / 截屏 / 录屏；写入 `features.enabled`；关闭后侧栏 / 快捷键 / 托盘立刻失效，剪贴板监听暂停；启动时未加载的模块首次开启会热加载（截屏/录屏会预热遮罩）；关剪贴板会连带关截屏
+- 功能模块开关（通用页）：剪贴板 / 快捷文件夹 / 项目 / 截屏 / 录屏 / Hosts；写入 `features.enabled`；关闭后侧栏 / 快捷键 / 托盘立刻失效，剪贴板监听暂停；启动时未加载的模块首次开启会热加载（截屏/录屏会预热遮罩）；关剪贴板会连带关截屏；关 Hosts 只藏 UI，不自动清系统 hosts 段
 - 退出时清空记录
 - 启动时清空记录
 - 关于与更新：显示当前版本、检查更新、下载完成后重启安装
@@ -298,7 +325,7 @@
 
 - `src/renderer/src/pages/SettingsPage.vue` — 设置壳；内容来自 `settings/tabs` 动态挂载
 - `src/renderer/src/modules/settings/tabs.ts` — 模块 Tab 注册（含 settings component）
-- `src/renderer/src/modules/settings/components/` — GeneralSettings（含功能模块开关）/ ClipboardSettings / QuickFoldersSettings / ScreenshotSettings / RecorderSettings / ProjectSettings / HotkeyInput
+- `src/renderer/src/modules/settings/components/` — GeneralSettings（含功能模块开关）/ ClipboardSettings / QuickFoldersSettings / ScreenshotSettings / RecorderSettings / ProjectSettings / HostsSettings / HotkeyInput
 - `src/renderer/src/modules/feature/toggles.ts` — 功能开关选项文案
 - `src/renderer/src/modules/feature/enabled.ts` — 按 `features.enabled` 过滤 Tab
 
@@ -325,6 +352,7 @@
 | `clipboard-favorites.json` | 剪贴板收藏（与历史独立；删历史不影响收藏） |
 | `clipboard-images/` | 剪贴板图片二进制（按内容 hash 命名；无引用时删除） |
 | `quick-folders.json` | 快捷文件夹书签（路径、备注、顺序） |
+| `hosts-schemes.json` | Hosts 多方案（id / 名称 / 顺序 / enabled / content） |
 
 写入方式：原子写（先 `.tmp` 再 rename）。项目相关配置也落在 `settings.json` 的 `projects` 字段，无单独项目文件。
 
@@ -351,6 +379,7 @@
 - `src/main/modules/clipboard/favorites.ts` — `clipboard-favorites.json`
 - `src/main/modules/clipboard/imageStore.ts` — `clipboard-images/` + `clipimg://` 协议
 - `src/main/modules/quickFolders/store.ts` — `quick-folders.json`
+- `src/main/modules/hosts/store.ts` — `hosts-schemes.json`
 - `src/main/modules/core/crashGuard.ts` — `diag.log` / `diag-session.json` / crashReporter
 - `src/main/modules/core/appUpdater.ts` — 更新下载（经 electron-updater）
 - `src/renderer/src/modules/projects/components/ProjectWebview.vue` — `persist:projects-preview`

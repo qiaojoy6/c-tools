@@ -15,6 +15,7 @@ import { projectsFeature } from '../modules/projects'
 import { quickFoldersFeature } from '../modules/quickFolders'
 import { screenshotFeature } from '../modules/screenshot'
 import { recorderFeature } from '../modules/recorder'
+import { hostsFeature } from '../modules/hosts'
 import type { AppContext } from './context'
 import { setupShortcuts } from './shortcuts'
 import { setupTray } from './tray'
@@ -69,6 +70,7 @@ export function runWhenReady(): AppContext {
   featureHost.register(quickFoldersFeature)
   featureHost.register(screenshotFeature)
   featureHost.register(recorderFeature)
+  featureHost.register(hostsFeature)
   featureHost.setupAll({
     config,
     windows,

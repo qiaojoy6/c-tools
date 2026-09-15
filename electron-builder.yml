@@ -25,6 +25,11 @@ files:
   - '!node_modules/ffmpeg-static/**'
   - '!node_modules/@derhuerst/**'
   # 渲染/构建依赖已由 Vite 打进 out/，不进 asar（即便误留在 dependencies）
+  - '!node_modules/@codemirror/**'
+  - '!node_modules/@lezer/**'
+  - '!node_modules/style-mod/**'
+  - '!node_modules/w3c-keyname/**'
+  - '!node_modules/crelt/**'
   - '!node_modules/lucide-vue-next/**'
   - '!node_modules/reka-ui/**'
   - '!node_modules/tailwindcss/**'

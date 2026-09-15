@@ -21,7 +21,8 @@ export function filterEnabledFeatures<T extends { id: string }>(
       id !== 'quickFolders' &&
       id !== 'projects' &&
       id !== 'screenshot' &&
-      id !== 'recorder'
+      id !== 'recorder' &&
+      id !== 'hosts'
     ) {
       return true
     }

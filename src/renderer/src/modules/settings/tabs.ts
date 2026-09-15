@@ -1,5 +1,5 @@
 import type { Component } from 'vue'
-import { ClipboardList, FolderKanban, FolderOpen, Scan, Settings2, Video } from 'lucide-vue-next'
+import { ClipboardList, FolderKanban, FolderOpen, Globe, Scan, Settings2, Video } from 'lucide-vue-next'
 import type { SettingsContributionMeta } from '@shared/modules/feature'
 import GeneralSettings from '@renderer/modules/settings/components/GeneralSettings.vue'
 import ClipboardSettings from '@renderer/modules/settings/components/ClipboardSettings.vue'
@@ -7,6 +7,7 @@ import QuickFoldersSettings from '@renderer/modules/settings/components/QuickFol
 import ScreenshotSettings from '@renderer/modules/settings/components/ScreenshotSettings.vue'
 import RecorderSettings from '@renderer/modules/settings/components/RecorderSettings.vue'
 import ProjectSettings from '@renderer/modules/settings/components/ProjectSettings.vue'
+import HostsSettings from '@renderer/modules/settings/components/HostsSettings.vue'
 
 /** 设置侧边模块：在此注册 id / 文案 / 图标 / 设置页组件即可 */
 export interface SettingsModuleTab extends SettingsContributionMeta {
@@ -63,6 +64,14 @@ export const SETTINGS_MODULES: SettingsModuleTab[] = [
     description: '预览分区缓存与浏览数据',
     icon: FolderKanban,
     component: ProjectSettings,
+    needsConfig: false
+  },
+  {
+    id: 'hosts',
+    label: 'Hosts',
+    description: '从系统移除 c-tools 标记段',
+    icon: Globe,
+    component: HostsSettings,
     needsConfig: false
   }
 ]
