@@ -2,7 +2,10 @@ import { randomUUID } from 'crypto'
 import { dialog, screen } from 'electron'
 import type { AppConfig, ShotDisplayFrame } from '@shared/types'
 import { delay } from '../core/windows/loadRoute'
-import type { AppWindowVisibility } from '../core/windows/windowManager'
+import {
+  screenshotConcealStrategy,
+  type AppUiConcealSession
+} from '../core/windows'
 import { captureAllDisplays, clearFrameBuffers, resetScreenshotTemp } from './capture'
 import { completeScreenshot, saveScreenshotPng, type CompleteDeps } from './complete'
 import { ScreenshotOverlayHost } from './overlayHost'
@@ -11,14 +14,14 @@ import { listAppWindows } from './windowHit'
 
 export interface ScreenshotSessionDeps extends CompleteDeps {
   getConfig: () => AppConfig
-  /** 记下显隐并隐藏本应用窗 */
-  hideAppWindows: () => AppWindowVisibility
+  /** 按策略隐身（截屏 hideAppWindows → dim-panel-if-visible / none） */
+  beginConceal: (strategy: ReturnType<typeof screenshotConcealStrategy>) => AppUiConcealSession
   /** 截屏前采外部前台（含面板被盖住回落） */
   captureExternalFocus: () => Promise<string | null>
-  /** 关遮罩 + 还焦（被外部盖住时不还原自家窗） */
-  settleAfterScreenshot: (opts: {
+  /** 关遮罩 + 还原 conceal + 可选还焦 */
+  settleAfterCapture: (opts: {
     hideOverlays: () => Promise<void>
-    visibility: AppWindowVisibility | null
+    conceal: AppUiConcealSession | null
     external: string | null
     restoreFocus: boolean
   }) => Promise<void>
@@ -31,7 +34,7 @@ export class ScreenshotSession {
   private active = false
   private sessionId = ''
   private frames: ShotDisplayFrame[] = []
-  private savedVisibility: AppWindowVisibility | null = null
+  private savedConceal: AppUiConcealSession | null = null
   /** 截屏开始前的外部前台，结束后还焦 */
   private savedExternal: string | null = null
   /** 收尾期间抑制 macOS activate → showPanel */
@@ -88,16 +91,21 @@ export class ScreenshotSession {
     this.savedExternal = await this.deps.captureExternalFocus()
 
     try {
-      if (this.deps.getConfig().screenshot.hideAppWindows) {
-        this.savedVisibility = this.deps.hideAppWindows()
-        await delay(16)
-      } else {
-        this.savedVisibility = null
+      // hide 开且面板可见 → 透明度 0；否则 noop。Dock 在 begin 内冻结。
+      this.savedConceal = this.deps.beginConceal(
+        screenshotConcealStrategy(this.deps.getConfig().screenshot.hideAppWindows)
+      )
+      await delay(16)
+      if (seq !== this.startSeq) {
+        await this.finishCleanupAsync()
+        return
       }
-      if (seq !== this.startSeq) return
 
       this.frames = await captureAllDisplays()
-      if (seq !== this.startSeq) return
+      if (seq !== this.startSeq) {
+        await this.finishCleanupAsync()
+        return
+      }
 
       if (!this.frames.length) {
         dialog.showErrorBox('截屏失败', '未能捕获任何显示器画面。')
@@ -166,14 +174,14 @@ export class ScreenshotSession {
     this.cleaning = true
     this.suppressActivate = true
     try {
-      const visibility = this.savedVisibility
-      this.savedVisibility = null
+      const conceal = this.savedConceal
+      this.savedConceal = null
       const external = this.savedExternal
       this.savedExternal = null
 
-      await this.deps.settleAfterScreenshot({
+      await this.deps.settleAfterCapture({
         hideOverlays: () => this.overlays.hideAll(),
-        visibility,
+        conceal,
         external,
         restoreFocus: true
       })
@@ -194,7 +202,7 @@ export class ScreenshotSession {
       // 短暂抑制：遮罩关闭后 macOS 可能仍派发 activate
       setTimeout(() => {
         this.suppressActivate = false
-      }, 400)
+      }, 2500)
     }
   }
 }

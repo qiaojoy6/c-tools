@@ -9,7 +9,6 @@
 import { delay } from './loadRoute'
 import {
   activateFocusTarget,
-  asExternalBundleId,
   captureWindowsForegroundHwnd,
   getFrontmostBundleId,
   isWindowsForegroundOurs,
@@ -53,15 +52,6 @@ export async function activateExternalApp(bundleId: string | null): Promise<bool
 
   await delay(RESTORE_FOCUS_DELAY_MS)
   return true
-}
-
-/** 读取当前前台外部应用；前台是本应用或失败时返回 null */
-export async function captureFrontmostExternal(): Promise<string | null> {
-  if (process.platform === 'win32') {
-    return asExternalBundleId(captureWindowsForegroundHwnd())
-  }
-  const raw = await getFrontmostBundleId()
-  return asExternalBundleId(raw)
 }
 
 /** 当前前台原始 id（含本应用）；采集失败为 null */

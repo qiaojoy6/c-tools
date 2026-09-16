@@ -6,7 +6,10 @@ import type {
   RecorderSelectConfirm,
   RecorderVideoQuality
 } from '../../../shared/modules/recorder'
-import type { AppWindowVisibility } from '../core/windows/windowManager'
+import {
+  recorderConcealStrategy,
+  type AppUiConcealSession
+} from '../core/windows'
 import { delay } from '../core/windows/loadRoute'
 import {
   hasScreenCapturePermission,
@@ -22,13 +25,13 @@ import { promptSaveRecording } from './saveRecording'
 
 export interface RecorderSelectSessionDeps {
   host: RecorderHost
-  /** 记下显隐并隐藏本应用窗 */
-  hideAppWindows: () => AppWindowVisibility
-  /** 采外部前台（被盖住时不还原自家窗） */
+  /** 录制固定 none：不碰本应用窗，仅冻结 Dock */
+  beginConceal: (strategy: ReturnType<typeof recorderConcealStrategy>) => AppUiConcealSession
+  /** 采外部前台（取消框选时还焦） */
   captureExternalFocus: () => Promise<string | null>
-  settleAfterSelect: (opts: {
+  settleAfterCapture: (opts: {
     hideOverlays: () => Promise<void>
-    visibility: AppWindowVisibility | null
+    conceal: AppUiConcealSession | null
     external: string | null
     restoreFocus: boolean
   }) => Promise<void>
@@ -52,7 +55,7 @@ export interface RecorderSelectSessionDeps {
 export class RecorderSelectSession {
   private active = false
   private sessionId = ''
-  private savedVisibility: AppWindowVisibility | null = null
+  private savedConceal: AppUiConcealSession | null = null
   private savedExternal: string | null = null
   private suppressActivate = false
   private readonly overlays = new RecorderOverlayHost()
@@ -173,7 +176,7 @@ export class RecorderSelectSession {
     }
   }
 
-  /** 区域录屏：多屏透明遮罩，点选应用窗或拖拽框选 */
+  /** 区域录屏：多屏透明遮罩，点选应用窗或拖拽框选；不藏本应用窗 */
   async startRegion(): Promise<void> {
     if (this.active || this.fullscreen.isOpen) {
       await this.cancelAsync()
@@ -185,11 +188,14 @@ export class RecorderSelectSession {
     this.active = true
     this.sessionId = randomUUID()
     this.savedExternal = await this.deps.captureExternalFocus()
+    // none：窗口原样保留；仅冻结 Dock，避免遮罩抢焦闪一下
+    this.savedConceal = this.deps.beginConceal(recorderConcealStrategy())
 
     try {
-      this.savedVisibility = this.deps.hideAppWindows()
-      await delay(16)
-      if (seq !== this.startSeq) return
+      if (seq !== this.startSeq) {
+        await this.finishCleanupAsync({ restoreFocus: true })
+        return
+      }
 
       let screens: RecorderDeviceInfo[] = []
       try {
@@ -273,8 +279,8 @@ export class RecorderSelectSession {
     const device = screens.find((s) => s.id === screenId) ?? screens[0]!
 
     this.savedExternal = await this.deps.captureExternalFocus()
-    this.savedVisibility = this.deps.hideAppWindows()
-    await delay(16)
+    // 全屏开录也不藏窗；begin 仅冻结 Dock
+    this.savedConceal = this.deps.beginConceal(recorderConcealStrategy())
 
     try {
       const result = await this.deps.host.start({
@@ -298,27 +304,27 @@ export class RecorderSelectSession {
           { enableMic, enableSystemAudio }
         )
       }
-      // 开录后还原本应用窗
-      await this.deps.settleAfterSelect({
+      // 开录后解冻 Dock（窗口从未藏起）
+      await this.deps.settleAfterCapture({
         hideOverlays: async () => {},
-        visibility: this.savedVisibility,
+        conceal: this.savedConceal,
         external: this.savedExternal,
         restoreFocus: false
       })
-      this.savedVisibility = null
+      this.savedConceal = null
       this.savedExternal = null
       this.sessionId = ''
       this.deps.onRecordingChanged?.()
     } catch (err) {
       console.error('[recorder] fullscreen start failed:', err)
       this.border.hide()
-      await this.deps.settleAfterSelect({
+      await this.deps.settleAfterCapture({
         hideOverlays: async () => {},
-        visibility: this.savedVisibility,
+        conceal: this.savedConceal,
         external: this.savedExternal,
         restoreFocus: true
       })
-      this.savedVisibility = null
+      this.savedConceal = null
       this.savedExternal = null
       this.sessionId = ''
       dialog.showErrorBox('录屏失败', err instanceof Error ? err.message : String(err))
@@ -441,14 +447,14 @@ export class RecorderSelectSession {
     this.cleaning = true
     this.suppressActivate = true
     try {
-      const visibility = this.savedVisibility
-      this.savedVisibility = null
+      const conceal = this.savedConceal
+      this.savedConceal = null
       const external = this.savedExternal
       this.savedExternal = null
 
-      await this.deps.settleAfterSelect({
+      await this.deps.settleAfterCapture({
         hideOverlays: () => this.overlays.hideAll(),
-        visibility,
+        conceal,
         external,
         restoreFocus: opts.restoreFocus
       })

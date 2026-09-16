@@ -28,6 +28,11 @@ export const PANEL_TITLE_BAR_OVERLAY_DARK = {
 export interface PanelShowOptions {
   /** 显示前是否采焦（默认 true；异步短超时，不卡死主进程） */
   captureFocus?: boolean
+  /**
+   * macOS：是否强制抢前台（默认 true）。
+   * 程序坞 / Cmd+Tab 的 activate 已激活本应用，应传 false，避免与第三方截图叠在一起卡住 Dock「访达」标签。
+   */
+  stealFocus?: boolean
 }
 
 /**
@@ -164,16 +169,19 @@ export class PanelWindow {
       if (win.isDestroyed()) return
     }
 
+    const wasVisible = win.isVisible() && !win.isMinimized()
     if (win.isMinimized()) win.restore()
     if (!win.isVisible()) win.center()
     win.show()
     win.moveTop()
     win.focus()
     if (process.platform === 'darwin') {
-      app.focus({ steal: true })
+      // activate / 截屏还原传 stealFocus:false；托盘呼出仍可 steal
+      app.focus({ steal: opts?.stealFocus !== false })
     }
     syncMacDockIcon()
-    win.webContents.send('panel:shown')
+    // 仅首次露出时通知，避免 activate 反复刷 panel:shown
+    if (!wasVisible) win.webContents.send('panel:shown')
   }
 
   hide(): void {
@@ -188,6 +196,13 @@ export class PanelWindow {
     }
     this.win.hide()
     syncMacDockIcon()
+  }
+
+  /** 截屏临时隐身：保持可见态与层级，仅改透明度（供 AppUiConceal 策略使用） */
+  setShotDimmed(dimmed: boolean): void {
+    const win = this.win
+    if (!win || win.isDestroyed() || !win.isVisible()) return
+    win.setOpacity(dimmed ? 0 : 1)
   }
 
   takePreviousAppBundleId(): string | null {

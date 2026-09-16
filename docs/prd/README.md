@@ -41,8 +41,9 @@
 ### 功能
 
 - 独立剪贴板窗口（`/clipboard`）：无边框置顶浮层、在鼠标所在屏顶部居中、ESC 关闭；仅快捷键呼出；失焦隐藏由 `window.hideOnBlur` 控制（View 菜单可开关）；macOS 用 `showInactive`（不用 `type:panel`，避免 styleMask 0x80 刷屏）且不调 `app.focus`，不抬起功能面板；macOS 置顶用 `floating` 级，避免盖住输入法候选窗
-- 功能面板窗口（`/panel`）：`titleBarStyle: hidden` + 原生窗控（macOS 交通灯 / Win·Linux `titleBarOverlay`），通栏自定义表头；托盘左键始终显示/置顶、右键可切换显隐；程序坞 / Cmd+Tab 切回置顶（不关闭）；ESC / 失焦不关闭
-- macOS 程序坞图标：默认 `accessory`（不进程序坞）；唤起功能面板后 `regular`；最小化仍留在程序坞；面板 hide 后回 accessory；截屏遮罩 focus 后若无面板会立刻压回 accessory
+- 功能面板窗口（`/panel`）：`titleBarStyle: hidden` + 原生窗控（macOS 交通灯 / Win·Linux `titleBarOverlay`），通栏自定义表头；托盘左键始终显示/置顶、右键可切换显隐；程序坞 / Cmd+Tab 切回置顶（不关闭、不 steal 抢焦）；ESC / 失焦不关闭
+- macOS 程序坞图标：默认 `accessory`（不进程序坞）；唤起功能面板后 `regular`；最小化仍留在程序坞；面板 hide 后回 accessory；截屏/框选期间经 `AppUiConceal` 冻结 Dock 显隐；activationPolicy 仅在状态变化时写入，避免重复 dock.show 搅乱 Dock 标签
+- 本应用窗口隐身策略 `AppUiConceal`：`none`（录制不碰窗）/ `dim-panel-if-visible`（截屏开启隐藏且面板开着 → 透明度 0，结束恢复；面板没开则 noop）；其它功能日后直接复用 begin/end
 - 面板左侧使用 shadcn-vue Sidebar（`collapsible="icon"`）切换模块（剪贴板、快捷文件夹、项目）；底部设置
 - 侧栏随面板内宽自动展开/收起，也可手动切换（SidebarTrigger / ⌘B）；纯渲染层适配，不改主进程窗宽
 - 独立设置窗口
@@ -50,7 +51,7 @@
 - 托盘常驻（关窗口不退出）；右键菜单含「截屏 / 区域录屏 / 全屏录屏」等入口；已配置的全局快捷键会显示在对应菜单项旁
 - 配置本地持久化
 - 开机自启（设置与托盘共用配置；变更后同步系统登录项，并推送 `config:updated` 刷新设置窗）
-- 单实例（二次启动唤起功能面板；程序坞 / Cmd+Tab 切回立刻置顶且不异步采焦）
+- 单实例（二次启动唤起功能面板；程序坞 / Cmd+Tab 切回立刻置顶且不异步采焦、不 steal）
 - 粘贴：先写入系统剪贴板，再关窗并模拟粘贴；自动粘贴失败时提示手动 Ctrl+V / ⌘V（不再因焦点失败而跳过写入）
 - 独立剪贴板回填：贴到呼出前的前台应用；浮层不改动功能面板显隐与层级
 - macOS 无辅助功能权限时：只写入系统剪贴板，不模拟回填、不拉起系统设置；每次启动提示一次，粘贴过程不再重复弹通知
@@ -64,7 +65,7 @@
 
 ### 相关文件
 
-- `src/main/modules/core/windows/` — ClipboardWindow / QuickFoldersWindow / PanelWindow / SettingsWindow / WindowManager / floatingLevel（浮层置顶层级）/ focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）
+- `src/main/modules/core/windows/` — ClipboardWindow / QuickFoldersWindow / PanelWindow / SettingsWindow / WindowManager / floatingLevel（浮层置顶层级）/ focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）/ appUiConceal（截屏·录制等窗口隐身策略）
 - `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac`/`win` 调 focus-paste-napi；`native.ts` 加载 `.node`）
 - `native-rs/focus-paste-core/` — 焦点交接与模拟粘贴内核（按 win/mac 模块划分）
 - `native-rs/focus-paste-napi/` — napi 胶水与 `.node` 构建
@@ -199,7 +200,8 @@
 ### 功能
 
 - QQ 式截屏（首版 macOS + Windows）：全局快捷键或托盘右键「截屏」进入
-- 进入时按设置决定是否先隐藏本应用窗口（剪贴板浮层 / 功能面板 / 设置窗），默认隐藏；截屏前有窗则完成后按原显隐恢复；截屏前未打开任何窗则结束后仍保持隐藏且程序坞不出现图标
+- 截屏完成还原：勾选「隐藏本应用窗口」且面板开着时，仅把面板透明度设为 0，结束恢复（不 hide，Dock 保持显示）；面板未开则不动任何窗口；未勾选也不动窗口；结束时还焦外部前台（若有）
+- 进入时按上述策略隐身（剪贴板 / 快捷文件夹浮层不参与，仍靠失焦隐藏）；截屏期间冻结程序坞为进入瞬间状态
 - 所有显示器同时进入截屏：每屏置顶遮罩，画面为进入瞬间的整屏冻结图
 - macOS 截屏遮罩：不透明黑底冻屏 + `screen-saver` 置顶；露出前仅 HideMenuBar；不用 `type:panel` / HideDock / `setVisibleOnAllWorkspaces`；全尺寸预热减轻首次闪屏
 - 悬停高亮光标下顶层应用窗（点在露出来的区域才命中）；单击锁定该窗口整窗外接矩形（本屏内，含被挡部分）并弹出工具条；按下拖过阈值则区域框选，松手后出工具条
@@ -210,7 +212,7 @@
 - 工具：选择（点选/框选已有标注并拖移/单选八向缩放；选中后可删除或 Backspace/Delete）、笔、矩形、箭头、马赛克（框选区域打码，粒度 2–10px）；任意工具下移到标注描边附近（约 8px）可直接拖移，矩形仅边框可拖、内部可继续画
 - 撤消 / 前进（快照栈，含标注移动与删除）；有限色板 + 粗细 range（笔/矩形/箭头）；马赛克单独粒度 range
 - 完成：工具条「完成」/ 双击选区 / Enter → 写入系统剪贴板并直接入库剪贴板历史（同步监听基线防重复）；不弹完成通知
-- 截屏结束：有待恢复窗则恢复自家界面；无待恢复窗且有外部目标则还焦外部；不再因「被外部盖住」而跳过恢复
+- 截屏结束：还原面板透明度（若曾 dim）；有外部目标则还焦；未开面板则界面保持原样且程序坞不出现
 - 下载：截屏遮罩上直接弹系统对话框（PNG、时间戳文件名）；保存成功后结束会话，取消则继续标注；仅保存成功时系统通知
 - 取消：Esc / 右键；截屏过程中忽略其它全局快捷键；再按截屏快捷键 = 取消当前截屏
 - macOS 无屏幕录制权限：拦截并引导打开系统设置，不进入截屏
@@ -241,8 +243,8 @@
 - Rust 录屏内核（`native-rs/recorder-core`）：macOS 优先 **ScreenCaptureKit** 同源采集画面+系统声（`sck_capture.rs`，MIT `screencapturekit`）；画面静止（无脏帧/Idle）时仍按目标 fps 推进视频时间轴与 UI 计时，避免成片短于系统声/麦；失败回退 xcap + flexaudio Process Tap；Windows 为 xcap + WASAPI（事件驱动）+ `CaptureClock` 首帧锚定音画；flexaudio 采集麦克风；录制中可实时开关麦/系统声；写入侧补静音 + 停录片头裁切/CFR 时长对齐；ffmpeg sidecar 编码/混流 MP4；视频清晰度三档（流畅 / 超清 / 原画）
 - napi-rs 插件（`native-rs/recorder-napi`、`native-rs/focus-paste-napi`）：编译为平台 `.node`，由 Electron 主进程同进程加载（复用 macOS TCC）
 - 主进程封装：枚举显示器/麦克风/系统输出、开始/暂停/继续/停止录制、录制中 `setMicEnabled` / `setSystemAudioEnabled`、状态与事件推送；`start` 可传 `region`（相对显示器物理像素）与 `quality`；默认先写到 `userData/recordings/`，停止后弹系统「另存为」可自定义路径（取消则删除成片不保存）
-- 框选遮罩：托盘或全局快捷键「区域录屏」进入多屏透明框选；悬停高亮应用窗、单击锁定窗尺寸（与截屏同源窗口枚举），或拖拽框选；工具条可切换系统声/麦克风、选择麦克风设备（列表来自 Rust `listMics`）与清晰度（流畅 / 超清 / 原画，固定 MP4，写入 `settings.json` 持久化）；无麦克风/系统声权限时不可选开（点击后关框选并直接跳转系统设置）；确认后关遮罩开录；Esc / 右键 /「退出录制」/ 再按区域快捷键取消
-- 全屏录屏：托盘或全局快捷键「全屏录屏」弹出选屏 Dialog（屏幕列表由 Rust 内核 `listScreens` 提供）；可切换系统声/麦克风、选择麦克风设备与清晰度（与区域共用持久化配置）；无对应权限时不可选开；确认后整屏开录（不传 `region`）
+- 框选遮罩：托盘或全局快捷键「区域录屏」进入多屏透明框选；不隐藏本应用窗口（按当前桌面所见录制）；悬停高亮应用窗、单击锁定窗尺寸（与截屏同源窗口枚举），或拖拽框选；工具条可切换系统声/麦克风、选择麦克风设备（列表来自 Rust `listMics`）与清晰度（流畅 / 超清 / 原画，固定 MP4，写入 `settings.json` 持久化）；无麦克风/系统声权限时不可选开（点击后关框选并直接跳转系统设置）；确认后关遮罩开录；Esc / 右键 /「退出录制」/ 再按区域快捷键取消
+- 全屏录屏：托盘或全局快捷键「全屏录屏」弹出选屏 Dialog（屏幕列表由 Rust 内核 `listScreens` 提供）；同样不藏本应用窗；可切换系统声/麦克风、选择麦克风设备与清晰度（与区域共用持久化配置）；无对应权限时不可选开；确认后整屏开录（不传 `region`）
 - 快捷键：设置中可配置区域 / 全屏 / 暂停·继续 / 停止录屏全局快捷键（可恢复默认、清空关闭）；录制中或截屏进行中忽略启动类快捷键；暂停·停止仅录制中生效；托盘入口仍可用
 - 全屏录制中：悬浮条（默认 REC/暂停标识 + 计时；移入后同尺寸交叉淡化为标识 + 系统声/麦克风（按钮底色随说话音量起伏）/暂停/停止；可自由拖放，位置写入 `settings.json` 下次全屏录制复用）；托盘 / 快捷键「停止」同样弹保存路径；托盘菜单仍可暂停·继续 / 停止
 - 区域录制中：选区外侧显示点击穿透的蓝色范围框；录制控制统一用悬浮条（与全屏相同 UI；落点优先选区下/上，不够则左/右，再不行用全屏记住的位置；可拖放；悬停可开关系统声/麦克风、暂停·停止；尽量 `setContentProtection`）；停止后弹自定义保存路径；结束后自动收起

@@ -10,7 +10,10 @@ export function attachAppLifecycle(getCtx: () => AppContext | null): void {
     // 截屏 / 录屏框选中或刚结束还焦时勿抬起功能面板
     if (ctx.screenshot?.blocksPanelActivate) return
     if (ctx.recorderSelect?.blocksPanelActivate) return
-    ctx.windows.showPanel({ captureFocus: false })
+    // 面板按「在下面」还原后，勿因 activate 再 showPanel（会 moveTop）
+    if (ctx.windows.shouldSuppressPanelRaise()) return
+    // 程序坞 / Cmd+Tab：系统已激活本应用，勿再 steal 抢焦
+    ctx.windows.showPanel({ captureFocus: false, stealFocus: false })
   })
 
   app.on('window-all-closed', () => {})

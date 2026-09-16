@@ -29,9 +29,9 @@ export const screenshotFeature = defineFeature({
     const session = new ScreenshotSession({
       getConfig: () => ctx.config.get(),
       clipboard,
-      hideAppWindows: () => ctx.windows.captureAndHideAppWindows(),
+      beginConceal: (strategy) => ctx.windows.beginAppUiConceal(strategy),
       captureExternalFocus: () => ctx.windows.captureScreenshotExternalFocus(),
-      settleAfterScreenshot: (opts) => ctx.windows.settleAfterScreenshot(opts)
+      settleAfterCapture: (opts) => ctx.windows.settleAfterCapture(opts)
     })
 
     // 回填互斥闸门，供录屏 / 其它 Feature 调用时读取

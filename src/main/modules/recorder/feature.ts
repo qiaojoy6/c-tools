@@ -32,9 +32,9 @@ export const recorderFeature = defineFeature({
 
     const select = new RecorderSelectSession({
       host,
-      hideAppWindows: () => ctx.windows.captureAndHideAppWindows(),
+      beginConceal: (strategy) => ctx.windows.beginAppUiConceal(strategy),
       captureExternalFocus: () => ctx.windows.captureScreenshotExternalFocus(),
-      settleAfterSelect: (opts) => ctx.windows.settleAfterScreenshot(opts),
+      settleAfterCapture: (opts) => ctx.windows.settleAfterCapture(opts),
       onRecordingChanged: () => ctx.shared.getTray?.()?.rebuild(),
       getFullscreenFloatPos: () => {
         const pos = ctx.config.get().recorder.fullscreenFloatPos
