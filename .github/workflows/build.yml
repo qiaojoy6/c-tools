@@ -1,23 +1,11 @@
 # 在对应系统 runner 上编译原生 .node（recorder + focus-paste）并打安装包。
-# - 手动 Run：只上传 Artifact
-# - 推送 v* tag：打全平台并发布到 GitHub Release（供 electron-updater）
+# - 仅推送 main：先 mac 再 win，上传 Artifact
 name: Build
 
 on:
-  workflow_dispatch:
-    inputs:
-      platform:
-        description: Which platform(s) to build
-        required: true
-        default: all
-        type: choice
-        options:
-          - all
-          - mac
-          - win
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 concurrency:
   group: build-${{ github.ref }}
@@ -27,39 +15,16 @@ permissions:
   contents: write
 
 jobs:
-  # job-level if 不能引用 matrix，先算出要打哪些平台
-  prepare:
-    name: Prepare matrix
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set.outputs.matrix }}
-    steps:
-      - id: set
-        run: |
-          MAC='{"os":"macos-latest","platform":"mac","label":"macOS","artifact":"c-tools-mac","builder_args":"--mac"}'
-          WIN='{"os":"windows-latest","platform":"win","label":"Windows","artifact":"c-tools-win","builder_args":"--win --x64"}'
-          PLATFORM="${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'all' }}"
-          case "$PLATFORM" in
-            mac) echo "matrix={\"include\":[$MAC]}" >> "$GITHUB_OUTPUT" ;;
-            win) echo "matrix={\"include\":[$WIN]}" >> "$GITHUB_OUTPUT" ;;
-            *)   echo "matrix={\"include\":[$MAC,$WIN]}" >> "$GITHUB_OUTPUT" ;;
-          esac
-
-  build:
-    name: ${{ matrix.label }}
-    needs: prepare
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+  build-mac:
+    name: macOS
+    runs-on: macos-latest
 
     defaults:
       run:
         shell: bash
 
     env:
-      # tag 发版才 publish；手动跑只打包
-      PUBLISH: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+      PUBLISH: never
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # 无签名证书时跳过，避免 CI 失败（mac 自动更新仍需自行签名）
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -77,12 +42,62 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Sync package version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build native addons
+        run: npm run build:native
+
+      - name: Verify native binaries
         run: |
-          VER="${GITHUB_REF_NAME#v}"
-          npm version "$VER" --no-git-tag-version --allow-same-version
-          echo "package.json version -> $VER"
+          ls -la native/
+          test -n "$(ls native/recorder.darwin-*.node 2>/dev/null)"
+          test -n "$(ls native/focus-paste.darwin-*.node 2>/dev/null)"
+
+      - name: Typecheck + vite build
+        run: npm run build
+
+      - name: Package
+        run: npx electron-builder --mac --publish "$PUBLISH"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-tools-mac-${{ github.ref_name }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest*.yml
+            dist/*.blockmap
+          if-no-files-found: error
+          retention-days: 14
+
+  build-win:
+    name: Windows
+    needs: build-mac
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      PUBLISH: never
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install npm dependencies
         run: npm ci
@@ -93,30 +108,20 @@ jobs:
       - name: Verify native binaries
         run: |
           ls -la native/
-          case "${{ matrix.platform }}" in
-            mac)
-              test -n "$(ls native/recorder.darwin-*.node 2>/dev/null)"
-              test -n "$(ls native/focus-paste.darwin-*.node 2>/dev/null)"
-              ;;
-            win)
-              test -n "$(ls native/recorder.win32-*.node 2>/dev/null)"
-              test -n "$(ls native/focus-paste.win32-*.node 2>/dev/null)"
-              ;;
-          esac
+          test -n "$(ls native/recorder.win32-*.node 2>/dev/null)"
+          test -n "$(ls native/focus-paste.win32-*.node 2>/dev/null)"
 
       - name: Typecheck + vite build
         run: npm run build
 
-      - name: Package (and publish on tag)
-        run: npx electron-builder ${{ matrix.builder_args }} --publish "$PUBLISH"
+      - name: Package
+        run: npx electron-builder --win --x64 --publish "$PUBLISH"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}-${{ github.ref_name }}
+          name: c-tools-win-${{ github.ref_name }}
           path: |
-            dist/*.dmg
-            dist/*.zip
             dist/*-setup.exe
             dist/latest*.yml
             dist/*.blockmap
