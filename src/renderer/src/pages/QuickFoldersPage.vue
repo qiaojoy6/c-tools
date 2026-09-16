@@ -8,6 +8,9 @@ import QuickFoldersToolbar from '@renderer/modules/quickFolders/components/Quick
 import QuickFolderList from '@renderer/modules/quickFolders/components/QuickFolderList.vue'
 import QuickFolderFormDialog from '@renderer/modules/quickFolders/components/QuickFolderFormDialog.vue'
 import QuickFolderDeleteDialog from '@renderer/modules/quickFolders/components/QuickFolderDeleteDialog.vue'
+import ListFooter from '@renderer/components/ListFooter.vue'
+import ToastMessage from '@renderer/components/ToastMessage.vue'
+import { useToast } from '@renderer/composables/useToast'
 
 const route = useRoute()
 /** 仅独立浮层 ESC 关窗；面板内嵌时 ESC 只清搜索 / 关对话框 */
@@ -17,8 +20,7 @@ const { items, refresh, add, update, remove, reorder, pickDirectory, open } = us
 
 const search = ref('')
 const highlight = ref(0)
-const toastMsg = ref('')
-let toastTimer: ReturnType<typeof setTimeout> | null = null
+const { message: toastMsg, showToast } = useToast()
 let offShown: (() => void) | null = null
 
 const toolbar = ref<{ focusInput: () => void; blurInput: () => void } | null>(null)
@@ -58,12 +60,6 @@ watch(
     if (highlight.value >= len) highlight.value = Math.max(0, len - 1)
   }
 )
-
-function showToast(message: string): void {
-  toastMsg.value = message
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => (toastMsg.value = ''), 1800)
-}
 
 function hideFloat(): void {
   window.api.hidePanel()
@@ -265,7 +261,6 @@ onMounted(() => {
 onUnmounted(() => {
   offShown?.()
   window.removeEventListener('keydown', onKeydown, true)
-  if (toastTimer) clearTimeout(toastTimer)
 })
 </script>
 
@@ -284,14 +279,14 @@ onUnmounted(() => {
       @reorder="(from, to) => void onReorder(from, to)"
     />
 
-    <footer class="footer">
-      <span class="count">{{ filtered.length }} 条</span>
-      <div class="hints">
-        <span class="hint"><kbd class="kbd">↵</kbd> 打开</span>
-        <span class="hint"><kbd class="kbd">⌘N</kbd> 添加</span>
-        <span class="hint"><kbd class="kbd">⌫</kbd> 删除</span>
-      </div>
-    </footer>
+    <ListFooter
+      :count="filtered.length"
+      :hints="[
+        { kbd: '↵', label: '打开' },
+        { kbd: '⌘N', label: '添加' },
+        { kbd: '⌫', label: '删除' }
+      ]"
+    />
 
     <QuickFolderFormDialog
       ref="formDialog"
@@ -309,11 +304,7 @@ onUnmounted(() => {
       @confirm="void confirmRemove()"
     />
 
-    <Transition name="toast">
-      <div v-if="toastMsg" class="toast-wrap">
-        <div class="toast">{{ toastMsg }}</div>
-      </div>
-    </Transition>
+    <ToastMessage :message="toastMsg" />
   </div>
 </template>
 
@@ -326,76 +317,5 @@ onUnmounted(() => {
   background: color-mix(in oklab, var(--card) 88%, transparent);
   color: var(--foreground);
   backdrop-filter: blur(24px);
-}
-
-.footer {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-top: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
-  padding: 8px 14px;
-  font-size: 11px;
-  color: var(--muted-foreground);
-}
-
-.count {
-  flex-shrink: 0;
-}
-
-.hints {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.kbd {
-  border-radius: 4px;
-  background: color-mix(in oklab, var(--muted) 70%, transparent);
-  padding: 1px 5px;
-  font-family: inherit;
-  font-size: 10px;
-  color: var(--muted-foreground);
-}
-
-.toast-wrap {
-  pointer-events: none;
-  position: fixed;
-  inset-inline: 0;
-  top: 16px;
-  z-index: 50;
-  display: flex;
-  justify-content: center;
-}
-
-.toast {
-  border-radius: 999px;
-  background: var(--primary);
-  padding: 6px 16px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--primary-foreground);
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 20%);
-}
-
-.toast-enter-active,
-.toast-leave-active {
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-}
-
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
 }
 </style>

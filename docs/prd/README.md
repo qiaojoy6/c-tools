@@ -116,6 +116,9 @@
 - `src/main/modules/clipboard/` — assemble / feature / hostServices / watcher / history / favorites / paste / imageStore / ipc / broadcast
 - `src/renderer/src/pages/ClipboardPage.vue` — 剪贴板内容（独立路由与面板内嵌共用）
 - `src/renderer/src/components/SearchField.vue` — 浮层搜索框（剪贴板 / 快捷文件夹共用）
+- `src/renderer/src/components/ListFooter.vue` — 浮层底栏条数 / 快捷键提示（剪贴板 / 快捷文件夹共用）
+- `src/renderer/src/components/ToastMessage.vue` — 顶部轻提示（剪贴板 / 快捷文件夹 / 设置共用）
+- `src/renderer/src/composables/useToast.ts` — 轻提示定时与卸载清理
 - `src/renderer/src/modules/clipboard/` — 卡片、虚拟列表、useHistory
 - `src/preload/modules/clipboard.ts`
 - `src/shared/modules/clipboard.ts`
@@ -143,6 +146,8 @@
 - `src/main/modules/core/windows/quickFoldersWindow.ts` — 独立浮层
 - `src/renderer/src/pages/QuickFoldersPage.vue` — 列表与添加/编辑（独立路由与面板内嵌共用）
 - `src/renderer/src/components/SearchField.vue` — 浮层搜索框（与剪贴板共用）
+- `src/renderer/src/components/ListFooter.vue` — 浮层底栏（与剪贴板共用）
+- `src/renderer/src/components/ToastMessage.vue` / `composables/useToast.ts` — 顶部轻提示（与剪贴板 / 设置共用）
 - `src/renderer/src/modules/quickFolders/composables/useQuickFolders.ts`
 - `src/renderer/src/modules/quickFolders/components/` — Toolbar / List / Row / FormDialog / DeleteDialog
 - `src/renderer/src/modules/quickFolders/label.ts` — 展示名（备注或文件夹名）

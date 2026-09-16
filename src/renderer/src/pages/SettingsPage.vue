@@ -16,14 +16,15 @@ import {
   SidebarMenuItem,
   SidebarProvider
 } from '@renderer/components/ui/sidebar'
+import ToastMessage from '@renderer/components/ToastMessage.vue'
+import { useToast } from '@renderer/composables/useToast'
 
 /** 设置窗固定侧栏宽度 */
 const SETTINGS_SIDEBAR_WIDTH = '12rem'
 
 const config = ref<AppConfig | null>(null)
 const activeModule = ref(SETTINGS_MODULES[0]!.id)
-const toastMsg = ref('')
-let toastTimer: ReturnType<typeof setTimeout> | null = null
+const { message: toastMsg, showToast } = useToast()
 let offShown: (() => void) | null = null
 let offConfig: (() => void) | null = null
 
@@ -54,12 +55,6 @@ async function apply(patch: ConfigPatch): Promise<void> {
   }
 }
 
-function showToast(message: string): void {
-  toastMsg.value = message
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => (toastMsg.value = ''), 1800)
-}
-
 onMounted(() => {
   document.title = '设置'
   void loadConfig()
@@ -75,7 +70,6 @@ onMounted(() => {
 onUnmounted(() => {
   offShown?.()
   offConfig?.()
-  if (toastTimer) clearTimeout(toastTimer)
   void window.api.resumeShortcuts()
 })
 </script>
@@ -137,11 +131,7 @@ onUnmounted(() => {
       </SidebarInset>
     </SidebarProvider>
 
-    <Transition name="toast">
-      <div v-if="toastMsg" class="toast-wrap">
-        <div class="toast">{{ toastMsg }}</div>
-      </div>
-    </Transition>
+    <ToastMessage :message="toastMsg" />
   </div>
 </template>
 
@@ -176,38 +166,5 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 24px 28px;
-}
-
-.toast-wrap {
-  pointer-events: none;
-  position: fixed;
-  inset-inline: 0;
-  top: 16px;
-  z-index: 50;
-  display: flex;
-  justify-content: center;
-}
-
-.toast {
-  border-radius: 999px;
-  background: var(--primary);
-  padding: 6px 16px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--primary-foreground);
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 20%);
-}
-
-.toast-enter-active,
-.toast-leave-active {
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-}
-
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
 }
 </style>

@@ -26,9 +26,7 @@ const emit = defineEmits<{
   (e: 'preview', record: ClipRecord | null): void
 }>()
 
-const imageSrc = computed(() =>
-  props.record.image ? clipImageSrc(props.record.image.fileId) : ''
-)
+const imageSrc = computed(() => (props.record.image ? clipImageSrc(props.record.image.fileId) : ''))
 
 const textEl = ref<HTMLElement | null>(null)
 const expanded = ref(false)
@@ -106,7 +104,13 @@ onMounted(() => {
           <span>{{ formatTime(record.createdAt) }}</span>
           <span class="dot">·</span>
           <span>{{ textLen }} 字</span>
-          <button v-if="canToggle" type="button" class="expand-btn" @click="toggleExpand">
+          <button
+            v-if="canToggle"
+            type="button"
+            class="expand-btn"
+            @click="toggleExpand"
+            @dblclick.stop
+          >
             <template v-if="expanded">
               收起
               <ChevronUp class="expand-icon" aria-hidden="true" />
@@ -141,7 +145,7 @@ onMounted(() => {
       </div>
     </template>
 
-    <div class="card-actions">
+    <div class="card-actions" @click.stop @dblclick.stop>
       <button
         type="button"
         class="action-btn"
@@ -149,7 +153,7 @@ onMounted(() => {
         :title="favorited ? '取消收藏' : '收藏'"
         :aria-label="favorited ? '取消收藏' : '收藏'"
         :aria-pressed="favorited"
-        @click.stop="emit('toggle-favorite', record)"
+        @click="emit('toggle-favorite', record)"
       >
         <Star class="action-icon" :fill="favorited ? 'currentColor' : 'none'" aria-hidden="true" />
       </button>
@@ -158,7 +162,7 @@ onMounted(() => {
         class="action-btn is-ghost is-danger"
         title="删除"
         aria-label="删除"
-        @click.stop="emit('remove', record)"
+        @click="emit('remove', record)"
       >
         <Trash2 class="action-icon" aria-hidden="true" />
       </button>

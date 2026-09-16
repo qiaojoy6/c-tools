@@ -13,6 +13,9 @@ import {
 } from '@renderer/components/ui/dialog'
 import { Button } from '@renderer/components/ui/button'
 import SearchField from '@renderer/components/SearchField.vue'
+import ListFooter from '@renderer/components/ListFooter.vue'
+import ToastMessage from '@renderer/components/ToastMessage.vue'
+import { useToast } from '@renderer/composables/useToast'
 import ClipVirtualList from '@renderer/modules/clipboard/components/ClipVirtualList.vue'
 import { useHistory } from '@renderer/modules/clipboard/composables/useHistory'
 import { ClipboardList, Image as ImageIcon, Star, Trash2, Type } from 'lucide-vue-next'
@@ -35,7 +38,7 @@ const highlight = ref(0)
 const selectedIds = ref<Set<string>>(new Set())
 const showClearConfirm = ref(false)
 const preview = ref<ClipRecord | null>(null)
-const toastMsg = ref('')
+const { message: toastMsg, showToast } = useToast()
 
 const tabs: { label: string; value: FilterType; icon: typeof ClipboardList }[] = [
   { label: '全部', value: 'all', icon: ClipboardList },
@@ -44,7 +47,6 @@ const tabs: { label: string; value: FilterType; icon: typeof ClipboardList }[] =
   { label: '收藏', value: 'favorite', icon: Star }
 ]
 
-let toastTimer: ReturnType<typeof setTimeout> | null = null
 /** Shift 范围多选的锚点索引 */
 let anchorIndex = -1
 let offShown: (() => void) | null = null
@@ -94,12 +96,6 @@ watch(
 )
 
 // ---------- 交互 ----------
-function showToast(message: string): void {
-  toastMsg.value = message
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => (toastMsg.value = ''), 1800)
-}
-
 function scrollActive(): void {
   nextTick(() => {
     listRef.value?.scrollToIndex(highlight.value)
@@ -353,7 +349,6 @@ onMounted(() => {
 onUnmounted(() => {
   offShown?.()
   window.removeEventListener('keydown', onKeydown, true)
-  if (toastTimer) clearTimeout(toastTimer)
 })
 </script>
 
@@ -428,19 +423,16 @@ onUnmounted(() => {
       </div>
     </main>
 
-    <footer class="footer">
-      <span class="count">
-        {{ filtered.length }} 条
-        <template v-if="selectedIds.size > 0">
-          · <span class="count-selected">已选 {{ selectedIds.size }}</span>
-        </template>
-      </span>
-      <div class="hints">
-        <span class="hint"><kbd class="kbd">↵</kbd> 粘贴</span>
-        <span class="hint"><kbd class="kbd">←→</kbd> 筛选</span>
-        <span class="hint"><kbd class="kbd">⌫</kbd> 删除</span>
-      </div>
-      <div class="footer-actions app-no-drag">
+    <ListFooter
+      :count="filtered.length"
+      :selected-count="selectedIds.size"
+      :hints="[
+        { kbd: '↵', label: '粘贴' },
+        { kbd: '←→', label: '筛选' },
+        { kbd: '⌫', label: '删除' }
+      ]"
+    >
+      <template #actions>
         <Button
           v-if="!viewingFavorites"
           variant="ghost"
@@ -452,8 +444,8 @@ onUnmounted(() => {
         >
           <Trash2 class="clear-icon" aria-hidden="true" />
         </Button>
-      </div>
-    </footer>
+      </template>
+    </ListFooter>
 
     <div v-if="preview?.image" class="preview-scrim">
       <img
@@ -463,11 +455,7 @@ onUnmounted(() => {
       />
     </div>
 
-    <Transition name="toast">
-      <div v-if="toastMsg" class="toast-wrap">
-        <div class="toast">{{ toastMsg }}</div>
-      </div>
-    </Transition>
+    <ToastMessage :message="toastMsg" />
 
     <Dialog :open="showClearConfirm" @update:open="showClearConfirm = $event">
       <DialogContent class="max-w-sm">
@@ -597,66 +585,6 @@ onUnmounted(() => {
   color: var(--muted-foreground);
 }
 
-.footer {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 12px;
-  border-top: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
-  padding: 10px 16px;
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-
-.count {
-  font-variant-numeric: tabular-nums;
-}
-
-.count-selected {
-  color: var(--primary);
-}
-
-.hints {
-  margin-left: auto;
-  display: none;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.6;
-}
-
-@media (min-width: 500px) {
-  .hints {
-    display: flex;
-  }
-}
-
-.hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.kbd {
-  display: inline-flex;
-  height: 20px;
-  min-width: 20px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  background: color-mix(in oklab, var(--muted) 50%, transparent);
-  padding: 0 4px;
-  font-family: inherit;
-  font-size: 10px;
-  color: var(--muted-foreground);
-}
-
-.footer-actions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-}
-
 .clear-btn {
   color: var(--muted-foreground);
 }
@@ -692,38 +620,5 @@ onUnmounted(() => {
   background: var(--card);
   object-fit: contain;
   box-shadow: 0 25px 50px -12px rgb(0 0 0 / 40%);
-}
-
-.toast-wrap {
-  pointer-events: none;
-  position: fixed;
-  inset-inline: 0;
-  top: 16px;
-  z-index: 50;
-  display: flex;
-  justify-content: center;
-}
-
-.toast {
-  border-radius: 999px;
-  background: var(--primary);
-  padding: 6px 16px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--primary-foreground);
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 20%);
-}
-
-.toast-enter-active,
-.toast-leave-active {
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-}
-
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
 }
 </style>
