@@ -9,6 +9,11 @@ import type {
   RecorderState,
   RecorderStatus
 } from '@shared/modules/recorder'
+import {
+  hasMicPermission,
+  hasSystemAudioPermission,
+  requestMicPermission
+} from './permission'
 
 /** napi 插件导出的最小面 */
 interface NativeRecorder {
@@ -110,16 +115,12 @@ export class RecorderHost {
     let enableSystemAudio = opts.enableSystemAudio !== false
 
     // 无权限则强制关闭对应音源，不允许「选开」
-    if (enableMic) {
-      const { requestMicPermission, hasMicPermission } = await import('./permission')
-      if (!hasMicPermission()) {
-        const ok = await requestMicPermission()
-        if (!ok) enableMic = false
-      }
+    if (enableMic && !hasMicPermission()) {
+      const ok = await requestMicPermission()
+      if (!ok) enableMic = false
     }
-    if (enableSystemAudio) {
-      const { hasSystemAudioPermission } = await import('./permission')
-      if (!hasSystemAudioPermission()) enableSystemAudio = false
+    if (enableSystemAudio && !hasSystemAudioPermission()) {
+      enableSystemAudio = false
     }
 
     const outputPath = opts.outputPath?.trim() || this.defaultOutputPath()
