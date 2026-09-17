@@ -31,6 +31,15 @@ const MAX_LOG_BYTES = 2 * 1024 * 1024
 /** 单行 detail 上限，避免一次 JSON.stringify 巨大对象撑爆磁盘 */
 const MAX_LINE_BYTES = 8 * 1024
 
+/** 本地可读时间，如 2026-09-17 10:10:00 */
+function formatDiagTime(d = new Date()): string {
+  const p = (n: number, w = 2): string => String(n).padStart(w, '0')
+  return (
+    `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
+    `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+  )
+}
+
 interface SessionState {
   pid: number
   startedAt: string
@@ -282,7 +291,7 @@ function reportPreviousUncleanExit(): void {
 }
 
 function beginSession(): void {
-  const now = new Date().toISOString()
+  const now = formatDiagTime()
   const state: SessionState = {
     pid: process.pid,
     startedAt: now,
@@ -296,7 +305,7 @@ function beginSession(): void {
   heartbeatTimer = setInterval(() => {
     const cur = readSession()
     if (!cur || cur.pid !== process.pid) return
-    cur.lastHeartbeat = new Date().toISOString()
+    cur.lastHeartbeat = formatDiagTime()
     writeSession(cur)
   }, HEARTBEAT_MS)
   // 不阻止进程退出
@@ -307,7 +316,7 @@ function markCleanExit(): void {
   const cur = readSession()
   if (!cur || cur.pid !== process.pid) return
   cur.cleanExit = true
-  cur.lastHeartbeat = new Date().toISOString()
+  cur.lastHeartbeat = formatDiagTime()
   writeSession(cur)
 }
 
@@ -336,7 +345,7 @@ function writeSession(state: SessionState): void {
 }
 
 function formatLine(event: string, detail?: unknown): string {
-  const ts = new Date().toISOString()
+  const ts = formatDiagTime()
   let body = ''
   if (detail !== undefined) {
     try {

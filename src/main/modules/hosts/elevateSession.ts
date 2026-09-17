@@ -220,13 +220,13 @@ export class HostsElevateSession {
         throw new Error('授权写入超时，请重试')
       }
 
-      // 本次已写入；刷新滑动窗口（helper 同时启动）
-      this.touchAuth()
-
-      // helper 应很快 ready；失败也不影响本次已写入
+      // helper 就绪后再 touchAuth：getAuthSession 依赖 isSessionAlive，过早推送会是 inactive
       const readyDeadline = Date.now() + 8_000
       while (Date.now() < readyDeadline) {
-        if (this.isSessionAlive()) return
+        if (this.isSessionAlive()) {
+          this.touchAuth()
+          return
+        }
         await sleep(POLL_MS)
       }
       console.warn('[hosts] mac helper 未就绪，下次写入将再次请求授权')

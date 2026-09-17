@@ -133,9 +133,8 @@ async function openItem(item: QuickFolderItem): Promise<void> {
   if (!ok) {
     showToast('打开失败')
     await refresh()
-    return
   }
-  if (escToClose.value) hideFloat()
+  // 独立浮层关窗由主进程 open 成功后处理（保持外部前台，不抬面板）
 }
 
 async function openCurrent(): Promise<void> {

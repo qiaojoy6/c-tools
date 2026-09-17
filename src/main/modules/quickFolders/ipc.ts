@@ -106,6 +106,11 @@ export function registerQuickFoldersIpc(deps: QuickFoldersIpcDeps): void {
     const item = items.find((i) => i.id === id)
     if (!item?.valid) return false
     const err = await shell.openPath(record.path)
-    return err === ''
+    if (err !== '') return false
+    // 独立浮层：打开后关浮层，保持 Finder/资源管理器在前，不抬功能面板
+    if (windows.quickFolders.isVisible()) {
+      await windows.dismissFloatingKeepFrontmost()
+    }
+    return true
   })
 }

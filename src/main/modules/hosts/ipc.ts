@@ -1,6 +1,8 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import type { HostsAuthSession, HostsMutationResult, HostsScheme } from '@shared/types'
 import { getHostsElevateSession } from './elevateSession'
+import { getSystemHostsPath } from './paths'
+import { readSystemHostsText } from './systemHosts'
 import { HostsStore } from './store'
 
 function broadcastAuthSession(info: HostsAuthSession): void {
@@ -22,6 +24,7 @@ function broadcastAuthSession(info: HostsAuthSession): void {
  * | hosts:remove              | id                           | 删除方案（须已关闭开关） |
  * | hosts:reorder             | ids                          | 重排；存在开启项时提权重写系统 |
  * | hosts:removeAllFromSystem | —                            | 提权清除全部 c-tools 段并关开关 |
+ * | hosts:readSystem          | —                            | 读取系统 hosts 原文（预览） |
  * | hosts:getAuthSession      | —                            | 免密会话状态（下次需授权时间） |
  *
  * 主→渲染：`hosts:updated`（schemes 全量）；`hosts:authSession`（免密会话）
@@ -78,6 +81,23 @@ export function registerHostsIpc(store: HostsStore): void {
   ipcMain.handle('hosts:removeAllFromSystem', async (): Promise<HostsMutationResult> => {
     return store.removeAllFromSystem()
   })
+
+  /** 预览用：读系统 hosts 全文（不提权） */
+  ipcMain.handle(
+    'hosts:readSystem',
+    (): { ok: true; content: string; path: string } | { ok: false; error: string } => {
+      try {
+        return {
+          ok: true,
+          content: readSystemHostsText(),
+          path: getSystemHostsPath()
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        return { ok: false, error: msg || '读取系统 hosts 失败' }
+      }
+    }
+  )
 
   ipcMain.handle('hosts:getAuthSession', (): HostsAuthSession => session.getAuthSession())
 }

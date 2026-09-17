@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
-import { Plus } from 'lucide-vue-next'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { Plus, RefreshCw } from 'lucide-vue-next'
 import type { HostsScheme } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
 import { useHosts } from '@renderer/modules/hosts/composables/useHosts'
@@ -8,10 +8,15 @@ import HostsSchemeRow from '@renderer/modules/hosts/components/HostsSchemeRow.vu
 import HostsNameDialog from '@renderer/modules/hosts/components/HostsNameDialog.vue'
 import HostsCodeEditor from '@renderer/modules/hosts/components/HostsCodeEditor.vue'
 
-const { schemes, authSession, add, rename, setContent, setEnabled, remove, reorder } = useHosts()
+/** 系统 hosts 预览 Tab（固定首位，不进 schemes、不可拖） */
+const SYSTEM_PREVIEW_ID = '__system_preview__'
 
-const activeId = ref<string | null>(null)
+const { schemes, authSession, add, rename, setContent, setEnabled, remove, reorder, readSystem } =
+  useHosts()
+
+const activeId = ref<string>(SYSTEM_PREVIEW_ID)
 const draft = ref('')
+const systemPath = ref('')
 const busy = ref(false)
 const toastMsg = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -27,7 +32,10 @@ const renamingId = ref<string | null>(null)
 const dragFrom = ref<number | null>(null)
 const dragOver = ref<number | null>(null)
 
-const active = computed(() => schemes.value.find((s) => s.id === activeId.value) ?? null)
+const isPreview = computed(() => activeId.value === SYSTEM_PREVIEW_ID)
+const active = computed(() =>
+  isPreview.value ? null : (schemes.value.find((s) => s.id === activeId.value) ?? null)
+)
 
 /** 下次需输入密码 / 系统授权的提示 */
 const authHint = computed(() => {
@@ -70,17 +78,31 @@ onUnmounted(() => {
   clearExpireTimer()
 })
 
+/** 拉取系统 hosts 原文到预览区 */
+async function loadSystemHosts(): Promise<void> {
+  const res = await readSystem()
+  if (!res.ok) {
+    draft.value = ''
+    systemPath.value = ''
+    showToast(res.error)
+    return
+  }
+  draft.value = res.content
+  systemPath.value = res.path
+}
+
+onMounted(() => {
+  void loadSystemHosts()
+})
+
 watch(
   schemes,
   (list) => {
-    if (list.length === 0) {
-      activeId.value = null
-      draft.value = ''
-      return
-    }
-    if (!activeId.value || !list.some((s) => s.id === activeId.value)) {
-      activeId.value = list[0]!.id
-      draft.value = list[0]!.content
+    // 预览 Tab 始终有效；方案被删时回落到预览
+    if (isPreview.value) return
+    if (!list.some((s) => s.id === activeId.value)) {
+      activeId.value = SYSTEM_PREVIEW_ID
+      void loadSystemHosts()
     }
   },
   { deep: true }
@@ -88,9 +110,18 @@ watch(
 
 watch(activeId, (id, prev) => {
   if (id === prev) return
+  if (id === SYSTEM_PREVIEW_ID) {
+    void loadSystemHosts()
+    return
+  }
   const s = schemes.value.find((x) => x.id === id)
   draft.value = s?.content ?? ''
 })
+
+/** 写入系统后若正在预览则刷新 */
+function refreshPreviewIfNeeded(): void {
+  if (isPreview.value) void loadSystemHosts()
+}
 
 function showToast(message: string): void {
   toastMsg.value = message
@@ -98,11 +129,16 @@ function showToast(message: string): void {
   toastTimer = setTimeout(() => (toastMsg.value = ''), 2200)
 }
 
+function selectPreview(): void {
+  activeId.value = SYSTEM_PREVIEW_ID
+}
+
 function select(scheme: HostsScheme): void {
   activeId.value = scheme.id
 }
 
 async function onBlurSave(): Promise<void> {
+  if (isPreview.value) return
   const s = active.value
   if (!s || busy.value) return
   if (draft.value === s.content) return
@@ -110,6 +146,7 @@ async function onBlurSave(): Promise<void> {
   try {
     const res = await setContent(s.id, draft.value)
     if (!res.ok) showToast(res.error)
+    else if (s.enabled) refreshPreviewIfNeeded()
   } finally {
     busy.value = false
   }
@@ -134,6 +171,7 @@ async function onToggle(scheme: HostsScheme, enabled: boolean): Promise<void> {
   try {
     const res = await setEnabled(scheme.id, enabled)
     if (!res.ok) showToast(res.error)
+    else refreshPreviewIfNeeded()
   } finally {
     busy.value = false
   }
@@ -224,6 +262,7 @@ async function onDrop(index: number, e: DragEvent): Promise<void> {
   try {
     const res = await reorder(ids)
     if (!res.ok) showToast(res.error)
+    else refreshPreviewIfNeeded()
   } finally {
     busy.value = false
   }
@@ -248,7 +287,21 @@ function onDragEnd(): void {
           添加
         </Button>
       </div>
-      <ul v-if="schemes.length > 0" class="scheme-list" role="listbox" aria-label="Hosts 方案">
+      <ul class="scheme-list" role="listbox" aria-label="Hosts 方案">
+        <!-- 系统预览：固定首位，不可拖拽 -->
+        <li
+          class="preview-row"
+          :class="{ active: isPreview }"
+          role="option"
+          :aria-selected="isPreview"
+          @click="selectPreview"
+        >
+          <div class="meta min-w-0 flex-1 flex justify-between">
+            <p class="name truncate">系统 hosts</p>
+            <p class="hint">只读预览</p>
+          </div>
+        </li>
+
         <HostsSchemeRow
           v-for="(scheme, index) in schemes"
           :key="scheme.id"
@@ -266,11 +319,40 @@ function onDragEnd(): void {
           @dragend="onDragEnd"
         />
       </ul>
-      <p v-else class="empty">点击「添加」创建方案。开启开关后才会写入系统 hosts。</p>
+      <p v-if="schemes.length === 0" class="empty">
+        点击「添加」创建方案。开启开关后才会写入系统 hosts。
+      </p>
     </aside>
 
     <section class="editor">
-      <template v-if="active">
+      <template v-if="isPreview">
+        <div class="editor-head">
+          <div class="min-w-0 flex-1">
+            <h3 class="editor-title">系统 hosts</h3>
+            <p class="editor-hint truncate">
+              只读预览{{ systemPath ? ` · ${systemPath}` : '' }}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            class="gap-1 shrink-0"
+            :disabled="busy"
+            @click="void loadSystemHosts()"
+          >
+            <RefreshCw class="h-3.5 w-3.5" />
+            刷新
+          </Button>
+        </div>
+        <HostsCodeEditor
+          :key="SYSTEM_PREVIEW_ID"
+          v-model="draft"
+          :scheme-id="SYSTEM_PREVIEW_ID"
+          read-only
+        />
+      </template>
+      <template v-else-if="active">
         <div class="editor-head">
           <div>
             <h3 class="editor-title">{{ active.name }}</h3>
@@ -355,6 +437,34 @@ function onDragEnd(): void {
   flex: 1;
   min-height: 0;
 }
+.preview-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.54rem 0.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  /* 与方案行区分：略偏 muted，无拖拽把手 */
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+}
+.preview-row:hover {
+  background: color-mix(in oklab, var(--muted) 70%, transparent);
+}
+.preview-row.active {
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  border-color: color-mix(in oklab, var(--primary) 28%, transparent);
+}
+.preview-row .name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.preview-row .hint {
+  margin-top: 0.1rem;
+  font-size: 0.65rem;
+  color: var(--muted-foreground);
+}
 .empty {
   font-size: 0.75rem;
   color: var(--muted-foreground);
@@ -368,6 +478,12 @@ function onDragEnd(): void {
   flex-direction: column;
   padding: 0.75rem 1rem 1rem;
   gap: 0.5rem;
+}
+.editor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 .editor-title {
   font-size: 0.875rem;

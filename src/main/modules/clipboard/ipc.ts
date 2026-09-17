@@ -76,9 +76,9 @@ export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
     // 先落到系统剪贴板（单条或多条的第一条），保证手动 Ctrl+V 可用
     paste.copy(records[0]!)
 
-    // 无辅助功能：启动时已提示；浮层只关浮层，面板内仍关面板；不再弹「已复制」
+    // 无辅助功能：启动时已提示；浮层只关浮层并还焦；面板内仍关面板；不再弹「已复制」
     if (!paste.canAutoPaste()) {
-      if (windows.clipboard.isVisible()) windows.hideClipboard()
+      if (windows.clipboard.isVisible()) await windows.restorePreviousFocus()
       else windows.hideAllOverlays()
       return true
     }

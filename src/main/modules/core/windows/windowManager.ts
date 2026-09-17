@@ -54,6 +54,7 @@ export class WindowManager {
     }
     this.panel.onExternalAppCaptured = remember
     this.clipboard.onExternalAppCaptured = remember
+    this.quickFolders.onExternalAppCaptured = remember
   }
 
   markQuitting(): void {
@@ -131,10 +132,13 @@ export class WindowManager {
     this.quickFolders.hide()
   }
 
-  /** IPC `panel:hide`：关独立浮层（剪贴板 / 快捷文件夹；功能面板不关） */
+  /**
+   * IPC `panel:hide`（ESC）：关独立浮层并还焦呼出前应用。
+   * 与粘贴选完同一套还焦，避免功能面板被系统抬到最前。
+   */
   hidePanel(): void {
-    this.hideClipboard()
-    this.hideQuickFolders()
+    if (!this.clipboard.isVisible() && !this.quickFolders.isVisible()) return
+    void this.restorePreviousFocus()
   }
 
   hideAllOverlays(): void {
@@ -167,12 +171,12 @@ export class WindowManager {
   }
 
   toggleClipboard(): void {
-    if (this.clipboard.isVisible()) this.hideClipboard()
+    if (this.clipboard.isVisible()) void this.restorePreviousFocus()
     else this.showClipboard()
   }
 
   toggleQuickFolders(): void {
-    if (this.quickFolders.isVisible()) this.hideQuickFolders()
+    if (this.quickFolders.isVisible()) void this.restorePreviousFocus()
     else this.showQuickFolders()
   }
 
@@ -183,9 +187,15 @@ export class WindowManager {
   noteForegroundBeforeShow(): void {
     if (process.platform !== 'win32') return
     const token = asExternalBundleId(captureWindowsForegroundHwnd())
-    if (!token) return
+    if (!token) {
+      // 本应用已在前台：清空，避免沿用旧 hwnd
+      this.clipboard.clearPreviousAppBundleId()
+      this.quickFolders.clearPreviousAppBundleId()
+      return
+    }
     this.lastExternalBundleId = token
     this.clipboard.seedPreviousAppBundleId(token)
+    this.quickFolders.seedPreviousAppBundleId(token)
   }
 
   /** 显示 / 隐藏功能面板（托盘右键菜单） */
@@ -253,20 +263,30 @@ export class WindowManager {
   }
 
   /**
-   * 粘贴前恢复焦点（与截屏 settle 共用 focusHandoff）：
+   * 粘贴 / ESC 关浮层时恢复焦点（与截屏 settle 共用 focusHandoff）：
    * - 独立浮层：回填呼出前的外部应用；不改动功能面板显隐与层级
    * - 浮层在本应用内呼出（未采到外部）：回焦面板
    * - 仅面板内剪贴板：关面板，激活呼出前 / 最近外部应用
    */
   async restorePreviousFocus(): Promise<boolean> {
-    const floatingOpen = this.clipboard.isVisible()
+    const clipboardOpen = this.clipboard.isVisible()
+    const quickFoldersOpen = this.quickFolders.isVisible()
 
-    if (floatingOpen) {
-      const external = asExternalBundleId(this.clipboard.takePreviousAppBundleId())
+    if (clipboardOpen || quickFoldersOpen) {
+      // 以当前浮层采到的外部应用为准（每次 show 会刷新；本应用内呼出则为 null）
+      let external: string | null = null
+      if (clipboardOpen) {
+        external = asExternalBundleId(this.clipboard.takePreviousAppBundleId())
+      }
+      if (!external && quickFoldersOpen) {
+        external = asExternalBundleId(this.quickFolders.takePreviousAppBundleId())
+      }
 
-      // prepare → hide → activate（与截屏被盖住时一致）
+      // prepare → hide → activate（与截屏被盖住时一致）；抑制 activate→showPanel 抬窗
+      if (external) this.suppressPanelRaise(2500)
       prepareYieldFocus(external)
-      this.clipboard.hide()
+      this.hideClipboard()
+      this.hideQuickFolders()
 
       if (external) {
         return activateExternalApp(external)
@@ -291,6 +311,24 @@ export class WindowManager {
     prepareYieldFocus(bundleId)
     this.hideAllOverlays()
     return activateExternalApp(bundleId)
+  }
+
+  /**
+   * 浮层触发了外部程序（如打开文件夹）后关闭：保持当前前台，不抬功能面板。
+   */
+  async dismissFloatingKeepFrontmost(): Promise<void> {
+    if (!this.clipboard.isVisible() && !this.quickFolders.isVisible()) return
+
+    this.clipboard.takePreviousAppBundleId()
+    this.quickFolders.takePreviousAppBundleId()
+
+    const raw = await captureFrontmostRaw()
+    const external = asExternalBundleId(raw)
+    if (external) this.suppressPanelRaise(2500)
+    prepareYieldFocus(external)
+    this.hideClipboard()
+    this.hideQuickFolders()
+    if (external) await activateExternalApp(external)
   }
 
   private focusPanel(): void {

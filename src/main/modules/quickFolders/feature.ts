@@ -34,6 +34,10 @@ export const quickFoldersFeature = defineFeature({
       toggleQuickFolders: () => {
         if (gates.isScreenshotActive()) return
         if (gates.isRecorderSelectActive()) return
+        // Win：与剪贴板一致，show 前同步记下前台 hwnd
+        if (!ctx.windows.quickFolders.isVisible()) {
+          ctx.windows.noteForegroundBeforeShow()
+        }
         ctx.windows.toggleQuickFolders()
       }
     }

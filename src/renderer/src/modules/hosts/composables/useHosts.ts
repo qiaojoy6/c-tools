@@ -40,6 +40,9 @@ export function useHosts() {
     schemes,
     authSession,
     refresh,
+    readSystem: (): Promise<
+      { ok: true; content: string; path: string } | { ok: false; error: string }
+    > => window.api.hosts.readSystem(),
     add: (name: string): Promise<HostsMutationResult> => window.api.hosts.add(name),
     rename: (id: string, name: string): Promise<HostsMutationResult> =>
       window.api.hosts.rename(id, name),

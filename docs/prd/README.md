@@ -40,7 +40,7 @@
 
 ### 功能
 
-- 独立剪贴板窗口（`/clipboard`）：无边框置顶浮层、在鼠标所在屏顶部居中、ESC 关闭；仅快捷键呼出；失焦隐藏由 `window.hideOnBlur` 控制（View 菜单可开关）；macOS 用 `showInactive`（不用 `type:panel`，避免 styleMask 0x80 刷屏）且不调 `app.focus`，不抬起功能面板；macOS 置顶用 `floating` 级，避免盖住输入法候选窗
+- 独立剪贴板窗口（`/clipboard`）：无边框置顶浮层、在鼠标所在屏顶部居中、ESC 关闭并还焦呼出前应用（与粘贴选完一致，不抬功能面板）；仅快捷键呼出；失焦隐藏由 `window.hideOnBlur` 控制（View 菜单可开关）；macOS 用 `showInactive`（不用 `type:panel`，避免 styleMask 0x80 刷屏）且不调 `app.focus`，不抬起功能面板；macOS 置顶用 `floating` 级，避免盖住输入法候选窗
 - 功能面板窗口（`/panel`）：`titleBarStyle: hidden` + 原生窗控（macOS 交通灯 / Win·Linux `titleBarOverlay`），通栏自定义表头；托盘左键始终显示/置顶、右键可切换显隐；程序坞 / Cmd+Tab 切回置顶（不关闭、不 steal 抢焦）；ESC / 失焦不关闭
 - macOS 程序坞图标：默认 `accessory`（不进程序坞）；唤起功能面板后 `regular`；最小化仍留在程序坞；面板 hide 后回 accessory；截屏/框选期间经 `AppUiConceal` 冻结 Dock 显隐；activationPolicy 仅在状态变化时写入，避免重复 dock.show 搅乱 Dock 标签
 - 本应用窗口隐身策略 `AppUiConceal`：`none`（录制不碰窗）/ `dim-panel-if-visible`（截屏开启隐藏且面板开着 → 透明度 0，结束恢复；面板没开则 noop）；其它功能日后直接复用 begin/end
@@ -58,7 +58,7 @@
 - 自动粘贴失败时的「已复制，请手动 ⌘V/Ctrl+V」每个进程只提示一次
 - Windows 粘贴：统一模拟 Ctrl+V（SendInput / keybd_event，经 `focus-paste` 原生模块；不用 WM_PASTE）；原生不可用时回退 PowerShell SendKeys
 - 焦点交接 / 模拟粘贴：`native-rs/focus-paste-core` + `focus-paste-napi`（Win user32 / mac osascript）；TS `focusTarget` 仅薄封装与延时编排
-- Windows 焦点：快捷键瞬间同步采 hwnd；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）
+- Windows 焦点：快捷键瞬间同步采 hwnd（剪贴板 / 快捷文件夹）；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）；ESC/粘贴与 macOS 共用 `restorePreviousFocus`
 - 渲染进程日志 `window.logApi` / `import { logApi }`：debug/info/warn/error；先安全序列化再经 `api.logWrite` 打到主进程终端；DevTools 仍打印原始对象
 - 主进程意外退出兜底：`logs/diag.log`（未捕获异常、渲染/子进程崩溃、启停）；正常时同步 mirror 到终端；会话心跳检测上次非正常退出；本地 crashReporter minidump（不上传）；终端断管（EIO/EPIPE）只落盘一次、不刷爆日志
 - 自动更新：打包后启动自动检查（源为 GitHub Releases / `qiaojoy6/c-tools`）；发现新版本静默下载并通知；设置页可手动检查 / 重启安装（macOS 需签名）
@@ -102,6 +102,7 @@
 - 双入口：快捷键 → 独立浮层仅显示剪贴板（ESC 关闭）；托盘左键 / 程序坞 → 功能面板（已打开则置顶不关闭；右键菜单可切换显隐；原生 titleBarStyle 窗控 + 通栏自定义表头，ESC 不关窗）
 - 面板内剪贴板模块：双击 / Enter 粘贴后仍关闭窗口
 - 独立浮层粘贴：回填呼出前的前台应用；不改动功能面板窗口层级
+- ESC 关浮层：与粘贴同一套还焦，面板被其它软件挡住时保持在下面
 - 搜索优先、类型筛选芯片（全部/文本/图片/收藏）、虚拟滚动列表展示
 - 打开浮层不自动聚焦搜索；敲击英文/数字时才聚焦并输入；⌘/Ctrl+F 手动聚焦
 - ← / → 未聚焦搜索时切换类型筛选；聚焦后为移动光标；↑ / ↓ 切换列表
@@ -132,10 +133,10 @@
 ### 功能
 
 - 快捷文件夹书签：本地持久化路径 + 可选备注；路径唯一；默认上限 50（设置可改）
-- 双入口：全局快捷键 → 独立浮层（行为对齐剪贴板，含 macOS `floating` 置顶以免盖输入法候选）；功能面板左侧 Tab 内嵌同一页面
+- 双入口：全局快捷键 → 独立浮层（行为对齐剪贴板，含 macOS `floating` 置顶以免盖输入法候选；ESC 还焦呼出前应用、不抬功能面板）；功能面板左侧 Tab 内嵌同一页面
 - 添加：页面内系统选目录、粘贴/手输路径，或将文件夹拖入添加/编辑弹窗的路径框；添加时路径必须是已存在的文件夹；重复路径拒绝
 - 列表：有备注显示备注，无备注显示文件夹名，其后跟路径；搜索扫备注/文件夹名/路径
-- 打开：Enter / 双击 → `shell.openPath`；独立浮层打开后立刻关闭
+- 打开：Enter / 双击 → `shell.openPath`；独立浮层打开后立刻关闭并保持 Finder/资源管理器在前（不抬功能面板）
 - 编辑：有效项可改备注与路径；失效路径灰显「路径无效」，仅可删除（删除前二次确认）
 - 排序：默认新添加在上；支持拖拽改序并持久化（搜索中禁用拖拽）
 - 设置：呼出快捷键（默认 mac `⌘⇧O` / win `Ctrl+⇧O`，可清空）、条数上限
@@ -288,6 +289,7 @@
 ### 功能
 
 - 功能面板「Hosts」：多方案 Tab（添加时填名称并立刻写入本地 `hosts-schemes.json`，开关默认关）
+- 首位固定「系统 hosts」只读预览（读系统 hosts 原文，不可拖拽 / 不可改）；写入系统后可刷新；其余方案可拖拽排序
 - 每方案：展示名可改（系统标记只认稳定 id）、CodeMirror 编辑（hosts 语法高亮；不做格式校验）、拖拽排序（顺序即叠加优先级）
 - 开开关 → 按需提权写入系统 hosts 中该 id 标记段；关开关 → 提权删除该段；开启中禁止删除
 - 提权：首次系统授权时写入 hosts 并拉起短时 helper（macOS 用 python 脱离进程树，避免假死；Windows 为 UAC helper）；之后约 10 分钟内滑动续期免密；面板展示下次需授权时间；不收集、不存储用户密码；退出应用结束会话
@@ -298,7 +300,7 @@
 
 ### 相关文件
 
-- `src/main/modules/hosts/` — feature / store / markers / elevateSession / elevateHelperScripts / elevateWrite / systemHosts / ipc
+- `src/main/modules/hosts/` — feature / store / markers / elevateSession / elevateHelperScripts / elevateWrite / systemHosts / ipc（含 `hosts:readSystem`）
 - `src/shared/modules/hosts.ts` — 方案类型
 - `src/preload/modules/hosts.ts`
 - `src/renderer/src/pages/HostsPage.vue`

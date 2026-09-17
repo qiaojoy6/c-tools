@@ -125,6 +125,10 @@ export class ClipboardWindow {
     return id
   }
 
+  clearPreviousAppBundleId(): void {
+    this.previousAppBundleId = null
+  }
+
   /** Windows：快捷键瞬间写入外部目标，避免 show 异步采焦丢失 */
   seedPreviousAppBundleId(bundleId: string): void {
     if (!bundleId || asExternalBundleId(bundleId) == null) return
@@ -154,6 +158,10 @@ export class ClipboardWindow {
     if (external) {
       this.previousAppBundleId = external
       this.onExternalAppCaptured?.(external)
+      return
     }
+    // Win：异步采焦若已落到本应用，保留快捷键同步 seed；Mac：本应用内呼出则清空
+    if (process.platform === 'win32' && this.previousAppBundleId) return
+    this.previousAppBundleId = null
   }
 }
