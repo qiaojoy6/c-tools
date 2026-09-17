@@ -73,6 +73,8 @@ export const appApi = {
   checkForUpdates: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:check'),
   /** updater:install — 重启安装已下载更新 */
   installUpdate: (): Promise<boolean> => ipcRenderer.invoke('updater:install'),
+  /** updater:open-release — 打开 GitHub Releases（mac 手动下载） */
+  openUpdateReleasePage: (): Promise<boolean> => ipcRenderer.invoke('updater:open-release'),
   /** 订阅 updater:status 推送 */
   onUpdateStatus: (callback: (status: UpdateStatus) => void): (() => void) => {
     const listener = (_e: Electron.IpcRendererEvent, status: UpdateStatus): void =>

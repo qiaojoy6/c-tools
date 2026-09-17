@@ -61,7 +61,7 @@
 - Windows 焦点：快捷键瞬间同步采 hwnd（剪贴板 / 快捷文件夹）；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）；ESC/粘贴与 macOS 共用 `restorePreviousFocus`
 - 渲染进程日志 `window.logApi` / `import { logApi }`：debug/info/warn/error；先安全序列化再经 `api.logWrite` 打到主进程终端；DevTools 仍打印原始对象
 - 主进程意外退出兜底：`logs/diag.log`（未捕获异常、渲染/子进程崩溃、启停）；正常时同步 mirror 到终端；会话心跳检测上次非正常退出；本地 crashReporter minidump（不上传）；终端断管（EIO/EPIPE）只落盘一次、不刷爆日志
-- 自动更新：打包后启动自动检查（源为 GitHub Releases / `qiaojoy6/c-tools`）；发现新版本静默下载并通知；设置页可手动检查 / 重启安装（macOS 需签名）
+- 自动更新：打包后启动自动检查（源为 GitHub Releases / `qiaojoy6/c-tools`）；macOS 因未签名改为提示并引导到 GitHub Releases 手动下载；其它平台静默下载，设置页可重启安装
 
 ### 相关文件
 
@@ -263,7 +263,7 @@
 - `native/` — 编译产物 `.node`（开发与打包资源）
 - `electron-builder.yml` — `extraResources` 拷贝 `native/*.node` 与 `ffmpeg-static` 可执行文件到 `bin/`
 - `scripts/build-native.sh` — 编译 recorder + focus-paste 并拷贝到 `native/`
-- `.github/workflows/build.yml` — GitHub Actions：mac 编 `.node` 并打包；`v*` tag 时发布到 GitHub Release（自动更新）
+- `.github/workflows/build.yml` — GitHub Actions：手动 Run 可打 mac 包（Artifact）；`v*` tag 时发布到 GitHub Release
 - `electron-builder.yml` / `dev-app-update.yml` — 更新源 `provider: github`
 - `src/main/modules/recorder/` — feature / 主进程加载插件、框选遮罩会话、全屏选屏弹窗、区域外框与全屏悬浮条 IPC、停录另存为、麦/系统声权限（`permission.ts`）
 - `src/main/modules/recorder/saveRecording.ts` — 停录后系统保存对话框与挪文件
@@ -328,7 +328,7 @@
 - 功能模块开关（通用页）：剪贴板 / 快捷文件夹 / 项目 / 截屏 / 录屏 / Hosts；写入 `features.enabled`；关闭后侧栏 / 快捷键 / 托盘立刻失效，剪贴板监听暂停；启动时未加载的模块首次开启会热加载（截屏/录屏会预热遮罩）；关剪贴板会连带关截屏；关 Hosts 只藏 UI，不自动清系统 hosts 段
 - 退出时清空记录
 - 启动时清空记录
-- 关于与更新：显示当前版本、检查更新、下载完成后重启安装
+- 关于与更新：显示当前版本、检查更新；macOS 有新版本时提示并「前往 GitHub 下载」；其它平台下载完成后可重启安装
 
 ### 相关文件
 

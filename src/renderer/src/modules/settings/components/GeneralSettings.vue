@@ -27,10 +27,18 @@ const themeOptions = [
 
 const busy = computed(() => {
   const s = update.value?.state
-  return s === 'checking' || s === 'downloading' || s === 'available'
+  return s === 'checking' || s === 'downloading'
 })
 
 const canInstall = computed(() => update.value?.state === 'downloaded')
+
+/** mac：有新版本时引导去 GitHub */
+const showGithubDownload = computed(
+  () =>
+    update.value?.manualDownload === true &&
+    update.value.state === 'available' &&
+    Boolean(update.value.availableVersion)
+)
 
 const clipboardOn = computed(() => isFeatureEnabled(props.config.features, 'clipboard'))
 
@@ -54,6 +62,10 @@ async function onCheck(): Promise<void> {
 
 async function onInstall(): Promise<void> {
   await window.api.installUpdate()
+}
+
+async function onOpenGithub(): Promise<void> {
+  await window.api.openUpdateReleasePage()
 }
 
 function featureOn(id: ToggleableFeatureId): boolean {
@@ -152,12 +164,6 @@ function onFeatureToggle(id: ToggleableFeatureId, enabled: boolean): void {
           <p class="mt-0.5 text-xs text-muted-foreground">
             {{ update?.message || (update?.canUpdate ? '启动后会自动检查更新' : '开发模式不检查更新') }}
           </p>
-          <p
-            v-if="update?.state === 'downloading' && update.percent != null"
-            class="mt-1 text-xs text-muted-foreground"
-          >
-            进度 {{ update.percent }}%
-          </p>
         </div>
         <div class="flex shrink-0 flex-col gap-2">
           <Button
@@ -168,6 +174,9 @@ function onFeatureToggle(id: ToggleableFeatureId, enabled: boolean): void {
             @click="onCheck"
           >
             检查更新
+          </Button>
+          <Button v-if="showGithubDownload" type="button" size="sm" @click="onOpenGithub">
+            前往 GitHub 下载
           </Button>
           <Button v-if="canInstall" type="button" size="sm" @click="onInstall">
             重启安装

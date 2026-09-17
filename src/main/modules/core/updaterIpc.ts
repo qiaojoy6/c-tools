@@ -1,11 +1,12 @@
 /**
  * 自动更新 IPC
  *
- * | Channel           | 方向           | 说明 |
- * |-------------------|----------------|------|
- * | updater:status    | 渲染→主 invoke | 当前状态 |
- * | updater:check     | 渲染→主 invoke | 检查更新 |
- * | updater:install   | 渲染→主 invoke | 重启安装已下载版本 |
+ * | Channel                 | 方向           | 说明 |
+ * |-------------------------|----------------|------|
+ * | updater:status          | 渲染→主 invoke | 当前状态 |
+ * | updater:check           | 渲染→主 invoke | 检查更新 |
+ * | updater:install         | 渲染→主 invoke | 重启安装已下载版本 |
+ * | updater:open-release    | 渲染→主 invoke | 打开 GitHub Releases（mac 手动下载） |
  *
  * 主→渲染推送：updater:status
  */
@@ -14,6 +15,7 @@ import type { UpdateStatus } from '@shared/types'
 import {
   checkForUpdates,
   getUpdateStatus,
+  openUpdateReleasePage,
   quitAndInstallUpdate
 } from './appUpdater'
 
@@ -21,4 +23,5 @@ export function registerUpdaterIpc(): void {
   ipcMain.handle('updater:status', (): UpdateStatus => getUpdateStatus())
   ipcMain.handle('updater:check', (): Promise<UpdateStatus> => checkForUpdates())
   ipcMain.handle('updater:install', (): boolean => quitAndInstallUpdate())
+  ipcMain.handle('updater:open-release', (): Promise<boolean> => openUpdateReleasePage())
 }

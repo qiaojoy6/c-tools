@@ -1,10 +1,10 @@
 /**
  * 自动更新（electron-updater）
  * - 仅打包后检查；启动稍后自动查一次
- * - 有更新则静默下载，完成后通知；设置页可手动检查 / 重启安装
- * macOS 需代码签名后更新才能成功。
+ * - macOS：未签名时自动安装会失败 → 只提示，引导到 GitHub Releases 手动下载
+ * - 其它平台：有更新则静默下载，完成后通知；设置页可重启安装
  */
-import { BrowserWindow, Notification, app } from 'electron'
+import { BrowserWindow, Notification, app, shell } from 'electron'
 import electronUpdater from 'electron-updater'
 import type { UpdateStatus } from '@shared/types'
 import { writeDiag } from './crashGuard'
@@ -14,16 +14,29 @@ const { autoUpdater } = electronUpdater
 /** 启动后延迟检查，避开冷启动抢带宽 */
 const STARTUP_CHECK_DELAY_MS = 5_000
 
+/** mac 无签名时手动下载页 */
+const GITHUB_RELEASES_URL = 'https://github.com/qiaojoy6/c-tools/releases/latest'
+
+/** macOS 暂走手动下载（需 Developer ID 后可改回自动安装） */
+const MANUAL_DOWNLOAD = process.platform === 'darwin'
+
 let status: UpdateStatus = {
   state: 'idle',
   currentVersion: app.getVersion(),
-  canUpdate: app.isPackaged
+  canUpdate: app.isPackaged,
+  manualDownload: MANUAL_DOWNLOAD
 }
 
 let started = false
 
 export function getUpdateStatus(): UpdateStatus {
-  return { ...status, currentVersion: app.getVersion(), canUpdate: app.isPackaged }
+  return {
+    ...status,
+    currentVersion: app.getVersion(),
+    canUpdate: app.isPackaged,
+    manualDownload: MANUAL_DOWNLOAD,
+    releaseUrl: MANUAL_DOWNLOAD ? GITHUB_RELEASES_URL : status.releaseUrl
+  }
 }
 
 /** whenReady 后调用：挂事件 + 定时自动检查 */
@@ -33,9 +46,11 @@ export function startAppUpdater(): void {
 
   status.currentVersion = app.getVersion()
   status.canUpdate = app.isPackaged
+  status.manualDownload = MANUAL_DOWNLOAD
 
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
+  // mac 不自动下包，避免签名校验失败后甩长错误
+  autoUpdater.autoDownload = !MANUAL_DOWNLOAD
+  autoUpdater.autoInstallOnAppQuit = !MANUAL_DOWNLOAD
   // debug 极吵且可能含大段内容，只落 info/warn/error；debug 仅控制台
   autoUpdater.logger = {
     info: (m) => writeDiag('updater.info', String(m)),
@@ -49,6 +64,15 @@ export function startAppUpdater(): void {
   })
 
   autoUpdater.on('update-available', (info) => {
+    if (MANUAL_DOWNLOAD) {
+      setStatus({
+        state: 'available',
+        availableVersion: info.version,
+        releaseUrl: GITHUB_RELEASES_URL,
+        message: `发现新版本 ${info.version}，请到 GitHub 下载安装`
+      })
+      return
+    }
     setStatus({
       state: 'available',
       availableVersion: info.version,
@@ -66,6 +90,7 @@ export function startAppUpdater(): void {
   })
 
   autoUpdater.on('download-progress', (p) => {
+    if (MANUAL_DOWNLOAD) return
     setStatus({
       state: 'downloading',
       percent: Math.round(p.percent),
@@ -74,6 +99,7 @@ export function startAppUpdater(): void {
   })
 
   autoUpdater.on('update-downloaded', (info) => {
+    if (MANUAL_DOWNLOAD) return
     setStatus({
       state: 'downloaded',
       availableVersion: info.version,
@@ -115,9 +141,22 @@ export async function checkForUpdates(): Promise<UpdateStatus> {
   return getUpdateStatus()
 }
 
-/** 下载完成后退出并安装 */
+/** 打开 GitHub Releases（mac 手动下载） */
+export async function openUpdateReleasePage(): Promise<boolean> {
+  const url = status.releaseUrl || GITHUB_RELEASES_URL
+  try {
+    await shell.openExternal(url)
+    return true
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    writeDiag('updater.openRelease failed', message)
+    return false
+  }
+}
+
+/** 下载完成后退出并安装（mac 手动模式下不可用） */
 export function quitAndInstallUpdate(): boolean {
-  if (status.state !== 'downloaded') return false
+  if (MANUAL_DOWNLOAD || status.state !== 'downloaded') return false
   writeDiag('updater.quitAndInstall', status.availableVersion)
   // isSilent=false, isForceRunAfter=true
   autoUpdater.quitAndInstall(false, true)
@@ -129,7 +168,8 @@ function setStatus(patch: Partial<UpdateStatus>): void {
     ...status,
     ...patch,
     currentVersion: app.getVersion(),
-    canUpdate: app.isPackaged
+    canUpdate: app.isPackaged,
+    manualDownload: MANUAL_DOWNLOAD
   }
   broadcastStatus()
 }

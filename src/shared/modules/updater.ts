@@ -21,4 +21,8 @@ export interface UpdateStatus {
   message?: string
   /** 是否打包环境（dev 下通常不可更新） */
   canUpdate: boolean
+  /** mac：未签名时走 GitHub 手动下载，不自动安装 */
+  manualDownload?: boolean
+  /** 手动下载页（GitHub Releases） */
+  releaseUrl?: string
 }
