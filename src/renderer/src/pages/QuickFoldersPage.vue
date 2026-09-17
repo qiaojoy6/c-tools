@@ -265,7 +265,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="page">
+  <div class="flex flex-col h-full overflow-hidden">
     <QuickFoldersToolbar ref="toolbar" v-model:search="search" @add="openAdd" />
 
     <QuickFolderList
@@ -307,15 +307,3 @@ onUnmounted(() => {
     <ToastMessage :message="toastMsg" />
   </div>
 </template>
-
-<style scoped>
-.page {
-  display: flex;
-  height: 100%;
-  flex-direction: column;
-  overflow: hidden;
-  background: color-mix(in oklab, var(--card) 88%, transparent);
-  color: var(--foreground);
-  backdrop-filter: blur(24px);
-}
-</style>

@@ -7,9 +7,9 @@ const route = useRoute()
 
 useTheme()
 
-/** 独立剪贴板用毛玻璃浮层壳；截屏/录屏框选遮罩无壳；全屏选屏 Dialog 白底；功能面板 / 设置为普通窗 */
+/** 剪贴板 / 快捷文件夹用毛玻璃浮层壳；截屏/录屏框选遮罩无壳；全屏选屏 Dialog 白底；功能面板 / 设置为普通窗 */
 const shellMode = computed(() => {
-  if (route.name === 'clipboard') return 'overlay'
+  if (route.name === 'clipboard' || route.name === 'quick-folders') return 'overlay'
   if (route.name === 'screenshot' || route.name === 'recorder-select') return 'shot'
   if (route.name === 'recorder-fullscreen') return 'dialog'
   return 'app'
