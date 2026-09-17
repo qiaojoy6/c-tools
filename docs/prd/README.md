@@ -263,7 +263,7 @@
 - `native/` — 编译产物 `.node`（开发与打包资源）
 - `electron-builder.yml` — `extraResources` 拷贝 `native/*.node` 与 `ffmpeg-static` 可执行文件到 `bin/`
 - `scripts/build-native.sh` — 编译 recorder + focus-paste 并拷贝到 `native/`
-- `.github/workflows/build.yml` — GitHub Actions：mac/win 编 `.node` 并打包；`v*` tag 时发布到 GitHub Release（自动更新）
+- `.github/workflows/build.yml` — GitHub Actions：mac 编 `.node` 并打包；`v*` tag 时发布到 GitHub Release（自动更新）
 - `electron-builder.yml` / `dev-app-update.yml` — 更新源 `provider: github`
 - `src/main/modules/recorder/` — feature / 主进程加载插件、框选遮罩会话、全屏选屏弹窗、区域外框与全屏悬浮条 IPC、停录另存为、麦/系统声权限（`permission.ts`）
 - `src/main/modules/recorder/saveRecording.ts` — 停录后系统保存对话框与挪文件

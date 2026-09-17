@@ -105,5 +105,7 @@ publish:
   provider: github
   owner: qiaojoy6
   repo: c-tools
+  # CI 推送 v* tag 时直接发布（非 draft），供 electron-updater 拉取
+  releaseType: release
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
