@@ -1,14 +1,15 @@
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow } from 'electron'
 import { join } from 'path'
 import type { AppConfig } from '@shared/types'
 import { loadRoute } from './loadRoute'
 import { asExternalBundleId, getFrontmostBundleId } from './focusTarget'
 import { applyOverlayFloatingLevel } from './floatingLevel'
+import { placeOverlayOnCursorDisplay, presentOnActiveSpace } from './presentNearCursor'
 import { reassertMacDockHiddenIfNeeded } from './macDockIcon'
 
 /**
  * 独立剪贴板浮层：无边框、置顶、失焦隐藏；由全局快捷键呼出。
- * macOS 不用 type:panel（会刷 NSWindow styleMask 0x80 警告）；
+ * 呼出跟随鼠标所在屏（顶部居中）+ 当前桌面；macOS 不用 type:panel；
  * showInactive + 不调 app.focus，避免抬起功能面板。
  */
 export class ClipboardWindow {
@@ -59,7 +60,6 @@ export class ClipboardWindow {
     })
 
     this.applyFloatingLevel(win)
-    this.position(win)
 
     win.on('blur', () => {
       if (this.getConfig().window.hideOnBlur) this.hide()
@@ -88,34 +88,47 @@ export class ClipboardWindow {
     await this.capturePreviousFocusTargetAsync()
     if (win.isDestroyed()) return
 
-    this.position(win)
+    placeOverlayOnCursorDisplay(win, this.getConfig().window.topOffset)
     if (win.isMinimized()) win.restore()
     this.applyFloatingLevel(win)
 
     // 不调 app.focus；mac 用 showInactive，避免抬起功能面板 / 程序坞
-    if (process.platform === 'darwin') {
-      win.showInactive()
-      win.focus()
-      reassertMacDockHiddenIfNeeded()
-    } else {
+    presentOnActiveSpace(win, () => {
+      if (process.platform === 'darwin') {
+        win.showInactive()
+        win.focus()
+        reassertMacDockHiddenIfNeeded()
+        return
+      }
       win.show()
       win.focus()
-    }
+    })
     win.webContents.send('panel:shown')
   }
 
-  hide(): void {
+  /**
+   * @param opts.yieldFocus 默认 true：关窗并让出焦点（粘贴 / 失焦隐藏）。
+   *   false：仅隐藏、不让焦——Win 上避免 setFocusable(false) 把焦点（及虚拟桌面）甩给上一窗。
+   */
+  hide(opts?: { yieldFocus?: boolean }): void {
     if (!this.win?.isVisible()) return
-    // 先 blur，避免隐藏后仍被当成应用「上次焦点窗」，导致 Cmd+Tab 切回无界面
-    if (this.win.isFocused()) this.win.blur()
-    // Windows：先取消置顶，再 setFocusable(false) 强迫系统把焦点还给上一窗口
+    const yieldFocus = opts?.yieldFocus !== false
+
     if (process.platform === 'win32') {
       this.win.setAlwaysOnTop(false)
-      this.win.setFocusable(false)
-      this.win.hide()
-      this.win.setFocusable(true)
+      if (yieldFocus) {
+        if (this.win.isFocused()) this.win.blur()
+        this.win.setFocusable(false)
+        this.win.hide()
+        this.win.setFocusable(true)
+      } else {
+        this.win.hide()
+      }
       return
     }
+
+    // mac：让焦时先 blur，避免隐藏后仍被当成「上次焦点窗」，Cmd+Tab 切回无界面
+    if (yieldFocus && this.win.isFocused()) this.win.blur()
     this.win.hide()
   }
 
@@ -139,17 +152,6 @@ export class ClipboardWindow {
   /** 浮层置顶：压住普通应用，但不盖输入法候选 */
   private applyFloatingLevel(win: BrowserWindow): void {
     applyOverlayFloatingLevel(win, this.getConfig().window.alwaysOnTop)
-  }
-
-  /** 居中贴在鼠标所在显示器顶部（多屏时不再固定主屏） */
-  private position(win: BrowserWindow): void {
-    const cfg = this.getConfig().window
-    const cursor = screen.getCursorScreenPoint()
-    const { workArea } = screen.getDisplayNearestPoint(cursor)
-    const [w] = win.getSize()
-    const x = workArea.x + Math.round((workArea.width - w) / 2)
-    const y = workArea.y + cfg.topOffset
-    win.setPosition(x, y, false)
   }
 
   private async capturePreviousFocusTargetAsync(): Promise<void> {

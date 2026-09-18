@@ -40,8 +40,9 @@
 
 ### 功能
 
-- 独立剪贴板窗口（`/clipboard`）：无边框置顶浮层、在鼠标所在屏顶部居中、ESC 关闭并还焦呼出前应用（与粘贴选完一致，不抬功能面板）；仅快捷键呼出；失焦隐藏由 `window.hideOnBlur` 控制（View 菜单可开关）；macOS 用 `showInactive`（不用 `type:panel`，避免 styleMask 0x80 刷屏）且不调 `app.focus`，不抬起功能面板；macOS 置顶用 `floating` 级，避免盖住输入法候选窗
-- 功能面板窗口（`/panel`）：`titleBarStyle: hidden` + 原生窗控（macOS 交通灯 / Win·Linux `titleBarOverlay`），通栏自定义表头；托盘左键始终显示/置顶、右键可切换显隐；程序坞 / Cmd+Tab 切回置顶（不关闭、不 steal 抢焦）；ESC / 失焦不关闭
+- 独立剪贴板窗口（`/clipboard`）：无边框置顶浮层、每次呼出跟鼠标所在屏顶部居中、ESC 关闭浮层且不还焦外部（面板开着则回焦面板，留在当前桌面）；粘贴仍还焦呼出前应用；仅快捷键呼出；失焦隐藏由 `window.hideOnBlur` 控制（View 菜单可开关）；macOS 用 `showInactive`（不用 `type:panel`，避免 styleMask 0x80 刷屏）且不调 `app.focus`，不抬起功能面板；macOS 置顶用 `floating` 级，避免盖住输入法候选窗
+- 呼出位置：剪贴板 / 快捷文件夹 / 功能面板（隐藏后再开）跟随鼠标所在显示器；macOS 同时迁到当前桌面（Spaces），不切回创建所在主桌面（`presentNearCursor`）
+- 功能面板窗口（`/panel`）：`titleBarStyle: hidden` + 原生窗控（macOS 交通灯 / Win·Linux `titleBarOverlay`），通栏自定义表头；托盘左键始终显示/置顶、右键可切换显隐；程序坞 / Cmd+Tab 切回置顶（不关闭、不 steal 抢焦）；ESC / 失焦不关闭；已打开时不因再次呼出改位置
 - macOS 程序坞图标：默认 `accessory`（不进程序坞）；唤起功能面板后 `regular`；最小化仍留在程序坞；面板 hide 后回 accessory；截屏/框选期间经 `AppUiConceal` 冻结 Dock 显隐；activationPolicy 仅在状态变化时写入，避免重复 dock.show 搅乱 Dock 标签
 - 本应用窗口隐身策略 `AppUiConceal`：`none`（录制不碰窗）/ `dim-panel-if-visible`（截屏开启隐藏且面板开着 → 透明度 0，结束恢复；面板没开则 noop）；其它功能日后直接复用 begin/end
 - 面板左侧使用 shadcn-vue Sidebar（`collapsible="icon"`）切换模块（剪贴板、快捷文件夹、项目）；底部设置
@@ -58,14 +59,14 @@
 - 自动粘贴失败时的「已复制，请手动 ⌘V/Ctrl+V」每个进程只提示一次
 - Windows 粘贴：统一模拟 Ctrl+V（SendInput / keybd_event，经 `focus-paste` 原生模块；不用 WM_PASTE）；原生不可用时回退 PowerShell SendKeys
 - 焦点交接 / 模拟粘贴：`native-rs/focus-paste-core` + `focus-paste-napi`（Win user32 / mac osascript）；TS `focusTarget` 仅薄封装与延时编排
-- Windows 焦点：快捷键瞬间同步采 hwnd（剪贴板 / 快捷文件夹）；hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）；ESC/粘贴与 macOS 共用 `restorePreviousFocus`
+- Windows 焦点：快捷键瞬间同步采 hwnd（剪贴板 / 快捷文件夹）；粘贴 hide 时 `setFocusable(false)` 强制还焦；hide 前 `AllowSetForegroundWindow`；激活后只要前台不在本进程即模拟粘贴（不过严要求原 hwnd）；粘贴与 macOS 共用 `restorePreviousFocus`；ESC 走 `dismissFloatingStayInApp`（先回焦面板再 `yieldFocus:false` 隐藏，避免 Win 虚拟桌面被上一窗拽走）
 - 渲染进程日志 `window.logApi` / `import { logApi }`：debug/info/warn/error；先安全序列化再经 `api.logWrite` 打到主进程终端；DevTools 仍打印原始对象
 - 主进程意外退出兜底：`logs/diag.log`（未捕获异常、渲染/子进程崩溃、启停）；正常时同步 mirror 到终端；会话心跳检测上次非正常退出；本地 crashReporter minidump（不上传）；终端断管（EIO/EPIPE）只落盘一次、不刷爆日志
 - 自动更新：打包后启动自动检查（源为 GitHub Releases / `qiaojoy6/c-tools`）；macOS 因未签名改为提示并引导到 GitHub Releases 手动下载；其它平台静默下载，设置页可重启安装
 
 ### 相关文件
 
-- `src/main/modules/core/windows/` — ClipboardWindow / QuickFoldersWindow / PanelWindow / SettingsWindow / WindowManager / floatingLevel（浮层置顶层级）/ focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）/ appUiConceal（截屏·录制等窗口隐身策略）
+- `src/main/modules/core/windows/` — ClipboardWindow / QuickFoldersWindow / PanelWindow / SettingsWindow / WindowManager / floatingLevel（浮层置顶层级）/ presentNearCursor（呼出跟鼠标屏 + 当前 Space）/ focusHandoff（粘贴与截屏共用还焦）/ macDockIcon（程序坞随面板）/ appUiConceal（截屏·录制等窗口隐身策略）
 - `src/main/modules/core/windows/focusTarget/` — 前台采焦 / 激活 / 模拟粘贴（`index` 分发；`mac`/`win` 调 focus-paste-napi；`native.ts` 加载 `.node`）
 - `native-rs/focus-paste-core/` — 焦点交接与模拟粘贴内核（按 win/mac 模块划分）
 - `native-rs/focus-paste-napi/` — napi 胶水与 `.node` 构建
@@ -102,7 +103,7 @@
 - 双入口：快捷键 → 独立浮层仅显示剪贴板（ESC 关闭）；托盘左键 / 程序坞 → 功能面板（已打开则置顶不关闭；右键菜单可切换显隐；原生 titleBarStyle 窗控 + 通栏自定义表头，ESC 不关窗）
 - 面板内剪贴板模块：双击 / Enter 粘贴后仍关闭窗口
 - 独立浮层粘贴：回填呼出前的前台应用；不改动功能面板窗口层级
-- ESC 关浮层：与粘贴同一套还焦，面板被其它软件挡住时保持在下面
+- ESC 关浮层：不还焦外部应用（mac 不切 Space / Win 不切虚拟桌面）；面板开着则回焦面板；粘贴仍还焦呼出前应用
 - 搜索优先、类型筛选芯片（全部/文本/图片/收藏）、虚拟滚动列表展示
 - 打开浮层不自动聚焦搜索；敲击英文/数字时才聚焦并输入；⌘/Ctrl+F 手动聚焦
 - ← / → 未聚焦搜索时切换类型筛选；聚焦后为移动光标；↑ / ↓ 切换列表
@@ -133,7 +134,7 @@
 ### 功能
 
 - 快捷文件夹书签：本地持久化路径 + 可选备注；路径唯一；默认上限 50（设置可改）
-- 双入口：全局快捷键 → 独立浮层（行为对齐剪贴板，含 macOS `floating` 置顶以免盖输入法候选；ESC 还焦呼出前应用、不抬功能面板）；功能面板左侧 Tab 内嵌同一页面
+- 双入口：全局快捷键 → 独立浮层（行为对齐剪贴板，含 macOS `floating` 置顶以免盖输入法候选；ESC 关浮层不还焦外部、不抬功能面板）；功能面板左侧 Tab 内嵌同一页面
 - 添加：页面内系统选目录、粘贴/手输路径，或将文件夹拖入添加/编辑弹窗的路径框；添加时路径必须是已存在的文件夹；重复路径拒绝
 - 列表：有备注显示备注，无备注显示文件夹名，其后跟路径；搜索扫备注/文件夹名/路径
 - 打开：Enter / 双击 → `shell.openPath`；独立浮层打开后立刻关闭并保持 Finder/资源管理器在前（不抬功能面板）

@@ -124,21 +124,54 @@ export class WindowManager {
     return Date.now() < this.suppressPanelRaiseUntil
   }
 
-  hideClipboard(): void {
-    this.clipboard.hide()
+  hideClipboard(opts?: { yieldFocus?: boolean }): void {
+    this.clipboard.hide(opts)
   }
 
-  hideQuickFolders(): void {
-    this.quickFolders.hide()
+  hideQuickFolders(opts?: { yieldFocus?: boolean }): void {
+    this.quickFolders.hide(opts)
   }
 
   /**
-   * IPC `panel:hide`（ESC）：关独立浮层并还焦呼出前应用。
-   * 与粘贴选完同一套还焦，避免功能面板被系统抬到最前。
+   * IPC `panel:hide`（ESC）：只关独立浮层，不还焦外部应用。
+   * 面板开着则回焦面板，留在当前桌面 / 本应用；粘贴仍走 restorePreviousFocus。
    */
   hidePanel(): void {
+    void this.dismissFloatingStayInApp()
+  }
+
+  /**
+   * ESC 关浮层：丢弃外部目标，不 activate 其它窗口（mac Space / Win 虚拟桌面都不会被拽走）。
+   * Win 须先夺焦到面板再 hide(yieldFocus:false)，否则 HideWindow 仍会激活上一 hwnd 并切桌面。
+   */
+  async dismissFloatingStayInApp(): Promise<void> {
     if (!this.clipboard.isVisible() && !this.quickFolders.isVisible()) return
-    void this.restorePreviousFocus()
+
+    this.clipboard.takePreviousAppBundleId()
+    this.quickFolders.takePreviousAppBundleId()
+
+    const panelOpen = this.panel.isVisible()
+    // 先把焦点接到本应用窗，再无让焦隐藏浮层，避免 Win 瞬间切到上一窗所在虚拟桌面
+    if (panelOpen) {
+      this.focusPanel()
+      await delay(40)
+    }
+
+    this.hideClipboard({ yieldFocus: false })
+    this.hideQuickFolders({ yieldFocus: false })
+
+    if (panelOpen) {
+      this.focusPanel()
+      await delay(RESTORE_FOCUS_DELAY_MS)
+      return
+    }
+
+    if (process.platform === 'darwin') {
+      app.focus({ steal: false })
+    } else if (process.platform === 'win32') {
+      app.focus()
+    }
+    await delay(RESTORE_FOCUS_DELAY_MS)
   }
 
   hideAllOverlays(): void {
@@ -263,10 +296,11 @@ export class WindowManager {
   }
 
   /**
-   * 粘贴 / ESC 关浮层时恢复焦点（与截屏 settle 共用 focusHandoff）：
+   * 粘贴关浮层时恢复焦点（与截屏 settle 共用 focusHandoff）：
    * - 独立浮层：回填呼出前的外部应用；不改动功能面板显隐与层级
    * - 浮层在本应用内呼出（未采到外部）：回焦面板
    * - 仅面板内剪贴板：关面板，激活呼出前 / 最近外部应用
+   * ESC 关浮层请用 dismissFloatingStayInApp，不走本方法。
    */
   async restorePreviousFocus(): Promise<boolean> {
     const clipboardOpen = this.clipboard.isVisible()

@@ -1,14 +1,15 @@
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow } from 'electron'
 import { join } from 'path'
 import type { AppConfig } from '@shared/types'
 import { loadRoute } from './loadRoute'
 import { asExternalBundleId, getFrontmostBundleId } from './focusTarget'
 import { applyOverlayFloatingLevel } from './floatingLevel'
+import { placeOverlayOnCursorDisplay, presentOnActiveSpace } from './presentNearCursor'
 import { reassertMacDockHiddenIfNeeded } from './macDockIcon'
 
 /**
  * 快捷文件夹浮层：无边框、置顶、失焦隐藏；由全局快捷键呼出。
- * 行为对齐 ClipboardWindow（mac 不用 type:panel，showInactive 避免抬起功能面板）。
+ * 行为对齐 ClipboardWindow（呼出跟鼠标屏 + 当前桌面；mac 不用 type:panel）。
  */
 export class QuickFoldersWindow {
   private win: BrowserWindow | null = null
@@ -68,7 +69,6 @@ export class QuickFoldersWindow {
     })
 
     this.applyFloatingLevel(win)
-    this.position(win)
 
     win.on('blur', () => {
       if (this.suppressBlurHide > 0) return
@@ -98,32 +98,46 @@ export class QuickFoldersWindow {
     await this.capturePreviousFocusTargetAsync()
     if (win.isDestroyed()) return
 
-    this.position(win)
+    placeOverlayOnCursorDisplay(win, this.getConfig().window.topOffset)
     if (win.isMinimized()) win.restore()
     this.applyFloatingLevel(win)
 
     // 不调 app.focus；mac 用 showInactive，避免抬起功能面板 / 程序坞
-    if (process.platform === 'darwin') {
-      win.showInactive()
-      win.focus()
-      reassertMacDockHiddenIfNeeded()
-    } else {
+    presentOnActiveSpace(win, () => {
+      if (process.platform === 'darwin') {
+        win.showInactive()
+        win.focus()
+        reassertMacDockHiddenIfNeeded()
+        return
+      }
       win.show()
       win.focus()
-    }
+    })
     win.webContents.send('panel:shown')
   }
 
-  hide(): void {
+  /**
+   * @param opts.yieldFocus 默认 true：关窗并让出焦点（打开目录 / 失焦隐藏）。
+   *   false：仅隐藏、不让焦——与剪贴板浮层一致，避免 Win 虚拟桌面被上一窗拽走。
+   */
+  hide(opts?: { yieldFocus?: boolean }): void {
     if (!this.win?.isVisible()) return
-    if (this.win.isFocused()) this.win.blur()
+    const yieldFocus = opts?.yieldFocus !== false
+
     if (process.platform === 'win32') {
       this.win.setAlwaysOnTop(false)
-      this.win.setFocusable(false)
-      this.win.hide()
-      this.win.setFocusable(true)
+      if (yieldFocus) {
+        if (this.win.isFocused()) this.win.blur()
+        this.win.setFocusable(false)
+        this.win.hide()
+        this.win.setFocusable(true)
+      } else {
+        this.win.hide()
+      }
       return
     }
+
+    if (yieldFocus && this.win.isFocused()) this.win.blur()
     this.win.hide()
   }
 
@@ -146,17 +160,6 @@ export class QuickFoldersWindow {
 
   private applyFloatingLevel(win: BrowserWindow): void {
     applyOverlayFloatingLevel(win, this.getConfig().window.alwaysOnTop)
-  }
-
-  /** 居中贴在鼠标所在显示器顶部 */
-  private position(win: BrowserWindow): void {
-    const cfg = this.getConfig().window
-    const cursor = screen.getCursorScreenPoint()
-    const { workArea } = screen.getDisplayNearestPoint(cursor)
-    const [w] = win.getSize()
-    const x = workArea.x + Math.round((workArea.width - w) / 2)
-    const y = workArea.y + cfg.topOffset
-    win.setPosition(x, y, false)
   }
 
   private async capturePreviousFocusTargetAsync(): Promise<void> {

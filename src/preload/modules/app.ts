@@ -25,7 +25,7 @@ export const appApi = {
   /** shortcuts:resume — 录制结束/取消/关设置窗时调用 */
   resumeShortcuts: (): Promise<boolean> => ipcRenderer.invoke('shortcuts:resume'),
 
-  /** panel:hide — 关独立浮层（剪贴板 / 快捷文件夹） */
+  /** panel:hide — ESC 关独立浮层（不还焦外部；有面板则回焦面板） */
   hidePanel: (): void => ipcRenderer.send('panel:hide'),
   /** settings:open */
   openSettings: (): void => ipcRenderer.send('settings:open'),

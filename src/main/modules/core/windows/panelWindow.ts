@@ -4,6 +4,7 @@ import type { AppConfig } from '@shared/types'
 import { resolveIsDark } from '../theme'
 import { loadRoute } from './loadRoute'
 import { syncMacDockIcon } from './macDockIcon'
+import { centerOnCursorDisplay, presentOnActiveSpace } from './presentNearCursor'
 import {
   asExternalBundleId,
   getFrontmostBundleId
@@ -38,7 +39,7 @@ export interface PanelShowOptions {
 /**
  * 功能面板窗口：titleBarStyle hidden + 原生窗控，顶部自定义通栏
  * 托盘左键 / 程序坞：已打开则置顶、不关闭；托盘右键可切换显隐；ESC / 失焦不关闭
- * macOS 程序坞：默认隐藏；唤起面板后显示；最小化仍保留
+ * 隐藏态再次呼出：跟鼠标所在屏居中 + 当前桌面；macOS 程序坞随面板显隐
  */
 export class PanelWindow {
   private win: BrowserWindow | null = null
@@ -120,8 +121,6 @@ export class PanelWindow {
       }
     })
 
-    win.center()
-
     win.on('close', (e) => {
       if (!this.isQuitting()) {
         e.preventDefault()
@@ -172,14 +171,18 @@ export class PanelWindow {
 
     const wasVisible = win.isVisible() && !win.isMinimized()
     if (win.isMinimized()) win.restore()
-    if (!win.isVisible()) win.center()
-    win.show()
-    win.moveTop()
-    win.focus()
-    if (process.platform === 'darwin') {
-      // activate / 截屏还原传 stealFocus:false；托盘呼出仍可 steal
-      app.focus({ steal: opts?.stealFocus !== false })
-    }
+    // 隐藏态呼出：跟鼠标所在屏；已打开只置顶，不拽走用户拖好的位置
+    if (!wasVisible) centerOnCursorDisplay(win)
+    // mac：先迁到当前 Space，再 show/focus，避免多桌面切回主桌面
+    presentOnActiveSpace(win, () => {
+      win.show()
+      win.moveTop()
+      win.focus()
+      if (process.platform === 'darwin') {
+        // activate / 截屏还原传 stealFocus:false；托盘呼出仍可 steal
+        app.focus({ steal: opts?.stealFocus !== false })
+      }
+    })
     syncMacDockIcon()
     // 仅首次露出时通知，避免 activate 反复刷 panel:shown
     if (!wasVisible) win.webContents.send('panel:shown')
