@@ -20,7 +20,7 @@
 
 ### 相关文件
 
-- `docs/prd/plugin-system.md` — 架构计划与分阶段
+- `docs/plugin-system.md` — 架构计划与分阶段
 - `src/shared/modules/feature.ts` — FeatureId / FeaturesConfig / 贡献点元类型
 - `src/main/modules/feature/` — FeatureHost / defineFeature / FeatureShared
 - `src/main/modules/clipboard/feature.ts` — clipboard Feature

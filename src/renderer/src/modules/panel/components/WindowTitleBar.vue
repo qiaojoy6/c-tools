@@ -22,9 +22,9 @@ const isMac = navigator.userAgent.includes('Mac')
   background: color-mix(in oklab, var(--rail) 70%, transparent);
 }
 
-/* macOS：避开左侧交通灯 */
+/* macOS：避开左侧交通灯（与主进程 trafficLightPosition 紧凑 inset 对齐） */
 .titlebar--mac {
-  padding: 0 16px 0 78px;
+  padding: 0 16px 0 65px;
 }
 
 /* Windows / Linux：右侧留给 titleBarOverlay 原生窗控 */

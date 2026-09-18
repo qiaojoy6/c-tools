@@ -4,6 +4,7 @@
   "description": "桌面效率工具：其中包含剪贴板、便捷文件夹，修改host文件等功能",
   "main": "./out/main/index.js",
   "author": "qiaoyue <1807280487@qq.com>",
+  "license": "MIT",
   "homepage": "https://github.com/qiaojoy6/c-tools",
   "scripts": {
     "format": "prettier --write .",

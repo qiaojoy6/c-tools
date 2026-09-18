@@ -98,7 +98,8 @@ export class PanelWindow {
       show: false,
       title: '功能面板',
       titleBarStyle: 'hidden',
-      trafficLightPosition: { x: 14, y: 12 },
+      // 紧凑贴左上：与 40px 通栏视觉对齐
+      trafficLightPosition: { x: 6, y: 12 },
       ...(process.platform !== 'darwin'
         ? {
             titleBarOverlay: { ...overlay }

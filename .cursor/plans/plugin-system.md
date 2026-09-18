@@ -1,6 +1,6 @@
 # Plugin system P0–P2
 
-See full plan: [docs/prd/plugin-system.md](../../docs/prd/plugin-system.md)
+See full plan: [docs/plugin-system.md](../../docs/plugin-system.md)
 
 ## Status
 

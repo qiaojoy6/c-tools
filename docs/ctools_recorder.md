@@ -1,6 +1,6 @@
 # 录屏技术方案
 
-本文档描述 **recorder-core** 当前实现，以及后续可优化点。产品功能清单见 `docs/prd/README.md`（只记有什么，不写实现细节）。
+本文档描述 **recorder-core** 当前实现，以及后续可优化点。产品功能清单见 `docs/README.md`（只记有什么，不写实现细节）。
 
 ---
 
@@ -118,7 +118,7 @@ Electron UI / 悬浮条 / 框选遮罩
 
 `DeviceInfoJs`：`{ id, name, deviceType, width, height, isPrimary }`，其中 `deviceType` 为 `"screen" | "mic" | "systemAudio"`。
 
-产品侧再经 IPC 包一层（`window.api.recorder`），字段语义与上表一致；UI/托盘细节见 `docs/prd/README.md`。
+产品侧再经 IPC 包一层（`window.api.recorder`），字段语义与上表一致；UI/托盘细节见 `docs/README.md`。
 
 ---
 
