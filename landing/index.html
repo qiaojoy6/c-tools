@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+    <title>c-tools — 桌面效率工作台</title>
+    <meta
+      name="description"
+      content="剪贴板、快捷文件夹、截屏标注、屏幕录制、项目预览、Hosts 方案 —— 常驻托盘的桌面效率工具。"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <div class="orb orb-a" aria-hidden="true"></div>
+    <div class="orb orb-b" aria-hidden="true"></div>
+
+    <header class="top">
+      <a class="brand" href="#top">
+        <img class="brand-icon" src="./favicon.ico" width="28" height="28" alt="" />
+        c-tools
+      </a>
+      <nav class="nav">
+        <a href="#features">功能</a>
+        <a href="#stack">能力面</a>
+        <a
+          class="nav-cta"
+          href="https://github.com/qiaojoy6/c-tools"
+          target="_blank"
+          rel="noopener"
+          >GitHub</a
+        >
+      </nav>
+    </header>
+
+    <main id="top">
+      <!-- Hero：品牌 + 主视觉占位 -->
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">macOS · Windows · 托盘常驻</p>
+          <h1>桌面效率，<span class="glow">收进一个面板</span></h1>
+          <p class="lede">
+            剪贴板历史、快捷文件夹、截屏标注、屏幕录制、本地项目预览、Hosts
+            多方案 —— 全局快捷键一呼即出，不打断你手头的事。
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="https://github.com/qiaojoy6/c-tools/releases" target="_blank" rel="noopener"
+              >下载 Release</a
+            >
+            <a class="btn btn-ghost" href="#features">看看能做什么</a>
+          </div>
+        </div>
+
+        <figure class="ph ph-hero" data-slot="hero">
+          <!-- <div class="ph-frame">
+            <span class="ph-file">assets/hero.png</span>
+            <span class="ph-hint">建议 1600×1000 · 功能面板全景主视觉</span>
+          </div> -->
+          <!-- 替换示例： -->
+          <img src="assets/hero.png" width="1600" height="1000" alt="c-tools 功能面板全景" />
+         
+        </figure>
+      </section>
+
+      <!-- 功能条带 -->
+      <section id="features" class="features">
+        <header class="section-head">
+          <h2>六块能力，一条工作流</h2>
+          <p>点开即用；截屏 / 录屏走托盘与全局快捷键，其余住在功能面板里。</p>
+        </header>
+
+        <!-- 01 剪贴板 -->
+        <article class="feature" id="clipboard">
+          <div class="feature-text">
+            <span class="idx">01</span>
+            <h3>剪贴板</h3>
+            <p>
+              后台监听文本与图片；历史去重、置顶、收藏与搜索筛选。快捷键呼出独立浮层，贴回呼出前的应用；也可在功能面板里慢慢翻。
+            </p>
+            <ul>
+              <li>类型筛选 · 虚拟滚动</li>
+              <li>图片缩略图与原图预览</li>
+              <li>空格多选 / Shift 批量粘贴</li>
+            </ul>
+          </div>
+          <figure class="ph ph-feature" data-slot="clipboard">
+            <!-- <div class="ph-frame">
+              <span class="ph-file">assets/clipboard.png</span>
+              <span class="ph-hint">建议 1200×800 · 剪贴板浮层或面板列表</span>
+            </div> -->
+            <img src="assets/clipboard.png" width="1200" height="800" alt="c-tools 剪贴板浮层或面板列表" />
+          </figure>
+        </article>
+
+        <!-- 02 快捷文件夹 -->
+        <article class="feature feature-flip" id="quick-folders">
+          <div class="feature-text">
+            <span class="idx">02</span>
+            <h3>快捷文件夹</h3>
+            <p>
+              把常用目录收成书签：备注、搜索、拖拽排序。Enter / 双击直接打开访达或资源管理器，浮层用完即关。
+            </p>
+            <ul>
+              <li>路径校验与失效灰显</li>
+              <li>拖入路径即可添加</li>
+              <li>独立浮层 + 面板双入口</li>
+            </ul>
+          </div>
+          <figure class="ph ph-feature" data-slot="quick-folders">
+            <!-- <div class="ph-frame">
+              <span class="ph-file">assets/quick-folders.png</span>
+              <span class="ph-hint">建议 1200×800 · 快捷文件夹列表</span>
+            </div> -->
+            <img src="assets/quick-folders.png" width="1200" height="800" alt="c-tools 快捷文件夹列表" />
+          </figure>
+        </article>
+
+        <!-- 03 截屏 -->
+        <article class="feature" id="screenshot">
+          <div class="feature-text">
+            <span class="idx">03</span>
+            <h3>截屏标注</h3>
+            <p>
+              QQ 式多屏截屏：点选窗口或框选区域，笔 / 矩形 / 箭头 / 马赛克。完成写入系统剪贴板并入库历史，也可直接下载 PNG。
+            </p>
+            <ul>
+              <li>选区缩放平移 · 撤销前进</li>
+              <li>截屏时可选隐藏本应用</li>
+              <li>托盘 / 全局快捷键入口</li>
+            </ul>
+          </div>
+          <figure class="ph ph-feature" data-slot="screenshot">
+            <!-- <div class="ph-frame">
+              <span class="ph-file">assets/screenshot.png</span>
+              <span class="ph-hint">建议 1400×900 · 遮罩选区 + 标注工具条</span>
+            </div> -->
+            <img src="assets/screenshot.png" width="1400" height="900" alt="c-tools 遮罩选区 + 标注工具条" />
+          </figure>
+        </article>
+
+        <!-- 04 录屏 -->
+        <article class="feature feature-flip" id="recorder">
+          <div class="feature-text">
+            <span class="idx">04</span>
+            <h3>屏幕录制</h3>
+            <p>
+              区域或全屏录制；系统声与麦克风可实时开关。停录后自选保存路径，悬浮条计时与音量反馈一目了然。
+            </p>
+            <ul>
+              <li>流畅 / 超清 / 原画三档</li>
+              <li>区域外框 + 可拖悬浮条</li>
+              <li>内置 ffmpeg，无需本机安装</li>
+            </ul>
+          </div>
+          <figure class="ph ph-feature" data-slot="recorder">
+            <!-- <div class="ph-frame">
+              <span class="ph-file">assets/recorder.png</span>
+              <span class="ph-hint">建议 1400×900 · 录制框选或悬浮条界面</span>
+            </div> -->
+            <img src="assets/recorder.png" width="1400" height="900" alt="c-tools 录制框选或悬浮条界面" />
+          </figure>
+        </article>
+
+        <!-- 05 项目 -->
+        <article class="feature" id="projects">
+          <div class="feature-text">
+            <span class="idx">05</span>
+            <h3>项目预览</h3>
+            <p>
+              选定工作区后扫描静态站点，一键起本地服务，用浏览器式页签内嵌预览。改端口、清分区缓存、右键检查，都在面板里完成。
+            </p>
+            <ul>
+              <li>favicon / 入口自动识别</li>
+              <li>SPA 回退 · 基础路径</li>
+              <li>多页签共用静态服务</li>
+            </ul>
+          </div>
+          <figure class="ph ph-feature" data-slot="projects">
+            <!-- <div class="ph-frame">
+              <span class="ph-file">assets/projects.png</span>
+              <span class="ph-hint">建议 1400×900 · 项目首页卡片或预览页签</span>
+            </div> -->
+            <img src="assets/projects.png" width="1400" height="900" alt="c-tools 项目首页卡片或预览页签" />
+          </figure>
+        </article>
+
+        <!-- 06 Hosts -->
+        <article class="feature feature-flip" id="hosts">
+          <div class="feature-text">
+            <span class="idx">06</span>
+            <h3>Hosts 方案</h3>
+            <p>
+              多方案 Tab 编辑，语法高亮；开开关即提权写入系统 hosts，块外内容不动。免密会话滑动续期，写成功自动 flush DNS。
+            </p>
+            <ul>
+              <li>系统 hosts 只读预览</li>
+              <li>多方案叠加 · 拖拽优先级</li>
+              <li>不收集、不存储密码</li>
+            </ul>
+          </div>
+          <figure class="ph ph-feature" data-slot="hosts">
+            <!-- <div class="ph-frame">
+              <span class="ph-file">assets/hosts.png</span>
+              <span class="ph-hint">建议 1200×800 · Hosts 编辑器界面</span>
+            </div> -->
+            <img src="assets/hosts.png" width="1200" height="800" alt="c-tools Hosts 编辑器界面" />
+          </figure>
+        </article>
+      </section>
+
+      <!-- 能力面：小图网格占位 -->
+      <section id="stack" class="stack">
+        <header class="section-head">
+          <h2>常驻托盘，全局呼出</h2>
+          <p>关窗口不退出；程序坞 / 托盘随时置顶功能面板。</p>
+        </header>
+        <div class="stack-grid">
+          <figure class="ph ph-tile" data-slot="tray">
+            <!-- <div class="ph-frame">
+              <span class="ph-file">assets/tray.png</span>
+              <span class="ph-hint">托盘菜单截图</span>
+            </div> -->
+            <img src="assets/tray.png" width="1200" height="800" alt="c-tools 托盘菜单截图" />
+          </figure>
+          <figure class="ph ph-tile" data-slot="shortcuts">
+            <!-- <div class="ph-frame">
+              <span class="ph-file">assets/shortcuts.png</span>
+              <span class="ph-hint">快捷键设置页</span>
+            </div> -->
+            <img src="assets/shortcuts.png" width="1200" height="800" alt="c-tools 快捷键设置页" />
+          </figure>
+          <figure class="ph ph-tile" data-slot="settings">
+            <!-- <div class="ph-frame">
+              <span class="ph-file">assets/settings.png</span>
+              <span class="ph-hint">设置 / 主题切换</span>
+            </div> -->
+            <img src="assets/settings.png" width="1200" height="800" alt="c-tools 设置 / 主题切换" />
+          </figure>
+        </div>
+      </section>
+
+      <section class="cta">
+        <h2>开源 · MIT</h2>
+        <p>源码与安装包都在 GitHub。欢迎提 Issue / PR。</p>
+        <a class="btn btn-primary" href="https://github.com/qiaojoy6/c-tools" target="_blank" rel="noopener"
+          >打开仓库</a
+        >
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>c-tools</span>
+      <span class="dot" aria-hidden="true"></span>
+      <span>桌面效率工作台</span>
+    </footer>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
