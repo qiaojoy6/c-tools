@@ -101,7 +101,9 @@ export class ScreenshotSession {
         return
       }
 
-      this.frames = await captureAllDisplays()
+      // 只框选鼠标所在屏，不在另一块屏同时进入截屏
+      const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+      this.frames = await captureAllDisplays(cursorDisplay.id)
       if (seq !== this.startSeq) {
         await this.finishCleanupAsync()
         return

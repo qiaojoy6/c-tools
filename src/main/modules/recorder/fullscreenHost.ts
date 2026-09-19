@@ -6,12 +6,14 @@ import type {
   RecorderFullscreenInit
 } from '../../../shared/modules/recorder'
 import { loadRoute } from '../core/windows/loadRoute'
+import { presentOnActiveSpace } from '../core/windows/presentNearCursor'
 
 const WIN_W = 420
 const WIN_H = 460
 
 /**
  * 全屏录屏选屏弹窗：独立置顶窗，加载 `/recorder-fullscreen`。
+ * 落在鼠标所在屏；macOS 迁到当前桌面，避免切回主桌面。
  * 用户确认后回传 screenId + 麦克风/系统声/清晰度。
  */
 export class RecorderFullscreenHost {
@@ -124,8 +126,10 @@ export class RecorderFullscreenHost {
           const init: RecorderFullscreenInit = { sessionId: _sessionId, screens }
           win.webContents.send('recorder:fullscreen-init', init)
           if (!win.isDestroyed()) {
-            win.show()
-            win.focus()
+            presentOnActiveSpace(win, () => {
+              win.show()
+              win.focus()
+            })
           }
         } catch (err) {
           console.error('[recorder] fullscreen dialog failed:', err)

@@ -55,21 +55,31 @@ function storeFrame(displayId: number, png: Buffer, dir: string): string {
 }
 
 /**
- * 抓取所有显示器冻结帧。
+ * 抓取冻结帧。`onlyDisplayId` 有值时只抓那一块屏（框选不跨屏）。
  * macOS：screencapture 原生分辨率（更清晰、通常更快）
  * 其它：desktopCapturer 按屏精确尺寸，禁止放大糊化
  */
-export async function captureAllDisplays(): Promise<ShotDisplayFrame[]> {
+export async function captureAllDisplays(onlyDisplayId?: number): Promise<ShotDisplayFrame[]> {
   const dir = resetScreenshotTemp()
   if (process.platform === 'darwin') {
-    return captureMac(dir)
+    const frames = await captureMac(dir, onlyDisplayId)
+    if (frames.length) return frames
+    return captureDesktopCapturer(dir, onlyDisplayId)
   }
-  return captureDesktopCapturer(dir)
+  return captureDesktopCapturer(dir, onlyDisplayId)
+}
+
+/** 未指定则全部；指定了但找不到则回退全部，避免空抓 */
+function displaysToCapture(onlyDisplayId?: number) {
+  const all = screen.getAllDisplays()
+  if (onlyDisplayId == null) return all
+  const one = all.filter((d) => d.id === onlyDisplayId)
+  return one.length ? one : all
 }
 
 /** macOS：按显示器并行 screencapture */
-async function captureMac(dir: string): Promise<ShotDisplayFrame[]> {
-  const displays = screen.getAllDisplays()
+async function captureMac(dir: string, onlyDisplayId?: number): Promise<ShotDisplayFrame[]> {
+  const displays = displaysToCapture(onlyDisplayId)
   const tasks = displays.map(async (display) => {
     const fileName = frameFileName(display.id)
     const imagePath = join(dir, fileName)
@@ -106,15 +116,15 @@ async function captureMac(dir: string): Promise<ShotDisplayFrame[]> {
   })
 
   const results = await Promise.all(tasks)
-  const frames = results.filter((f): f is ShotDisplayFrame => Boolean(f))
-  if (frames.length) return frames
-  // 全部失败则回退
-  return captureDesktopCapturer(dir)
+  return results.filter((f): f is ShotDisplayFrame => Boolean(f))
 }
 
 /** desktopCapturer：逐屏请求精确物理像素，避免大画布塞小屏再拉伸 */
-async function captureDesktopCapturer(dir: string): Promise<ShotDisplayFrame[]> {
-  const displays = screen.getAllDisplays()
+async function captureDesktopCapturer(
+  dir: string,
+  onlyDisplayId?: number
+): Promise<ShotDisplayFrame[]> {
+  const displays = displaysToCapture(onlyDisplayId)
   const frames: ShotDisplayFrame[] = []
 
   // 并行按屏抓取（比一次超大 thumbnail 更清晰）

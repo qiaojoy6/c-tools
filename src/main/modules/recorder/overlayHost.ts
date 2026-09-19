@@ -2,13 +2,15 @@ import { join } from 'path'
 import { BrowserWindow, ipcMain, screen } from 'electron'
 import { loadRoute } from '../core/windows/loadRoute'
 import { reassertMacDockHiddenIfNeeded } from '../core/windows/macDockIcon'
+import { presentOnActiveSpace } from '../core/windows/presentNearCursor'
 import type { RecorderOverlayInit } from '@shared/modules/recorder'
 import type { ShotWindowInfo } from '@shared/modules/screenshot'
 import { windowsOnDisplay } from '../screenshot/windowHit'
 
 /**
  * 每块屏一个透明置顶框选遮罩（无冻屏，底下是实时桌面）。
- * macOS 策略与截屏遮罩一致：panel + screen-saver，不用系统栏 / VisibleOnAllWorkspaces。
+ * macOS 策略与截屏遮罩一致：screen-saver 置顶、不用系统栏。
+ * 预热窗绑在创建时的 Space，呼出时短暂迁到当前桌面，避免切回主桌面。
  */
 export class RecorderOverlayHost {
   private wins = new Map<number, BrowserWindow>()
@@ -170,14 +172,17 @@ export class RecorderOverlayHost {
       win.setFocusable(true)
       win.setAlwaysOnTop(true, 'screen-saver')
       win.setBounds(place)
-      if (!win.isVisible()) {
-        if (process.platform === 'darwin') win.showInactive()
-        else win.show()
-      } else {
-        win.moveTop()
-      }
-      win.setBounds(place)
-      win.focus()
+      // 预热窗可能在别的 Space；迁到当前桌面再露出
+      presentOnActiveSpace(win, () => {
+        if (!win.isVisible()) {
+          if (process.platform === 'darwin') win.showInactive()
+          else win.show()
+        } else {
+          win.moveTop()
+        }
+        win.setBounds(place)
+        win.focus()
+      })
     }
     reassertMacDockHiddenIfNeeded()
   }

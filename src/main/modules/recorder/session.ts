@@ -176,7 +176,7 @@ export class RecorderSelectSession {
     }
   }
 
-  /** 区域录屏：多屏透明遮罩，点选应用窗或拖拽框选；不藏本应用窗 */
+  /** 区域录屏：鼠标所在屏透明遮罩，点选应用窗或拖拽框选；不藏本应用窗 */
   async startRegion(): Promise<void> {
     if (this.active || this.fullscreen.isOpen) {
       await this.cancelAsync()
@@ -204,16 +204,18 @@ export class RecorderSelectSession {
         console.warn('[recorder] listScreens failed:', err)
       }
 
-      const displays = screen.getAllDisplays()
-      if (!displays.length) {
+      const all = screen.getAllDisplays()
+      if (!all.length) {
         dialog.showErrorBox('录屏失败', '未检测到显示器。')
         await this.finishCleanupAsync({ restoreFocus: true })
         return
       }
+      // 只在鼠标所在屏框选，避免两块屏同时画选区
+      const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
 
-      const inits: RecorderOverlayInit[] = displays.map((d) =>
-        buildOverlayInit(d, screens, this.sessionId)
-      )
+      const inits: RecorderOverlayInit[] = [
+        buildOverlayInit(cursorDisplay, screens, this.sessionId)
+      ]
       await this.overlays.showSession(inits)
       void this.fillWindowsAsync(seq)
     } catch (err) {
