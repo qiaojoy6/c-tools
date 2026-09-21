@@ -51,6 +51,7 @@
 - 应用菜单保留 Edit（系统复制/粘贴依赖）与 View；无 File / Window；View 可开关「点击空白区域隐藏窗口」（作用于独立剪贴板浮层）；刷新 / DevTools 仅开发环境（未打包）提供
 - 托盘常驻（关窗口不退出）；右键菜单含「截屏 / 区域录屏 / 全屏录屏」等入口；已配置的全局快捷键会显示在对应菜单项旁
 - 配置本地持久化
+- 写死的产品常量集中在 `src/shared/appTuning.ts`（面板/设置窗尺寸、录屏框选与帧率、截屏标注范围、还焦与粘贴前等待、Hosts 授权时长、更新检查地址）；用户可改的默认值仍在 `src/main/config/defaults.ts` 与 `src/shared/shortcuts.ts`
 - 开机自启（设置与托盘共用配置；变更后同步系统登录项，并推送 `config:updated` 刷新设置窗）
 - 单实例（二次启动唤起功能面板；程序坞 / Cmd+Tab 切回立刻置顶且不异步采焦、不 steal）
 - 粘贴：先写入系统剪贴板，再关窗并模拟粘贴；自动粘贴失败时提示手动 Ctrl+V / ⌘V（不再因焦点失败而跳过写入）
@@ -75,6 +76,7 @@
 - `src/main/modules/feature/` — 内置 Feature 宿主（见「feature」节）
 - `src/main/index.ts` — 薄入口：单实例、协议、ready、生命周期
 - `src/main/config/` — 默认配置与读写
+- `src/shared/appTuning.ts` — 写死的产品常量（改尺寸/延时/上限）
 - `src/renderer/src/pages/PanelPage.vue` — 功能面板壳（表头 + shadcn Sidebar；模块页来自 `panel/tabs`）
 - `src/renderer/src/components/ui/sidebar/` — shadcn-vue Sidebar（嵌入面板布局）
 - `src/renderer/src/modules/panel/components/WindowTitleBar.vue` — 通栏自定义表头（无自绘窗控）

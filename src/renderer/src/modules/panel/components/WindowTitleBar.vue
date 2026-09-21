@@ -2,20 +2,26 @@
 /**
  * 功能面板通栏自定义表头：仅标题与拖拽区
  * 最小化 / 最大化 / 关闭由主进程 titleBarStyle + titleBarOverlay（原生）提供
+ * 高度与标题见 appTuning.PANEL_WINDOW
  */
+import { PANEL_WINDOW } from '@shared/appTuning'
+
 const isMac = navigator.userAgent.includes('Mac')
 </script>
 
 <template>
-  <header class="titlebar app-drag" :class="isMac ? 'titlebar--mac' : 'titlebar--win'">
-    <span class="title">功能面板</span>
+  <header
+    class="titlebar app-drag"
+    :class="isMac ? 'titlebar--mac' : 'titlebar--win'"
+    :style="{ height: `${PANEL_WINDOW.titleBarHeight}px` }"
+  >
+    <span class="title">{{ PANEL_WINDOW.title }}</span>
   </header>
 </template>
 
 <style scoped>
 .titlebar {
   display: flex;
-  height: 40px;
   flex-shrink: 0;
   align-items: center;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 40%, transparent);

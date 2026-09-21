@@ -6,6 +6,7 @@
  * 2. hide 本应用窗
  * 3. activateExternalApp — 激活外部并等待焦点稳定
  */
+import { restoreFocusDelayMs } from '@shared/appTuning'
 import { delay } from './loadRoute'
 import {
   activateFocusTarget,
@@ -16,8 +17,8 @@ import {
   prepareWindowsFocusHandoff
 } from './focusTarget'
 
-/** 还焦后等待时长（经验值，非系统标准；过短易贴错窗） */
-export const RESTORE_FOCUS_DELAY_MS = process.platform === 'win32' ? 180 : 90
+/** 还焦后等待时长（见 appTuning.FOCUS_TIMING） */
+export const RESTORE_FOCUS_DELAY_MS = restoreFocusDelayMs()
 
 /** Win：在 hide 本应用窗之前调用，放行目标抢前台 */
 export function prepareYieldFocus(bundleId: string | null | undefined): void {

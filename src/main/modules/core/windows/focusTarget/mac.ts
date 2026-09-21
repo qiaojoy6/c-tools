@@ -2,9 +2,10 @@
  * macOS：前台目标采集 / 激活 / 模拟 ⌘V
  * 原生逻辑在 focus-paste-napi；此处只做短延时与加载兜底
  */
+import { prePasteDelayMs } from '@shared/appTuning'
 import { loadFocusPaste } from './native'
 
-const PRE_PASTE_DELAY_MS = 10
+const PRE_PASTE_DELAY_MS = prePasteDelayMs('darwin')
 
 let ownBundleId: string | null | undefined
 

@@ -1,6 +1,11 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
 import type { AppConfig } from '@shared/types'
+import {
+  PANEL_TITLE_BAR_OVERLAY_DARK,
+  PANEL_TITLE_BAR_OVERLAY_LIGHT,
+  PANEL_WINDOW
+} from '@shared/appTuning'
 import { resolveIsDark } from '../theme'
 import { loadRoute } from './loadRoute'
 import { syncMacDockIcon } from './macDockIcon'
@@ -9,22 +14,6 @@ import {
   asExternalBundleId,
   getFrontmostBundleId
 } from './focusTarget'
-
-/** 功能面板通栏高度，与渲染侧表头、titleBarOverlay 一致 */
-export const PANEL_TITLE_BAR_HEIGHT = 40
-
-/** Windows / Linux 原生窗控覆盖层：浅 / 深随主题 */
-export const PANEL_TITLE_BAR_OVERLAY_LIGHT = {
-  color: '#eef0f3',
-  symbolColor: '#52525b',
-  height: PANEL_TITLE_BAR_HEIGHT
-} as const
-
-export const PANEL_TITLE_BAR_OVERLAY_DARK = {
-  color: '#2a2e38',
-  symbolColor: '#c4c4cc',
-  height: PANEL_TITLE_BAR_HEIGHT
-} as const
 
 export interface PanelShowOptions {
   /** 显示前是否采焦（默认 true；异步短超时，不卡死主进程） */
@@ -92,15 +81,15 @@ export class PanelWindow {
       : PANEL_TITLE_BAR_OVERLAY_LIGHT
 
     const win = new BrowserWindow({
-      width: 880,
-      height: 600,
-      minWidth: 720,
-      minHeight: 480,
+      width: PANEL_WINDOW.width,
+      height: PANEL_WINDOW.height,
+      minWidth: PANEL_WINDOW.minWidth,
+      minHeight: PANEL_WINDOW.minHeight,
       show: false,
-      title: '功能面板',
+      title: PANEL_WINDOW.title,
       titleBarStyle: 'hidden',
-      // 紧凑贴左上：与 40px 通栏视觉对齐
-      trafficLightPosition: { x: 6, y: 12 },
+      // 紧凑贴左上：与通栏高度对齐
+      trafficLightPosition: { ...PANEL_WINDOW.trafficLight },
       ...(process.platform !== 'darwin'
         ? {
             titleBarOverlay: { ...overlay }

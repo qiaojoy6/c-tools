@@ -1,4 +1,6 @@
 /** 截屏标注工具（select = 框选/点选后移动已有标注） */
+import { SCREENSHOT_UI } from '@shared/appTuning'
+
 export type AnnotTool = 'select' | 'pen' | 'rect' | 'arrow' | 'mosaic'
 
 export const ANNOT_COLORS = [
@@ -12,15 +14,15 @@ export const ANNOT_COLORS = [
   '#111827'
 ] as const
 
-/** 线宽 range：1–20，默认 3 */
-export const STROKE_MIN = 1
-export const STROKE_MAX = 20
-export const STROKE_DEFAULT = 3
+/** 线宽 range，数值见 appTuning.SCREENSHOT_UI.stroke */
+export const STROKE_MIN = SCREENSHOT_UI.stroke.min
+export const STROKE_MAX = SCREENSHOT_UI.stroke.max
+export const STROKE_DEFAULT = SCREENSHOT_UI.stroke.default
 
-/** 马赛克粒度 range：2–10，默认 6 */
-export const MOSAIC_MIN = 2
-export const MOSAIC_MAX = 10
-export const MOSAIC_DEFAULT = 6
+/** 马赛克粒度 range，数值见 appTuning.SCREENSHOT_UI.mosaic */
+export const MOSAIC_MIN = SCREENSHOT_UI.mosaic.min
+export const MOSAIC_MAX = SCREENSHOT_UI.mosaic.max
+export const MOSAIC_DEFAULT = SCREENSHOT_UI.mosaic.default
 
 export type AnnotStroke =
   | {
@@ -85,9 +87,9 @@ export function hitWindow(
   return null
 }
 
-/** 工具条与选区/屏幕边缘的间距 */
-export const DOCK_GAP = 10
-export const DOCK_MARGIN = 8
+/** 工具条与选区/屏幕边缘的间距，数值见 appTuning.SCREENSHOT_UI */
+export const DOCK_GAP = SCREENSHOT_UI.dockGap
+export const DOCK_MARGIN = SCREENSHOT_UI.dockMargin
 
 /**
  * 工具条自动落位（客户区坐标）：优先选区下方 → 上方 → 选区内贴近底边。

@@ -1,13 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'path'
+import { SETTINGS_WINDOW } from '@shared/appTuning'
 import { loadRoute } from './loadRoute'
-
-const SETTINGS_WINDOW = {
-  width: 720,
-  height: 560,
-  minWidth: 640,
-  minHeight: 480
-} as const
 
 /**
  * 设置窗口：普通带边框，可承载多模块设置页

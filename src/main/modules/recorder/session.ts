@@ -10,6 +10,7 @@ import {
   recorderConcealStrategy,
   type AppUiConcealSession
 } from '../core/windows'
+import { RECORDER_UI } from '@shared/appTuning'
 import { delay } from '../core/windows/loadRoute'
 import {
   hasScreenCapturePermission,
@@ -550,8 +551,8 @@ function dipToPhysical(
 }
 
 function clampFps(fps: unknown): number {
-  const n = Math.floor(Number(fps) || 30)
-  return Math.min(60, Math.max(1, n))
+  const n = Math.floor(Number(fps) || RECORDER_UI.defaultFps)
+  return Math.min(RECORDER_UI.maxFps, Math.max(RECORDER_UI.minFps, n))
 }
 
 function clampQuality(q: unknown): 'original' | 'ultra' | 'smooth' {

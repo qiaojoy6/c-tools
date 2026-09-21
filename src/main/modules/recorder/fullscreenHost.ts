@@ -1,5 +1,6 @@
 import { join } from 'path'
 import { BrowserWindow, ipcMain, screen } from 'electron'
+import { RECORDER_UI } from '@shared/appTuning'
 import type {
   RecorderDeviceInfo,
   RecorderFullscreenConfirm,
@@ -8,8 +9,8 @@ import type {
 import { loadRoute } from '../core/windows/loadRoute'
 import { presentOnActiveSpace } from '../core/windows/presentNearCursor'
 
-const WIN_W = 420
-const WIN_H = 460
+const WIN_W = RECORDER_UI.fullscreenDialog.width
+const WIN_H = RECORDER_UI.fullscreenDialog.height
 
 /**
  * 全屏录屏选屏弹窗：独立置顶窗，加载 `/recorder-fullscreen`。

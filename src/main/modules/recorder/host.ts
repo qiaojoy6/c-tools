@@ -9,6 +9,7 @@ import type {
   RecorderState,
   RecorderStatus
 } from '@shared/modules/recorder'
+import { RECORDER_UI } from '@shared/appTuning'
 import {
   hasMicPermission,
   hasSystemAudioPermission,
@@ -141,7 +142,7 @@ export class RecorderHost {
     } = {
       enableMic,
       enableSystemAudio,
-      fps: opts.fps ?? 30,
+      fps: opts.fps ?? RECORDER_UI.defaultFps,
       quality: normalizeQuality(opts.quality),
       outputPath
     }

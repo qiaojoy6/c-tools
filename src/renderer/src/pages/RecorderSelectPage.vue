@@ -22,13 +22,11 @@ import {
   normalizeRect,
   type SelRect
 } from '@renderer/modules/screenshot/tools'
+import { RECORDER_UI } from '@shared/appTuning'
 import { useRecorderPrefs } from '@renderer/modules/recorder/composables/useRecorderPrefs'
 
-const DRAG_THRESHOLD = 5
-const MIN_SEL = 16
-
-/** 区域录屏固定 MP4、默认 30fps；清晰度与全屏录屏共用选项条 */
-const DEFAULT_FPS = 30
+const DRAG_THRESHOLD = RECORDER_UI.dragThresholdPx
+const MIN_SEL = RECORDER_UI.minSelectionDip
 
 const init = ref<RecorderOverlayInit | null>(null)
 const sel = ref<SelRect | null>(null)
@@ -311,7 +309,7 @@ async function onStart(): Promise<void> {
       enableMic: enableMic.value,
       enableSystemAudio: enableSystemAudio.value,
       micDeviceId: micDeviceId.value.trim() || undefined,
-      fps: DEFAULT_FPS,
+      fps: RECORDER_UI.defaultFps,
       quality: quality.value
     })
   } finally {

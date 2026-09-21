@@ -1,10 +1,13 @@
 /** macOS root helper：仅允许写指定 hosts 路径 */
+import { hostsAuthTtlSec } from '@shared/appTuning'
+
 export function buildMacHelperScript(): string {
+  const ttlSec = hostsAuthTtlSec()
   return `#!/bin/bash
 set -u
 DIR="$1"
 HOSTS_PATH="$2"
-TTL="\${3:-600}"
+TTL="\${3:-${ttlSec}}"
 DEADLINE=$((SECONDS + TTL))
 printf '%s' "$(($(date +%s) * 1000))" > "$DIR/heartbeat"
 printf '1\\n' > "$DIR/ready"
@@ -46,10 +49,11 @@ exit 0
 
 /** Windows Admin helper */
 export function buildWinHelperScript(): string {
+  const ttlSec = hostsAuthTtlSec()
   return `param(
   [Parameter(Mandatory=$true)][string]$Dir,
   [Parameter(Mandatory=$true)][string]$HostsPath,
-  [int]$TtlSec = 600
+  [int]$TtlSec = ${ttlSec}
 )
 $ErrorActionPreference = "Stop"
 $deadline = (Get-Date).AddSeconds($TtlSec)

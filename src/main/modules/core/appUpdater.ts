@@ -6,16 +6,17 @@
  */
 import { BrowserWindow, Notification, app, shell } from 'electron'
 import electronUpdater from 'electron-updater'
+import { UPDATER_TUNING } from '@shared/appTuning'
 import type { UpdateStatus } from '@shared/types'
 import { writeDiag } from './crashGuard'
 
 const { autoUpdater } = electronUpdater
 
 /** 启动后延迟检查，避开冷启动抢带宽 */
-const STARTUP_CHECK_DELAY_MS = 5_000
+const STARTUP_CHECK_DELAY_MS = UPDATER_TUNING.startupCheckDelayMs
 
 /** mac 无签名时手动下载页 */
-const GITHUB_RELEASES_URL = 'https://github.com/qiaojoy6/c-tools/releases/latest'
+const GITHUB_RELEASES_URL = UPDATER_TUNING.githubReleasesUrl
 
 /** macOS 暂走手动下载（需 Developer ID 后可改回自动安装） */
 const MANUAL_DOWNLOAD = process.platform === 'darwin'

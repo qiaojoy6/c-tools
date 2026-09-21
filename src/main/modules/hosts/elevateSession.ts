@@ -13,13 +13,14 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import type { HostsAuthSession } from '@shared/types'
+import { HOSTS_TUNING } from '@shared/appTuning'
 import { getSystemHostsPath } from './paths'
 import { buildMacHelperScript, buildWinHelperScript } from './elevateHelperScripts'
 
 const execFileAsync = promisify(execFile)
 
-/** 授权会话空闲续期（滑动窗口） */
-export const HOSTS_AUTH_SESSION_TTL_MS = 10 * 60 * 1000
+/** 授权会话空闲续期（滑动窗口），时长见 appTuning.HOSTS_TUNING */
+const HOSTS_AUTH_SESSION_TTL_MS = HOSTS_TUNING.authSessionTtlMs
 
 const WRITE_TIMEOUT_MS = 30_000
 const AUTH_WAIT_MS = 180_000

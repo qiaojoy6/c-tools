@@ -4,7 +4,8 @@ import { defaultShortcuts } from '@shared/shortcuts'
 /**
  * 默认配置（Source of Truth）
  * 用户配置存储于 userData/settings.json，与本默认值深度合并后生效。
- * 快捷键默认值见 `@shared/shortcuts` 的 `DEFAULT_SHORTCUTS`。
+ * 快捷键默认值见 `@shared/shortcuts`。
+ * 不进设置、写死的窗口尺寸 / 延时 / 录屏约束见 `@shared/appTuning`。
  */
 export const DEFAULT_CONFIG: AppConfig = {
   window: {

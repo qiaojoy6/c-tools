@@ -1,12 +1,13 @@
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { app, BrowserWindow, ipcMain, screen, session } from 'electron'
+import { RECORDER_UI } from '@shared/appTuning'
 
-const BORDER_PX = 3
+const BORDER_PX = RECORDER_UI.borderPx
 
 /** 悬浮条固定尺寸（展开含系统声/麦/暂停/停止四键） */
-const FLOAT_SIZE = { w: 168, h: 34 }
-const FLOAT_MARGIN = 10
+const FLOAT_SIZE = { w: RECORDER_UI.float.width, h: RECORDER_UI.float.height }
+const FLOAT_MARGIN = RECORDER_UI.float.margin
 
 let mediaPermissionHooked = false
 

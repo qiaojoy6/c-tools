@@ -5,10 +5,8 @@ import { Monitor, X } from 'lucide-vue-next'
 import { Button } from '@renderer/components/ui/button'
 import type { SelectOption } from '@renderer/components/ui/select'
 import RecorderOptionsBar from '@renderer/modules/recorder/components/RecorderOptionsBar.vue'
+import { RECORDER_UI } from '@shared/appTuning'
 import { useRecorderPrefs } from '@renderer/modules/recorder/composables/useRecorderPrefs'
-
-/** 全屏录屏固定 MP4、默认 30fps；清晰度与区域录屏一致 */
-const DEFAULT_FPS = 30
 
 const init = ref<RecorderFullscreenInit | null>(null)
 const selectedId = ref('')
@@ -69,7 +67,7 @@ async function onStart(): Promise<void> {
       enableMic: enableMic.value,
       enableSystemAudio: enableSystemAudio.value,
       micDeviceId: micDeviceId.value.trim() || undefined,
-      fps: DEFAULT_FPS,
+      fps: RECORDER_UI.defaultFps,
       quality: quality.value
     })
   } finally {

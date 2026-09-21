@@ -37,6 +37,7 @@ import {
   resizeBoundsLocal,
   resizeByHandle
 } from '@renderer/modules/screenshot/selGeom'
+import { SCREENSHOT_UI } from '@shared/appTuning'
 import {
   ANNOT_COLORS,
   MOSAIC_MAX,
@@ -49,7 +50,7 @@ import {
   type SelRect
 } from '@renderer/modules/screenshot/tools'
 
-const DRAG_THRESHOLD = 5
+const DRAG_THRESHOLD = SCREENSHOT_UI.dragThresholdPx
 
 const hoverWin = ref<ShotWindowInfo['bounds'] | null>(null)
 const draft = ref<SelRect | null>(null)

@@ -3,10 +3,11 @@
  * 原生逻辑在 focus-paste-napi；此处只做延时编排与 PowerShell 兜底
  */
 import { execFile } from 'child_process'
+import { prePasteDelayMs } from '@shared/appTuning'
 import { loadFocusPaste } from './native'
 
-/** 激活目标应用后、发粘贴键前的短等待 */
-const PRE_PASTE_DELAY_MS = 80
+/** 激活目标应用后、发粘贴键前的短等待（见 appTuning.FOCUS_TIMING） */
+const PRE_PASTE_DELAY_MS = prePasteDelayMs('win32')
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
