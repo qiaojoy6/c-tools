@@ -106,7 +106,7 @@
 - 面板内剪贴板模块：双击 / Enter 粘贴后仍关闭窗口
 - 独立浮层粘贴：回填呼出前的前台应用；不改动功能面板窗口层级
 - ESC 关浮层：不还焦外部应用（mac 不切 Space / Win 不切虚拟桌面）；面板开着则回焦面板；粘贴仍还焦呼出前应用
-- 搜索优先、类型筛选芯片（全部/文本/图片/收藏）、虚拟滚动列表展示
+- 搜索优先（文本支持原文 / 拼音全拼 / 首字母）、类型筛选芯片（全部/文本/图片/收藏）、虚拟滚动列表展示
 - 打开浮层不自动聚焦搜索；敲击英文/数字时才聚焦并输入；⌘/Ctrl+F 手动聚焦
 - ← / → 未聚焦搜索时切换类型筛选；聚焦后为移动光标；↑ / ↓ 切换列表
 - 文本超长默认收起 3 行，可展开/收起；列表仅渲染截断预览（完整内容仍可粘贴），避免超大文本拖垮 Layout
@@ -120,6 +120,7 @@
 
 - `src/main/modules/clipboard/` — assemble / feature / hostServices / watcher / history / favorites / paste / imageStore / ipc / broadcast
 - `src/renderer/src/pages/ClipboardPage.vue` — 剪贴板内容（独立路由与面板内嵌共用）
+- `src/renderer/src/lib/textMatch.ts` — 文本搜索（原文 + 拼音；剪贴板 / 快捷文件夹共用）
 - `src/renderer/src/components/SearchField.vue` — 浮层搜索框（剪贴板 / 快捷文件夹共用）
 - `src/renderer/src/components/ListFooter.vue` — 浮层底栏条数 / 快捷键提示（剪贴板 / 快捷文件夹共用）
 - `src/renderer/src/components/ToastMessage.vue` — 顶部轻提示（剪贴板 / 快捷文件夹 / 设置共用）
@@ -138,7 +139,7 @@
 - 快捷文件夹书签：本地持久化路径 + 可选备注；路径唯一；默认上限 50（设置可改）
 - 双入口：全局快捷键 → 独立浮层（行为对齐剪贴板，含 macOS `floating` 置顶以免盖输入法候选；ESC 关浮层不还焦外部、不抬功能面板）；功能面板左侧 Tab 内嵌同一页面
 - 添加：页面内系统选目录、粘贴/手输路径，或将文件夹拖入添加/编辑弹窗的路径框；添加时路径必须是已存在的文件夹；重复路径拒绝
-- 列表：有备注显示备注，无备注显示文件夹名，其后跟路径；搜索扫备注/文件夹名/路径
+- 列表：有备注显示备注，无备注显示文件夹名，其后跟路径；搜索扫备注/文件夹名/路径（支持拼音全拼 / 首字母）
 - 打开：Enter / 双击 → `shell.openPath`；独立浮层打开后立刻关闭并保持 Finder/资源管理器在前（不抬功能面板）
 - 编辑：有效项可改备注与路径；失效路径灰显「路径无效」，仅可删除（删除前二次确认）
 - 排序：默认新添加在上；支持拖拽改序并持久化（搜索中禁用拖拽）
@@ -150,6 +151,7 @@
 - `src/main/modules/quickFolders/` — store / ipc / feature（FeatureHost：lifecycle + IPC + 快捷键）
 - `src/main/modules/core/windows/quickFoldersWindow.ts` — 独立浮层
 - `src/renderer/src/pages/QuickFoldersPage.vue` — 列表与添加/编辑（独立路由与面板内嵌共用）
+- `src/renderer/src/lib/textMatch.ts` — 文本搜索（原文 + 拼音；与剪贴板共用）
 - `src/renderer/src/components/SearchField.vue` — 浮层搜索框（与剪贴板共用）
 - `src/renderer/src/components/ListFooter.vue` — 浮层底栏（与剪贴板共用）
 - `src/renderer/src/components/ToastMessage.vue` / `composables/useToast.ts` — 顶部轻提示（与剪贴板 / 设置共用）

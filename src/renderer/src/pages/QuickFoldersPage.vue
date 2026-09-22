@@ -11,6 +11,7 @@ import QuickFolderDeleteDialog from '@renderer/modules/quickFolders/components/Q
 import ListFooter from '@renderer/components/ListFooter.vue'
 import ToastMessage from '@renderer/components/ToastMessage.vue'
 import { useToast } from '@renderer/composables/useToast'
+import { textMatchesQuery } from '@renderer/lib/textMatch'
 
 const route = useRoute()
 /** 仅独立浮层 ESC 关窗；面板内嵌时 ESC 只清搜索 / 关对话框 */
@@ -42,11 +43,11 @@ const deleteOpen = ref(false)
 const pendingDelete = ref<QuickFolderItem | null>(null)
 
 const filtered = computed(() => {
-  const keyword = search.value.trim().toLowerCase()
+  const keyword = search.value.trim()
   if (!keyword) return items.value
   return items.value.filter((item) => {
-    const label = primaryLabel(item).toLowerCase()
-    return label.includes(keyword) || item.path.toLowerCase().includes(keyword)
+    const label = primaryLabel(item)
+    return textMatchesQuery(label, keyword) || textMatchesQuery(item.path, keyword)
   })
 })
 

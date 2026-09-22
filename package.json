@@ -27,7 +27,8 @@
     "@electron-toolkit/utils": "^4.0.0",
     "electron-updater": "^6.3.9",
     "ffmpeg-static": "^5.3.0",
-    "koffi": "^3.2.1"
+    "koffi": "^3.2.1",
+    "pinyin-pro": "^3.29.4"
   },
   "devDependencies": {
     "@codemirror/commands": "^6.11.0",

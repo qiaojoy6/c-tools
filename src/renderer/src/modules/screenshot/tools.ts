@@ -14,15 +14,15 @@ export const ANNOT_COLORS = [
   '#111827'
 ] as const
 
-/** 线宽 range，数值见 appTuning.SCREENSHOT_UI.stroke */
-export const STROKE_MIN = SCREENSHOT_UI.stroke.min
-export const STROKE_MAX = SCREENSHOT_UI.stroke.max
-export const STROKE_DEFAULT = SCREENSHOT_UI.stroke.default
+/** 线宽 range，数值见 appTuning.SCREENSHOT_UI.stroke（显式 number，避免 as const 字面量锁死 ref） */
+export const STROKE_MIN: number = SCREENSHOT_UI.stroke.min
+export const STROKE_MAX: number = SCREENSHOT_UI.stroke.max
+export const STROKE_DEFAULT: number = SCREENSHOT_UI.stroke.default
 
 /** 马赛克粒度 range，数值见 appTuning.SCREENSHOT_UI.mosaic */
-export const MOSAIC_MIN = SCREENSHOT_UI.mosaic.min
-export const MOSAIC_MAX = SCREENSHOT_UI.mosaic.max
-export const MOSAIC_DEFAULT = SCREENSHOT_UI.mosaic.default
+export const MOSAIC_MIN: number = SCREENSHOT_UI.mosaic.min
+export const MOSAIC_MAX: number = SCREENSHOT_UI.mosaic.max
+export const MOSAIC_DEFAULT: number = SCREENSHOT_UI.mosaic.default
 
 export type AnnotStroke =
   | {

@@ -18,6 +18,7 @@ import ToastMessage from '@renderer/components/ToastMessage.vue'
 import { useToast } from '@renderer/composables/useToast'
 import ClipVirtualList from '@renderer/modules/clipboard/components/ClipVirtualList.vue'
 import { useHistory } from '@renderer/modules/clipboard/composables/useHistory'
+import { textMatchesQuery } from '@renderer/lib/textMatch'
 import { ClipboardList, Image as ImageIcon, Star, Trash2, Type } from 'lucide-vue-next'
 
 type FilterType = 'all' | 'text' | 'image' | 'favorite'
@@ -71,13 +72,16 @@ function isFavorited(record: ClipRecord): boolean {
 
 // ---------- 过滤 ----------
 const filtered = computed<ClipRecord[]>(() => {
-  const keyword = search.value.trim().toLowerCase()
+  const keyword = search.value.trim()
   const source = viewingFavorites.value ? favorites.value : records.value
   return source.filter((r) => {
     if (filter.value === 'text' || filter.value === 'image') {
       if (r.type !== filter.value) return false
     }
-    if (keyword && (r.type !== 'text' || !r.text?.toLowerCase().includes(keyword))) return false
+    // 文本：原文 / 全拼 / 首字母；图片无文本则搜不到
+    if (keyword && (r.type !== 'text' || !r.text || !textMatchesQuery(r.text, keyword))) {
+      return false
+    }
     return true
   })
 })
