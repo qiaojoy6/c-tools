@@ -27,13 +27,15 @@ const route = useRoute()
 /** 仅独立剪贴板浮层可用 ESC 关闭；功能面板内嵌时 ESC 只清搜索/预览 */
 const escToClose = computed(() => route.name === 'clipboard')
 
-const { records, favorites, refresh, remove, clear, addFavorite, removeFavorite, paste } =
+const { records, favorites, refresh, remove, clear, addFavorite, removeFavorite, paste, revealImage } =
   useHistory()
 
 // ---------- 状态 ----------
 const search = ref('')
 const searchField = ref<{ focusInput: () => void; blurInput: () => void } | null>(null)
-const listRef = ref<{ scrollToIndex: (index: number) => void } | null>(null)
+const listRef = ref<{ scrollToIndex: (index: number) => void; scrollToTop: () => void } | null>(
+  null
+)
 const filter = ref<FilterType>('all')
 const highlight = ref(0)
 const selectedIds = ref<Set<string>>(new Set())
@@ -89,13 +91,24 @@ const filtered = computed<ClipRecord[]>(() => {
 watch([search, filter], () => {
   highlight.value = 0
   anchorIndex = -1
-  nextTick(() => listRef.value?.scrollToIndex(0))
+  nextTick(() => listRef.value?.scrollToTop())
 })
 
 watch(
   () => filtered.value.length,
   (len) => {
     if (highlight.value >= len) highlight.value = Math.max(0, len - 1)
+  }
+)
+
+/** 新复制置顶（或列表首条变化）时滚回顶部，避免仍停在旧滚动位置 */
+watch(
+  () => filtered.value[0]?.id,
+  (id, prev) => {
+    if (!id || id === prev) return
+    highlight.value = 0
+    anchorIndex = -1
+    nextTick(() => listRef.value?.scrollToTop())
   }
 )
 
@@ -198,6 +211,12 @@ function onRemoveCard(record: ClipRecord): void {
   const next = new Set(selectedIds.value)
   next.delete(record.id)
   selectedIds.value = next
+}
+
+/** 打开剪贴板图片所在文件夹并选中该文件 */
+async function onRevealImage(record: ClipRecord): Promise<void> {
+  const ok = await revealImage(record.id)
+  if (!ok) showToast('找不到图片文件')
 }
 
 async function onToggleFavorite(record: ClipRecord): Promise<void> {
@@ -344,7 +363,10 @@ onMounted(() => {
     highlight.value = 0
     selectedIds.value = new Set()
     preview.value = null
-    void refresh()
+    anchorIndex = -1
+    void refresh().then(() => {
+      nextTick(() => listRef.value?.scrollToTop())
+    })
     blurSearch()
   })
   window.addEventListener('keydown', onKeydown, true)
@@ -393,6 +415,7 @@ onUnmounted(() => {
         @activate="onActivate"
         @commit="onCommit"
         @remove="onRemoveCard"
+        @reveal-image="onRevealImage"
         @toggle-favorite="onToggleFavorite"
         @preview="onPreview"
       />

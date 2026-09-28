@@ -11,7 +11,7 @@ export type ClipboardFeatureHandles = FeatureHandles &
 
 /**
  * 剪贴板主进程 Feature
- * 贡献：lifecycle + IPC `history:*`/`favorite:*`/`clip:paste` + 快捷键 toggleClipboard
+ * 贡献：lifecycle + IPC `history:*`/`favorite:*`/`clip:paste`/`clip:reveal-image` + 快捷键 toggleClipboard
  * 对外：ClipboardHostServices（截屏入库）
  */
 export const clipboardFeature = defineFeature({
@@ -37,6 +37,7 @@ export const clipboardFeature = defineFeature({
       history: h.history,
       favorites: h.favorites,
       paste: h.paste,
+      images: h.images,
       windows: ctx.windows
     })
   },

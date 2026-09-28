@@ -1,14 +1,17 @@
-import { ipcMain, Notification } from 'electron'
+import { existsSync } from 'fs'
+import { ipcMain, Notification, shell } from 'electron'
 import type { ClipRecord } from '@shared/types'
 import type { WindowManager } from '../core/windows'
 import type { FavoritesManager } from './favorites'
 import type { HistoryManager } from './history'
+import type { ClipboardImageStore } from './imageStore'
 import type { PasteService } from './paste'
 
 export interface ClipboardIpcDeps {
   history: HistoryManager
   favorites: FavoritesManager
   paste: PasteService
+  images: ClipboardImageStore
   windows: WindowManager
 }
 
@@ -24,6 +27,7 @@ export interface ClipboardIpcDeps {
  * | favorite:add      | 渲染→主 invoke | 从历史 id 拷贝到收藏 |
  * | favorite:remove   | 渲染→主 invoke | 取消收藏（删除） |
  * | clip:paste        | 渲染→主 invoke | 先写入系统剪贴板，再恢复焦点并模拟粘贴 |
+ * | clip:reveal-image | 渲染→主 invoke | 打开图片所在文件夹并选中该文件 |
  *
  * 主→渲染推送：
  * history:updated / favorite:updated
@@ -32,7 +36,7 @@ export interface ClipboardIpcDeps {
 let manualPasteHintShown = false
 
 export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
-  const { history, favorites, paste, windows } = deps
+  const { history, favorites, paste, images, windows } = deps
 
   ipcMain.handle('history:list', (): ClipRecord[] => history.getAll())
 
@@ -94,6 +98,21 @@ export function registerClipboardIpc(deps: ClipboardIpcDeps): void {
       notifyManualPasteHintOnce()
       return true
     }
+    return true
+  })
+
+  /**
+   * 在访达 / 资源管理器中打开剪贴板图片目录，并选中该文件。
+   * 历史与收藏共用同一套磁盘文件。
+   */
+  ipcMain.handle('clip:reveal-image', (_e, id: string): boolean => {
+    if (typeof id !== 'string' || !id) return false
+    const record = history.get(id) ?? favorites.get(id)
+    const fileId = record?.image?.fileId
+    if (!fileId || !images.isSafeFileId(fileId)) return false
+    const filePath = images.absolutePath(fileId)
+    if (!existsSync(filePath)) return false
+    shell.showItemInFolder(filePath)
     return true
   })
 }

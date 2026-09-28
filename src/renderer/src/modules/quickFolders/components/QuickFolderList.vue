@@ -20,8 +20,16 @@ const emit = defineEmits<{
   reorder: [from: number, to: number]
 }>()
 
+const listEl = ref<HTMLElement | null>(null)
 const dragFrom = ref<number | null>(null)
 const dragOver = ref<number | null>(null)
+
+/** 新增置顶 / 呼出 / 搜索：滚回顶部 */
+function scrollToTop(): void {
+  if (listEl.value) listEl.value.scrollTop = 0
+}
+
+defineExpose({ scrollToTop })
 
 function onDragStart(index: number, e: DragEvent): void {
   if (props.dragDisabled) {
@@ -54,7 +62,7 @@ function onDragEnd(): void {
 </script>
 
 <template>
-  <div class="list">
+  <div ref="listEl" class="list">
     <ul v-if="items.length > 0" class="rows" role="listbox" aria-label="快捷文件夹">
       <QuickFolderRow
         v-for="(item, index) in items"

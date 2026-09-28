@@ -2,7 +2,7 @@
 import type { ClipRecord } from '@shared/types'
 import { clipImageSrc } from '@shared/types'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { Check, ChevronDown, ChevronUp, Star, Trash2 } from 'lucide-vue-next'
+import { Check, ChevronDown, ChevronUp, FolderOpen, Star, Trash2 } from 'lucide-vue-next'
 import { formatBytes, formatTime } from '@renderer/modules/clipboard/lib/time'
 
 /** 折叠预览进 DOM 的上限；超长文本整段排版会卡死 Layout */
@@ -22,6 +22,7 @@ const emit = defineEmits<{
   (e: 'activate', record: ClipRecord, event: MouseEvent): void
   (e: 'commit', record: ClipRecord): void
   (e: 'remove', record: ClipRecord): void
+  (e: 'reveal-image', record: ClipRecord): void
   (e: 'toggle-favorite', record: ClipRecord): void
   (e: 'preview', record: ClipRecord | null): void
 }>()
@@ -146,6 +147,16 @@ onMounted(() => {
     </template>
 
     <div class="card-actions" @click.stop @dblclick.stop>
+      <button
+        v-if="record.type === 'image'"
+        type="button"
+        class="action-btn is-ghost is-folder"
+        title="打开所在文件夹"
+        aria-label="打开所在文件夹"
+        @click="emit('reveal-image', record)"
+      >
+        <FolderOpen class="action-icon" aria-hidden="true" />
+      </button>
       <button
         type="button"
         class="action-btn"
@@ -339,6 +350,10 @@ onMounted(() => {
 .action-btn.is-ghost:hover {
   background: color-mix(in oklab, var(--foreground) 10%, transparent);
   color: #fbbf24;
+}
+
+.action-btn.is-folder:hover {
+  color: color-mix(in oklab, var(--foreground) 90%, transparent);
 }
 
 .action-btn.is-danger:hover {

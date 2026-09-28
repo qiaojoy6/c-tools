@@ -23,6 +23,9 @@ export const clipboardApi = {
   /** clip:paste — 按 id 列表顺序粘贴到原焦点应用（历史或收藏） */
   pasteItems: (ids: string[]): Promise<boolean> => ipcRenderer.invoke('clip:paste', ids),
 
+  /** clip:reveal-image — 打开图片所在文件夹并选中该文件 */
+  revealClipImage: (id: string): Promise<boolean> => ipcRenderer.invoke('clip:reveal-image', id),
+
   /** 订阅 history:updated */
   onHistoryUpdated: (callback: (records: ClipRecord[]) => void): (() => void) => {
     const listener = (_e: Electron.IpcRendererEvent, records: ClipRecord[]): void =>

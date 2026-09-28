@@ -41,6 +41,11 @@ export function useHistory() {
     return window.api.pasteItems(ids)
   }
 
+  /** 在访达 / 资源管理器中选中该剪贴板图片文件 */
+  async function revealImage(id: string): Promise<boolean> {
+    return window.api.revealClipImage(id)
+  }
+
   onMounted(async () => {
     await refresh()
     offHistory = window.api.onHistoryUpdated((list) => {
@@ -56,5 +61,15 @@ export function useHistory() {
     offFavorites?.()
   })
 
-  return { records, favorites, refresh, remove, clear, addFavorite, removeFavorite, paste }
+  return {
+    records,
+    favorites,
+    refresh,
+    remove,
+    clear,
+    addFavorite,
+    removeFavorite,
+    paste,
+    revealImage
+  }
 }

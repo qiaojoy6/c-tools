@@ -25,6 +25,7 @@ const { message: toastMsg, showToast } = useToast()
 let offShown: (() => void) | null = null
 
 const toolbar = ref<{ focusInput: () => void; blurInput: () => void } | null>(null)
+const listRef = ref<{ scrollToTop: () => void } | null>(null)
 const formDialog = ref<{
   setError: (message: string) => void
   setBusy: (busy: boolean) => void
@@ -53,12 +54,23 @@ const filtered = computed(() => {
 
 watch(search, () => {
   highlight.value = 0
+  nextTick(() => listRef.value?.scrollToTop())
 })
 
 watch(
   () => filtered.value.length,
   (len) => {
     if (highlight.value >= len) highlight.value = Math.max(0, len - 1)
+  }
+)
+
+/** 新加置顶（或列表首条变化）时滚回顶部 */
+watch(
+  () => filtered.value[0]?.id,
+  (id, prev) => {
+    if (!id || id === prev) return
+    highlight.value = 0
+    nextTick(() => listRef.value?.scrollToTop())
   }
 )
 
@@ -252,8 +264,12 @@ onMounted(() => {
     dialogOpen.value = false
     deleteOpen.value = false
     pendingDelete.value = null
-    void refresh()
-    nextTick(() => toolbar.value?.blurInput())
+    void refresh().then(() => {
+      nextTick(() => {
+        listRef.value?.scrollToTop()
+        toolbar.value?.blurInput()
+      })
+    })
   })
   window.addEventListener('keydown', onKeydown, true)
 })
@@ -269,6 +285,7 @@ onUnmounted(() => {
     <QuickFoldersToolbar ref="toolbar" v-model:search="search" @add="openAdd" />
 
     <QuickFolderList
+      ref="listRef"
       v-model:highlight="highlight"
       :items="filtered"
       :drag-disabled="Boolean(search.trim())"

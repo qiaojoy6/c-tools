@@ -16,6 +16,7 @@ const emit = defineEmits<{
   (e: 'activate', record: ClipRecord, event: MouseEvent): void
   (e: 'commit', record: ClipRecord): void
   (e: 'remove', record: ClipRecord): void
+  (e: 'reveal-image', record: ClipRecord): void
   (e: 'toggle-favorite', record: ClipRecord): void
   (e: 'preview', record: ClipRecord | null): void
 }>()
@@ -51,7 +52,14 @@ function scrollToIndex(index: number): void {
   virtualizer.value.scrollToIndex(index, { align: 'auto' })
 }
 
-defineExpose({ scrollToIndex })
+/** 新复制 / 呼出：滚回列表顶部 */
+function scrollToTop(): void {
+  const el = parentRef.value
+  if (el) el.scrollTop = 0
+  else virtualizer.value.scrollToIndex(0, { align: 'start' })
+}
+
+defineExpose({ scrollToIndex, scrollToTop })
 </script>
 
 <template>
@@ -73,6 +81,7 @@ defineExpose({ scrollToIndex })
           @activate="(r, e) => emit('activate', r, e)"
           @commit="(r) => emit('commit', r)"
           @remove="(r) => emit('remove', r)"
+          @reveal-image="(r) => emit('reveal-image', r)"
           @toggle-favorite="(r) => emit('toggle-favorite', r)"
           @preview="(r) => emit('preview', r)"
         />
